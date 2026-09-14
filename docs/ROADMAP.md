@@ -55,8 +55,9 @@ Targets: KVLab and FLAT-ATTENTION.
 - [x] canonical replayable routing evidence binding exact Q/K Boolean signatures, routing mode, derived mask and mask-storage bytes;
 - [x] canonical KVLab BKV handoff consumed and independently revalidated against FLAT routing, bound to KVLab handoff revision `0fb5adc5babfaea9077342db881ce775eacc4442`;
 - [x] FLAT BKV-K6.3 executed evidence envelope ingestion with checksum, provenance, accounting, gate and promotion-decision revalidation;
+- [x] comparable multi-threshold BIKV observed sweeps with exact paired-dense normalization and no interpolation;
 - [ ] prospective signatures backed by executed FLAT/KV experiments;
-- [ ] evidence-backed comparisons against existing heuristics;
+- [ ] evidence-backed comparisons against additional existing heuristics;
 - [ ] representative benchmark gates for any speedup, traffic, TTFT/TPOT or quality claim.
 
 The first adapter intentionally consumes only FLAT's public backend-neutral Boolean contracts (`BooleanAttentionSignature`, `HammingAdmissionRule`, and `BooleanAttentionMask`). Internal BIKV paged-selection implementation details are not treated as a stable cross-repository API. KVLab now provides the separate schema `kvlab.prospect-bkv-handoff/v1`, whose exact bit-packed signatures and candidate pages are independently revalidated by ProspectEngine before conversion into a FLAT mask.
@@ -66,6 +67,8 @@ The bounded scenario generator sorts and validates a caller-provided threshold s
 Routing and KVLab handoff evidence are structural and pre-execution: they prove which Boolean inputs and threshold produced a specific canonical mask. They do not by themselves prove numerical correctness, runtime speed, physical traffic reduction, or model-quality preservation.
 
 Executed BKV-K6.3 evidence is handled separately. ProspectEngine revalidates the candidate/dense benchmark checksums, shared commit/environment/problem/protocol, exact logical KV-byte accounting, correctness/quality gates, scope declarations and top-level evidence checksum. The observed signature uses the candidate and dense **end-to-end benchmark medians**; the sum of per-phase medians remains diagnostic and is never substituted for an end-to-end latency measurement. Logical numerical KV bytes avoided remain logical accounting unless the source evidence explicitly claims physical DRAM traffic measurement.
+
+Measured multi-threshold sweeps remain empirical. Records are comparable only when commit, benchmark identities, device/driver/backend, attention problem, measurement protocol, signature width, selection policy and measurement scope match. Ranking uses each candidate's paired dense baseline via exact integer cross multiplication, so baseline drift between runs is not silently ignored. Missing thresholds are never interpolated or synthesized.
 
 ## Milestone 0.5 — plugin boundary
 
