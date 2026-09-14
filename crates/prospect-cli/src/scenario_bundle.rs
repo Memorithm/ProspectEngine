@@ -99,7 +99,9 @@ impl fmt::Display for ScenarioBundleFileError {
             Self::Io { path, source } => {
                 write!(formatter, "failed to read {}: {source}", path.display())
             }
-            Self::Bundle(error) => write!(formatter, "scenario bundle verification failed: {error}"),
+            Self::Bundle(error) => {
+                write!(formatter, "scenario bundle verification failed: {error}")
+            }
         }
     }
 }
