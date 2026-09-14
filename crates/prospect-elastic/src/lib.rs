@@ -189,16 +189,26 @@ where
 impl fmt::Display for ElasticBridgeError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyInterventionKind => formatter.write_str("intervention kind must not be empty"),
-            Self::EmptyParameterName => formatter.write_str("intervention parameter name must not be empty"),
+            Self::EmptyInterventionKind => {
+                formatter.write_str("intervention kind must not be empty")
+            }
+            Self::EmptyParameterName => {
+                formatter.write_str("intervention parameter name must not be empty")
+            }
             Self::NonFiniteParameter { name } => {
                 write!(formatter, "intervention parameter {name} is not finite")
             }
             Self::NonFiniteObservation { key } => {
-                write!(formatter, "valid ElasticXxx observation {key} is not finite")
+                write!(
+                    formatter,
+                    "valid ElasticXxx observation {key} is not finite"
+                )
             }
             Self::DuplicateObservation { key } => {
-                write!(formatter, "ElasticXxx snapshot contains duplicate observation {key}")
+                write!(
+                    formatter,
+                    "ElasticXxx snapshot contains duplicate observation {key}"
+                )
             }
         }
     }
@@ -238,7 +248,11 @@ mod tests {
             state: &ElasticObservationState,
             intervention: &ElasticIntervention,
         ) -> Result<Self::Signature, Self::Error> {
-            let delta = intervention.parameters().get("delta").copied().unwrap_or(0.0);
+            let delta = intervention
+                .parameters()
+                .get("delta")
+                .copied()
+                .unwrap_or(0.0);
             Ok(state.signals().values().sum::<f64>() + delta)
         }
     }
