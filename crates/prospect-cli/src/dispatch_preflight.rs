@@ -4,9 +4,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use prospect_bundle::{ScenarioBundle, ScenarioBundleError};
-use prospect_dispatch::catalog::{
-    CatalogPreflightError, DispatchCatalog, DispatchCatalogError,
-};
+use prospect_dispatch::catalog::{CatalogPreflightError, DispatchCatalog, DispatchCatalogError};
 use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -50,12 +48,11 @@ pub fn preflight_scenario_bundle_files(
 ) -> Result<DispatchPreflightSummary, DispatchPreflightFileError> {
     let bundle_path = bundle_path.as_ref();
     let catalog_path = catalog_path.as_ref();
-    let bundle_payload = fs::read_to_string(bundle_path).map_err(|source| {
-        DispatchPreflightFileError::BundleIo {
+    let bundle_payload =
+        fs::read_to_string(bundle_path).map_err(|source| DispatchPreflightFileError::BundleIo {
             path: bundle_path.to_path_buf(),
             source,
-        }
-    })?;
+        })?;
     let catalog_payload = fs::read_to_string(catalog_path).map_err(|source| {
         DispatchPreflightFileError::CatalogIo {
             path: catalog_path.to_path_buf(),
@@ -154,13 +151,25 @@ impl fmt::Display for DispatchPreflightFileError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::BundleIo { path, source } => {
-                write!(formatter, "failed to read bundle {}: {source}", path.display())
+                write!(
+                    formatter,
+                    "failed to read bundle {}: {source}",
+                    path.display()
+                )
             }
             Self::CatalogIo { path, source } => {
-                write!(formatter, "failed to read dispatch catalog {}: {source}", path.display())
+                write!(
+                    formatter,
+                    "failed to read dispatch catalog {}: {source}",
+                    path.display()
+                )
             }
-            Self::Bundle(error) => write!(formatter, "scenario bundle verification failed: {error}"),
-            Self::Catalog(error) => write!(formatter, "dispatch catalog verification failed: {error}"),
+            Self::Bundle(error) => {
+                write!(formatter, "scenario bundle verification failed: {error}")
+            }
+            Self::Catalog(error) => {
+                write!(formatter, "dispatch catalog verification failed: {error}")
+            }
             Self::Preflight(error) => write!(formatter, "dispatch preflight failed: {error}"),
         }
     }
@@ -221,8 +230,17 @@ mod tests {
         let summary = preflight_scenario_bundle_files(&bundle.0, &catalog.0).unwrap();
         assert_eq!(summary.bundle_id, "bundle.fixture");
         assert_eq!(summary.adapter_id, "prospect.fixture");
-        assert_eq!((summary.required_adapter_major, summary.required_adapter_minor), (1, 0));
-        assert_eq!((summary.offered_adapter_major, summary.offered_adapter_minor), (1, 2));
+        assert_eq!(
+            (
+                summary.required_adapter_major,
+                summary.required_adapter_minor
+            ),
+            (1, 0)
+        );
+        assert_eq!(
+            (summary.offered_adapter_major, summary.offered_adapter_minor),
+            (1, 2)
+        );
         assert_eq!(summary.upstream_revision.as_deref(), Some(REVISION));
         assert_eq!(summary.metric_id.as_deref(), Some("metric.distance"));
         assert_eq!(summary.offered_metric_minor, Some(3));
