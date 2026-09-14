@@ -9,6 +9,8 @@ members = [
     "crates/prospect-flat",
     "crates/prospect-kv",
     "crates/prospect-kv-observed",
+    "crates/prospect-kv-selection",
+    "crates/prospect-kv-selection-observed",
 ]
 
 [workspace.package]
