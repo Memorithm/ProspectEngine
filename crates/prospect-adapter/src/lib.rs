@@ -58,6 +58,22 @@ pub trait VersionedAdapter {
     fn adapter_metadata(&self) -> Result<AdapterMetadata, AdapterMetadataError>;
 }
 
+/// Returns metadata for every built-in ProspectEngine adapter in stable ID order.
+///
+/// This is a discovery surface only. Presence in the catalog and declared
+/// capabilities do not constitute execution, scientific, safety, performance,
+/// or physical-effect evidence.
+pub fn built_in_adapter_catalog() -> Result<Vec<AdapterMetadata>, AdapterMetadataError> {
+    let mut catalog = vec![
+        tdi_metadata()?,
+        elastic_metadata()?,
+        flat_boolean_attention_metadata()?,
+        kv_eviction_metadata()?,
+    ];
+    catalog.sort_by(|left, right| left.adapter_id.cmp(&right.adapter_id));
+    Ok(catalog)
+}
+
 impl ContractVersion {
     pub fn new(major: u16, minor: u16) -> Result<Self, AdapterMetadataError> {
         if major == 0 {
@@ -206,46 +222,62 @@ impl AdapterMetadata {
 
 impl<S> VersionedAdapter for TdiEngine<'_, S> {
     fn adapter_metadata(&self) -> Result<AdapterMetadata, AdapterMetadataError> {
-        built_in_metadata(
-            "prospect.tdi",
-            "memorithm.tdi",
-            TDI_REVISION,
-            "tdi.exact_finite_state_signature",
-        )
+        tdi_metadata()
     }
 }
 
 impl<M> VersionedAdapter for ElasticEngine<M> {
     fn adapter_metadata(&self) -> Result<AdapterMetadata, AdapterMetadataError> {
-        built_in_metadata(
-            "prospect.elastic",
-            "memorithm.elasticxxx",
-            ELASTICXXX_REVISION,
-            "elastic.prospective_resource_evaluation",
-        )
+        elastic_metadata()
     }
 }
 
 impl<M> VersionedAdapter for FlatBooleanAttentionEngine<M> {
     fn adapter_metadata(&self) -> Result<AdapterMetadata, AdapterMetadataError> {
-        built_in_metadata(
-            "prospect.flat_boolean_attention",
-            "memorithm.flat_attention",
-            FLAT_ATTENTION_REVISION,
-            "flat.boolean_hamming_routing",
-        )
+        flat_boolean_attention_metadata()
     }
 }
 
 impl<M> VersionedAdapter for KvEvictionEngine<M> {
     fn adapter_metadata(&self) -> Result<AdapterMetadata, AdapterMetadataError> {
-        built_in_metadata(
-            "prospect.kv_eviction",
-            "memorithm.kvlab",
-            KVLAB_KV_EVICTION_HANDOFF_REVISION,
-            "kvlab.logical_oldest_first_eviction",
-        )
+        kv_eviction_metadata()
     }
+}
+
+fn tdi_metadata() -> Result<AdapterMetadata, AdapterMetadataError> {
+    built_in_metadata(
+        "prospect.tdi",
+        "memorithm.tdi",
+        TDI_REVISION,
+        "tdi.exact_finite_state_signature",
+    )
+}
+
+fn elastic_metadata() -> Result<AdapterMetadata, AdapterMetadataError> {
+    built_in_metadata(
+        "prospect.elastic",
+        "memorithm.elasticxxx",
+        ELASTICXXX_REVISION,
+        "elastic.prospective_resource_evaluation",
+    )
+}
+
+fn flat_boolean_attention_metadata() -> Result<AdapterMetadata, AdapterMetadataError> {
+    built_in_metadata(
+        "prospect.flat_boolean_attention",
+        "memorithm.flat_attention",
+        FLAT_ATTENTION_REVISION,
+        "flat.boolean_hamming_routing",
+    )
+}
+
+fn kv_eviction_metadata() -> Result<AdapterMetadata, AdapterMetadataError> {
+    built_in_metadata(
+        "prospect.kv_eviction",
+        "memorithm.kvlab",
+        KVLAB_KV_EVICTION_HANDOFF_REVISION,
+        "kvlab.logical_oldest_first_eviction",
+    )
 }
 
 fn built_in_metadata(
@@ -314,7 +346,8 @@ impl std::error::Error for AdapterMetadataError {}
 mod tests {
     use super::{
         ADAPTER_CONTRACT_VERSION, AdapterCapability, AdapterMetadata, AdapterMetadataError,
-        AdapterUpstream, ContractVersion, NamespacedId, built_in_metadata,
+        AdapterUpstream, ContractVersion, NamespacedId, built_in_adapter_catalog,
+        built_in_metadata,
     };
 
     #[test]
@@ -399,6 +432,26 @@ mod tests {
             "fixture.exact_operation",
             ContractVersion::new(1, 1).unwrap()
         ));
+    }
+
+    #[test]
+    fn built_in_catalog_is_deterministic_and_complete() {
+        let catalog = built_in_adapter_catalog().unwrap();
+        let ids: Vec<_> = catalog
+            .iter()
+            .map(|metadata| metadata.adapter_id().as_str())
+            .collect();
+        assert_eq!(
+            ids,
+            vec![
+                "prospect.elastic",
+                "prospect.flat_boolean_attention",
+                "prospect.kv_eviction",
+                "prospect.tdi",
+            ]
+        );
+        assert!(catalog.iter().all(|metadata| metadata.upstream().is_some()));
+        assert!(catalog.iter().all(|metadata| !metadata.capabilities().is_empty()));
     }
 
     #[test]
