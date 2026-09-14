@@ -33,6 +33,15 @@ pub struct DispatchPreflightSummary {
     offered_policy_minor: Option<u16>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct RegistryResolutionSummary {
+    id: Option<String>,
+    required_major: Option<u16>,
+    required_minor: Option<u16>,
+    offered_major: Option<u16>,
+    offered_minor: Option<u16>,
+}
+
 #[derive(Debug)]
 pub enum DispatchPreflightFileError {
     BundleIo { path: PathBuf, source: io::Error },
@@ -85,20 +94,8 @@ pub fn preflight_scenario_bundle_files(
             )
         })
         .unwrap_or((None, None));
-    let (
-        metric_id,
-        required_metric_major,
-        required_metric_minor,
-        offered_metric_major,
-        offered_metric_minor,
-    ) = registry_summary(bundle.metric(), resolved.metric());
-    let (
-        policy_id,
-        required_policy_major,
-        required_policy_minor,
-        offered_policy_major,
-        offered_policy_minor,
-    ) = registry_summary(bundle.policy(), resolved.policy());
+    let metric = registry_summary(bundle.metric(), resolved.metric());
+    let policy = registry_summary(bundle.policy(), resolved.policy());
 
     Ok(DispatchPreflightSummary {
         bundle_sha256,
@@ -111,38 +108,38 @@ pub fn preflight_scenario_bundle_files(
         offered_adapter_minor: offered_adapter_version.minor(),
         upstream_component,
         upstream_revision,
-        metric_id,
-        required_metric_major,
-        required_metric_minor,
-        offered_metric_major,
-        offered_metric_minor,
-        policy_id,
-        required_policy_major,
-        required_policy_minor,
-        offered_policy_major,
-        offered_policy_minor,
+        metric_id: metric.id,
+        required_metric_major: metric.required_major,
+        required_metric_minor: metric.required_minor,
+        offered_metric_major: metric.offered_major,
+        offered_metric_minor: metric.offered_minor,
+        policy_id: policy.id,
+        required_policy_major: policy.required_major,
+        required_policy_minor: policy.required_minor,
+        offered_policy_major: policy.offered_major,
+        offered_policy_minor: policy.offered_minor,
     })
 }
 
 fn registry_summary(
     required: Option<&prospect_bundle::RegistryRequirement>,
     offered: Option<&prospect_dispatch::catalog::AvailableRegistryEntry>,
-) -> (
-    Option<String>,
-    Option<u16>,
-    Option<u16>,
-    Option<u16>,
-    Option<u16>,
-) {
+) -> RegistryResolutionSummary {
     match (required, offered) {
-        (Some(required), Some(offered)) => (
-            Some(required.id().as_str().to_owned()),
-            Some(required.version().major()),
-            Some(required.version().minor()),
-            Some(offered.version().major()),
-            Some(offered.version().minor()),
-        ),
-        (None, None) => (None, None, None, None, None),
+        (Some(required), Some(offered)) => RegistryResolutionSummary {
+            id: Some(required.id().as_str().to_owned()),
+            required_major: Some(required.version().major()),
+            required_minor: Some(required.version().minor()),
+            offered_major: Some(offered.version().major()),
+            offered_minor: Some(offered.version().minor()),
+        },
+        (None, None) => RegistryResolutionSummary {
+            id: None,
+            required_major: None,
+            required_minor: None,
+            offered_major: None,
+            offered_minor: None,
+        },
         _ => unreachable!("successful dispatch preflight preserves optional requirement shape"),
     }
 }
