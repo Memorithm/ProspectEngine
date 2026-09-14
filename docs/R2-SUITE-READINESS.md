@@ -72,5 +72,9 @@ uncompleted gates until their actual evidence is available.
 
 The historical R1 inputs and tools are unchanged. The fixed
 `prospect verify-kv-campaign-suite` is still an R1 consumer. R2 execution uses the
-generic per-campaign verifier; the independent R2 whole-suite observed-evidence
-consumer remains a separate development slice.
+generic per-campaign verifier at its historical pinned revision. The separate
+`prospect verify-kv-campaign-suite-r2` command now provides independent R2 whole-suite
+consistency checks; see [R2-SUITE-VERIFICATION.md](R2-SUITE-VERIFICATION.md).
+That consumer does not change any launcher or experiment pin and is not invoked
+by this historical readiness workflow. Its synthetic producer/consumer tests are
+separate from readiness, and neither kind of test proves a CUDA model run.
