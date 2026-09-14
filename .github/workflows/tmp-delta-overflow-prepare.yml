@@ -1,0 +1,115 @@
+name: Reproduce and repair observed KV delta overflow
+
+on:
+  push:
+    branches: [fix/observed-kv-delta-overflow]
+    paths: [.github/workflows/tmp-delta-overflow-prepare.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: fix/observed-kv-delta-overflow
+      - name: Install project Rust toolchain
+        run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt,clippy
+      - name: Add regressions against the verified original source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          p = Path('crates/prospect-kv-position-observed/src/lib.rs')
+          data = p.read_bytes()
+          blob = hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest()
+          assert blob == 'dfb248d4b5407f3c79328c1396cfd9a04fd7cdaa', 'base source drift'
+          text = data.decode()
+          anchor = '    #[test]\n    fn parses_observed_position_evidence_with_repeated_tokens() {'
+          tests = '''    #[test]
+              fn delta_guard_rejects_overflow_through_public_evidence_parser() {
+                  for (baseline, candidate) in [(-1.0e308_f64, 1.0e308_f64), (1.0e308_f64, -1.0e308_f64)] {
+                      assert!(baseline.is_finite() && candidate.is_finite());
+                      assert!(!(candidate - baseline).is_finite());
+                      let mut value: Value = serde_json::from_str(&fixture("fixture", &[0, 2, 4], '3', 0.75)).unwrap();
+                      value["metrics"][0]["kind"] = json!("numerical");
+                      value["metrics"][0]["baseline_value"] = json!(baseline);
+                      value["metrics"][0]["candidate_value"] = json!(candidate);
+                      value["metrics"][0]["delta"] = json!(0.0);
+                      let result = KvlabKvRealModelPositionEvidenceV2::from_canonical_json(&canonical_json(&value).unwrap());
+                      assert!(matches!(result, Err(super::KvlabKvRealModelPositionError::MetricDeltaMismatch(_))), "non-finite derived delta admitted: {result:?}");
+                  }
+              }
+
+              #[test]
+              fn delta_guard_rejects_nonfinite_comparison_operands() {
+                  for invalid in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+                      for finite in [0.0, 1.0, -1.0, 1.0e308] {
+                          assert!(!super::float_close(finite, invalid));
+                          assert!(!super::float_close(invalid, finite));
+                      }
+                      assert!(!super::float_close(invalid, invalid));
+                  }
+              }
+
+              #[test]
+              fn delta_guard_preserves_large_finite_differences() {
+                  let mut value: Value = serde_json::from_str(&fixture("fixture", &[0, 2, 4], '3', 0.75)).unwrap();
+                  value["metrics"][0]["baseline_value"] = json!(1.0e307);
+                  value["metrics"][0]["candidate_value"] = json!(2.0e307);
+                  value["metrics"][0]["delta"] = json!(1.0e307);
+                  assert!(KvlabKvRealModelPositionEvidenceV2::from_canonical_json(&canonical_json(&value).unwrap()).is_ok());
+              }
+
+              #[test]
+              fn delta_guard_preserves_existing_finite_tolerances() {
+                  assert!(super::float_close(0.0, 5.0e-13));
+                  assert!(super::float_close(1.0e6, 1.0e6 + 5.0e-7));
+                  assert!(!super::float_close(0.0, 1.0e-6));
+                  assert!(!super::float_close(1.0e6, 1.0e6 + 1.0));
+              }
+
+          '''
+          assert text.count(anchor) == 1
+          p.write_text(text.replace(anchor, tests + anchor))
+          PY
+      - name: Require the original implementation to reproduce the regression
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          cargo +1.89.0 test --locked -p prospect-kv-position-observed delta_guard -- --nocapture 2>&1 | tee "$RUNNER_TEMP/delta-before.log"
+          status=$?
+          set -e
+          test "$status" -ne 0
+          grep -q 'delta_guard_rejects_overflow_through_public_evidence_parser ... FAILED' "$RUNNER_TEMP/delta-before.log"
+          grep -q 'delta_guard_rejects_nonfinite_comparison_operands ... FAILED' "$RUNNER_TEMP/delta-before.log"
+      - name: Apply finite guard and validate the corrected workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('crates/prospect-kv-position-observed/src/lib.rs')
+          text = p.read_text()
+          old = 'fn float_close(left: f64, right: f64) -> bool {\n    let difference'
+          new = 'fn float_close(left: f64, right: f64) -> bool {\n    // Finite inputs can still produce an infinite derived delta. Without this\n    // guard the relative comparison can become infinity <= infinity.\n    if !left.is_finite() || !right.is_finite() {\n        return false;\n    }\n    let difference'
+          assert text.count(old) == 1
+          p.write_text(text.replace(old, new))
+          PY
+          cargo +1.89.0 fmt --all
+          cargo +1.89.0 clippy --locked --workspace --all-targets -- -D warnings
+          cargo +1.89.0 test --locked --workspace
+      - name: Commit only the validated repair and remove this preparation workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MEMOPERF'
+          git config user.email 'contact@checkupauto.fr'
+          git add crates/prospect-kv-position-observed/src/lib.rs
+          git rm .github/workflows/tmp-delta-overflow-prepare.yml
+          git commit -m 'fix(kv): reject overflowing observed metric deltas'
+          git push origin HEAD:fix/observed-kv-delta-overflow
