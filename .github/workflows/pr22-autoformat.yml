@@ -1,0 +1,36 @@
+name: PR22 autoformat
+
+on:
+  push:
+    branches:
+      - feature/kv-position-campaign-manifest
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/kv-position-campaign-manifest
+          fetch-depth: 0
+
+      - name: Install Rust 1.89
+        run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt
+
+      - name: Format and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo +1.89.0 fmt --all
+          if git diff --quiet --exit-code; then
+            exit 0
+          fi
+          git config user.name "MEMOPERF"
+          git config user.email "contact@checkupauto.fr"
+          git add --all
+          git commit -m "style: format position campaign verifier"
+          git push origin HEAD:feature/kv-position-campaign-manifest
