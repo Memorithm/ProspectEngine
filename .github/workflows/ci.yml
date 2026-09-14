@@ -22,7 +22,26 @@ jobs:
         run: rustup default 1.89.0
 
       - name: Formatting
-        run: cargo fmt --all -- --check
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          cargo fmt --all -- --check 2>&1 | tee "$RUNNER_TEMP/rustfmt-check.log"
+          status=$?
+          cargo fmt --all
+          git diff --binary -- . > "$RUNNER_TEMP/rustfmt.patch"
+          exit "$status"
+
+      - name: Upload rustfmt diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustfmt-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/rustfmt-check.log
+            ${{ runner.temp }}/rustfmt.patch
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings

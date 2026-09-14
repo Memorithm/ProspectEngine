@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod bikv_executed_evidence;
 mod kvlab_handoff;
 mod routing_evidence;
 pub mod scenarios;
@@ -14,6 +15,11 @@ use flat_attention::api::boolean_attention_signature::{
 };
 use prospect_core::ProspectiveEngine;
 
+pub use bikv_executed_evidence::{
+    FLAT_BIKV_EVIDENCE_CONTRACT_REVISION, FLAT_BIKV_EVIDENCE_SCHEMA_VERSION,
+    FlatBikvExecutedEvidenceError, FlatBikvExecutedEvidenceV1, ObservedBikvDecision,
+    ObservedBikvSignature,
+};
 pub use kvlab_handoff::{
     KVLAB_BKV_HANDOFF_REVISION, KVLAB_BKV_HANDOFF_SCHEMA_V1, KvlabBkvHandoffError,
     KvlabBkvHandoffV1,
