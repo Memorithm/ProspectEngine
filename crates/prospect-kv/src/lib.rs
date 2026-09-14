@@ -284,7 +284,7 @@ pub fn retention_scenarios(
     limits: impl IntoIterator<Item = usize>,
 ) -> Result<Vec<Scenario<KvEvictionIntervention>>, KvEvictionContractError> {
     let mut limits = limits.into_iter().collect::<Vec<_>>();
-    if limits.iter().any(|limit| *limit == 0) {
+    if limits.contains(&0) {
         return Err(KvEvictionContractError::ZeroMaxTokens);
     }
     limits.sort_unstable();
