@@ -6,8 +6,7 @@ use std::collections::BTreeSet;
 use serde::Deserialize;
 
 pub const KVLAB_KV_SELECTION_HANDOFF_SCHEMA_V1: &str = "kvlab.prospect-kv-selection/v1";
-pub const KVLAB_KV_SELECTION_HANDOFF_REVISION: &str =
-    "0e7274bf565d9079943845ea4eb0699a525b1db1";
+pub const KVLAB_KV_SELECTION_HANDOFF_REVISION: &str = "0e7274bf565d9079943845ea4eb0699a525b1db1";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KvlabKvSelectionHandoffV1 {
@@ -78,20 +77,21 @@ impl KvlabKvSelectionHandoffV1 {
             return Err(KvSelectionContractError::ZeroBytesPerToken);
         }
 
-        validate_unique(
-            &wire.input_token_ids,
-            |token_id| KvSelectionContractError::DuplicateInputToken { token_id },
-        )?;
-        validate_unique(
-            &wire.retained_token_ids,
-            |token_id| KvSelectionContractError::DuplicateRetainedToken { token_id },
-        )?;
-        validate_unique(
-            &wire.evicted_token_ids,
-            |token_id| KvSelectionContractError::DuplicateEvictedToken { token_id },
-        )?;
+        validate_unique(&wire.input_token_ids, |token_id| {
+            KvSelectionContractError::DuplicateInputToken { token_id }
+        })?;
+        validate_unique(&wire.retained_token_ids, |token_id| {
+            KvSelectionContractError::DuplicateRetainedToken { token_id }
+        })?;
+        validate_unique(&wire.evicted_token_ids, |token_id| {
+            KvSelectionContractError::DuplicateEvictedToken { token_id }
+        })?;
 
-        let input = wire.input_token_ids.iter().copied().collect::<BTreeSet<_>>();
+        let input = wire
+            .input_token_ids
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>();
         let retained = wire
             .retained_token_ids
             .iter()
@@ -207,10 +207,7 @@ fn checked_bytes(count: usize, bytes_per_token: u64) -> Result<u64, KvSelectionC
         .ok_or(KvSelectionContractError::LogicalByteOverflow)
 }
 
-fn validate_unique<E>(
-    values: &[u64],
-    duplicate: impl Fn(u64) -> E,
-) -> Result<(), E> {
+fn validate_unique<E>(values: &[u64], duplicate: impl Fn(u64) -> E) -> Result<(), E> {
     let mut seen = BTreeSet::new();
     for value in values {
         if !seen.insert(*value) {
@@ -281,8 +278,8 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        KVLAB_KV_SELECTION_HANDOFF_REVISION, KvlabKvSelectionHandoffV1,
-        KvSelectionContractError,
+        KVLAB_KV_SELECTION_HANDOFF_REVISION, KvSelectionContractError,
+        KvlabKvSelectionHandoffV1,
     };
 
     const LRU: &str = concat!(
@@ -314,7 +311,10 @@ mod tests {
             .replace("[10,12,14]", "[11,13,14]");
         let magnitude =
             KvlabKvSelectionHandoffV1::from_canonical_json(&magnitude).expect("magnitude");
-        assert_eq!(lru.logical_retained_bytes(), magnitude.logical_retained_bytes());
+        assert_eq!(
+            lru.logical_retained_bytes(),
+            magnitude.logical_retained_bytes()
+        );
         assert_ne!(lru.retained_token_ids(), magnitude.retained_token_ids());
     }
 
