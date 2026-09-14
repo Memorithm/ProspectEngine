@@ -3,9 +3,7 @@ use core::fmt;
 
 use serde::Deserialize;
 
-use crate::{
-    FlatBikvExecutedEvidenceError, FlatBikvExecutedEvidenceV1, ObservedBikvDecision,
-};
+use crate::{FlatBikvExecutedEvidenceError, FlatBikvExecutedEvidenceV1, ObservedBikvDecision};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ObservedBikvSweep {
@@ -127,9 +125,8 @@ impl ObservedBikvSweep {
 
         for (index, json) in records.into_iter().enumerate() {
             let json = json.as_ref();
-            let evidence = FlatBikvExecutedEvidenceV1::from_canonical_json(json).map_err(|source| {
-                ObservedBikvSweepError::Evidence { index, source }
-            })?;
+            let evidence = FlatBikvExecutedEvidenceV1::from_canonical_json(json)
+                .map_err(|source| ObservedBikvSweepError::Evidence { index, source })?;
             let wire: SweepWire = serde_json::from_str(json)
                 .map_err(|source| ObservedBikvSweepError::MetadataJson { index, source })?;
             let key = ComparisonKey {
@@ -236,7 +233,10 @@ impl fmt::Display for ObservedBikvSweepError {
                 write!(formatter, "invalid BIKV evidence record {index}: {source}")
             }
             Self::MetadataJson { index, source } => {
-                write!(formatter, "invalid BIKV sweep metadata record {index}: {source}")
+                write!(
+                    formatter,
+                    "invalid BIKV sweep metadata record {index}: {source}"
+                )
             }
             Self::ComparisonMismatch { index } => write!(
                 formatter,
