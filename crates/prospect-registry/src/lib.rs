@@ -97,10 +97,8 @@ impl<Signature, Score> MetricRegistry<Signature, Score> {
         &self,
         id: &str,
         required: ContractVersion,
-    ) -> Result<
-        &(dyn SignatureMetric<Signature, Score = Score> + Send + Sync),
-        RegistryLookupError,
-    > {
+    ) -> Result<&(dyn SignatureMetric<Signature, Score = Score> + Send + Sync), RegistryLookupError>
+    {
         let id = parse_id(id.to_owned()).map_err(RegistryLookupError::InvalidId)?;
         let entry = self
             .entries
@@ -200,10 +198,8 @@ where
         &self,
         id: &str,
         required: ContractVersion,
-    ) -> Result<
-        &(dyn DecisionPolicy<Signature, Score = Score> + Send + Sync),
-        RegistryLookupError,
-    > {
+    ) -> Result<&(dyn DecisionPolicy<Signature, Score = Score> + Send + Sync), RegistryLookupError>
+    {
         let id = parse_id(id.to_owned()).map_err(RegistryLookupError::InvalidId)?;
         let entry = self
             .entries
@@ -361,10 +357,7 @@ mod tests {
             )
             .unwrap();
         let policy = registry
-            .resolve(
-                "policy.prefer_higher",
-                ContractVersion::new(1, 0).unwrap(),
-            )
+            .resolve("policy.prefer_higher", ContractVersion::new(1, 0).unwrap())
             .unwrap();
         assert_eq!(policy.utility(&23), 23);
     }
