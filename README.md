@@ -64,6 +64,8 @@ R1 remains frozen under its original pins. Its NNIS backend preserved BF16 weigh
 
 CI builds the locked release binary and checks those exact R2 inputs against their immutable digests and expected budgets. This is cross-repository input/build qualification, not a CUDA run. Generic per-campaign verification supports R2; the fixed whole-suite command remains R1-only. Representative model-quality, physical-memory, traffic, latency and throughput gates remain open.
 
+The separate [R2 launcher readiness check](docs/R2-SUITE-READINESS.md) exercises the actual KVLab R2 `--preflight-only` launcher against the repaired NNIS runtime and the locked ProspectEngine verifier. It includes strict receipt-contract tests, real pinned builds and verification of the frozen source-weight digest. Its artifact is input-only readiness evidence, not an observed model result. A successful workflow run, rather than the presence of the workflow, is required to claim that this path has passed.
+
 ## Validate and build
 
 ```bash
