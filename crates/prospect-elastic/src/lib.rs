@@ -2,6 +2,7 @@
 
 mod comparison;
 mod probe;
+mod transaction_gate;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -13,6 +14,9 @@ pub use comparison::{ElasticPrecommitChoice, ElasticPrecommitComparison, compare
 pub use probe::{
     ELASTIC_PROBE_SCHEMA_V1, ElasticProbeError, ElasticProbeSetV1, ElasticProbeV1,
     ValidatedPlanIntentV1,
+};
+pub use transaction_gate::{
+    ElasticTransactionGateError, ElasticTransactionOutcome, execute_selected_probe,
 };
 
 pub const ELASTICXXX_REVISION: &str = "50bb85ea84191c01d95e5b4e5e3c81af10e95ebd";

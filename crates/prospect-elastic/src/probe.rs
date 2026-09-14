@@ -10,6 +10,8 @@ pub const ELASTIC_PROBE_SCHEMA_V1: &str = "prospect.elastic-probe/v1";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ValidatedPlanIntentV1 {
+    resource_id: String,
+    resource_fingerprint: u64,
     candidate: String,
     dimension: String,
     magnitude: Option<u64>,
@@ -56,10 +58,25 @@ impl ValidatedPlanIntentV1 {
         }
 
         Ok(Self {
+            resource_id: validated.plan.resource.identity().as_str().to_owned(),
+            resource_fingerprint: validated.plan.resource.fingerprint().bits(),
             candidate: candidate.to_string(),
             dimension: candidate.dimension().as_str().to_owned(),
             magnitude: candidate.magnitude(),
         })
+    }
+
+    #[must_use]
+    pub fn resource_id(&self) -> &str {
+        &self.resource_id
+    }
+
+    /// Structural ElasticXxx EIR fingerprint used to bind a prospective probe
+    /// to the exact normalized resource declaration from which it was built.
+    /// This fingerprint is diagnostic and equality-oriented, not cryptographic.
+    #[must_use]
+    pub const fn resource_fingerprint(&self) -> u64 {
+        self.resource_fingerprint
     }
 
     #[must_use]
@@ -255,6 +272,11 @@ mod tests {
         let validated = validated_plan();
         let intent = ValidatedPlanIntentV1::from_validated_plan(&validated).expect("intent");
 
+        assert!(!intent.resource_id().is_empty());
+        assert_eq!(
+            intent.resource_fingerprint(),
+            validated.plan.resource.fingerprint().bits()
+        );
         assert!(!intent.candidate().is_empty());
         assert!(!intent.dimension().is_empty());
     }
