@@ -1,0 +1,124 @@
+name: R2 suite readiness (CPU only)
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/r2-suite-readiness.yml"
+      - "scripts/verify_r2_preflight_receipt.py"
+      - "scripts/tests/test_r2_preflight_receipt.py"
+      - "docs/R2-SUITE-READINESS.md"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/r2-suite-readiness.yml"
+      - "scripts/verify_r2_preflight_receipt.py"
+      - "scripts/tests/test_r2_preflight_receipt.py"
+      - "docs/R2-SUITE-READINESS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r2-readiness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout ProspectEngine and its frozen verifier revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          path: prospect
+
+      - name: Checkout immutable KVLab R2 launcher (PR95 head)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: Memorithm/KVLab
+          ref: e21289bcdcf8bc01dafc6873015b15552cf1091c
+          fetch-depth: 0
+          persist-credentials: false
+          path: kvlab
+
+      - name: Checkout frozen repaired NNIS runtime
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: Memorithm/NNIS
+          ref: 091aabbb3e132627cf64716720aae530442d2a32
+          persist-credentials: false
+          path: nnis
+
+      - name: Install the explicit build toolchain
+        run: rustup toolchain install 1.89.0 --profile minimal
+
+      - name: Test the receipt checker and R2 orchestration contracts
+        run: |
+          python3 -m unittest discover -s prospect/scripts/tests -v
+          cd kvlab
+          python3 -m unittest discover -s tests -p 'test_smollm2_r2*.py' -v
+
+      - name: Download and verify the frozen source weights (no model execution)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+          import urllib.request
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "r2-source-model"
+          root.mkdir()
+          url = "https://huggingface.co/HuggingFaceTB/SmolLM2-135M/resolve/93efa2f097d58c2a74874c7e644dbc9b0cee75a2/model.safetensors"
+          expected = "80521b40281d6ce74e35c9282c22539e75aa0ac8578892b2a59955ef78d55da1"
+          count = 0
+          digest = hashlib.sha256()
+          with urllib.request.urlopen(url, timeout=120) as response, (root / "model.safetensors").open("xb") as output:
+              while True:
+                  chunk = response.read(1024 * 1024)
+                  if not chunk:
+                      break
+                  count += len(chunk)
+                  if count > 512 * 1024 * 1024:
+                      raise SystemExit("source model exceeds the fixed download bound")
+                  digest.update(chunk)
+                  output.write(chunk)
+          if digest.hexdigest() != expected:
+              raise SystemExit("frozen source weights SHA-256 mismatch")
+          print(f"Verified {count} source bytes; no weights were loaded into a decoder")
+          PY
+
+      - name: Execute actual locked builds and all three input preflights
+        working-directory: kvlab
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -E -s -m kvlab.prospect_smollm2_r2_suite \
+            --kvlab-repo "$GITHUB_WORKSPACE/kvlab" \
+            --nnis-repo "$GITHUB_WORKSPACE/nnis" \
+            --prospect-repo "$GITHUB_WORKSPACE/prospect" \
+            --model-dir "$RUNNER_TEMP/r2-source-model" \
+            --output-dir "$RUNNER_TEMP/r2-must-not-exist" \
+            --preflight-only > "$RUNNER_TEMP/r2-preflight.json"
+          test ! -e "$RUNNER_TEMP/r2-must-not-exist"
+          test ! -L "$RUNNER_TEMP/r2-must-not-exist"
+          rustc +1.89.0 -Vv > "$RUNNER_TEMP/r2-build-toolchain.txt"
+
+      - name: Validate the exact readiness receipt
+        run: |
+          python3 prospect/scripts/verify_r2_preflight_receipt.py \
+            "$RUNNER_TEMP/r2-preflight.json" > "$RUNNER_TEMP/r2-receipt-check.json"
+
+      - name: Preserve input-only readiness evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: r2-readiness-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/r2-preflight.json
+            ${{ runner.temp }}/r2-receipt-check.json
+            ${{ runner.temp }}/r2-build-toolchain.txt
+          if-no-files-found: error
+          retention-days: 7
