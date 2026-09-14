@@ -23,11 +23,15 @@ jobs:
           from pathlib import Path
           path = Path('crates/prospect-cli/src/kv_campaign_suite.rs')
           text = path.read_text()
-          old = 'use serde_json::{Value, json};'
-          new = 'use serde_json::json;'
-          if old not in text:
-              raise SystemExit('expected unused Value import not found')
-          path.write_text(text.replace(old, new, 1))
+          replacements = [
+              ('use serde_json::{Value, json};', 'use serde_json::json;'),
+              ('let evaluation_tokens = vec![200_u64, 201];', 'let evaluation_tokens = (200_u64..208).collect::<Vec<_>>();'),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f'expected fixture expression not found: {old}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
           PY
           rm .github/workflows/tmp-pr36-fixture-fix.yml
           cargo fmt --all -- --check
@@ -38,5 +42,5 @@ jobs:
           git config user.name "MEMOPERF"
           git config user.email "contact@checkupauto.fr"
           git add crates/prospect-cli/src/kv_campaign_suite.rs .github/workflows/tmp-pr36-fixture-fix.yml
-          git commit -m "fix(cli): satisfy KV suite verifier CI"
+          git commit -m "fix(cli): align KV suite fixture with verifier contract"
           git push origin HEAD:feature/kv-campaign-suite-verification
