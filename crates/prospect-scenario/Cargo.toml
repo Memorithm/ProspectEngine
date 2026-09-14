@@ -1,0 +1,15 @@
+[package]
+name = "prospect-scenario"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Batch scenario evaluation and decision ranking for ProspectEngine"
+
+[lints]
+workspace = true
+
+[dependencies]
+prospect-core = { path = "../prospect-core" }
