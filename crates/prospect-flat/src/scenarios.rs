@@ -28,9 +28,7 @@ pub fn hamming_threshold_scenarios(
     }
     thresholds.sort_unstable();
     if let Some(pair) = thresholds.windows(2).find(|pair| pair[0] == pair[1]) {
-        return Err(FlatBooleanScenarioError::DuplicateThreshold {
-            threshold: pair[0],
-        });
+        return Err(FlatBooleanScenarioError::DuplicateThreshold { threshold: pair[0] });
     }
 
     let mut scenarios = Vec::with_capacity(thresholds.len());
@@ -48,7 +46,9 @@ pub fn hamming_threshold_scenarios(
 impl fmt::Display for FlatBooleanScenarioError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyThresholds => formatter.write_str("at least one Hamming threshold is required"),
+            Self::EmptyThresholds => {
+                formatter.write_str("at least one Hamming threshold is required")
+            }
             Self::DuplicateThreshold { threshold } => {
                 write!(formatter, "duplicate Hamming threshold {threshold}")
             }
