@@ -10,8 +10,7 @@ use serde_json::Value;
 
 pub const KVLAB_KV_REAL_MODEL_POSITION_SCHEMA_V2: &str =
     "kvlab.prospect-kv-real-model-selection/v2";
-pub const KVLAB_KV_REAL_MODEL_POSITION_REVISION: &str =
-    "782dde3304f2da984f6544cc0a49bab7f5977ea9";
+pub const KVLAB_KV_REAL_MODEL_POSITION_REVISION: &str = "782dde3304f2da984f6544cc0a49bab7f5977ea9";
 
 const FLOAT_ABS_TOLERANCE: f64 = 1.0e-12;
 const FLOAT_REL_TOLERANCE: f64 = 1.0e-12;
@@ -568,13 +567,17 @@ fn same_baseline(
     left.baseline_output_sha256 == right.baseline_output_sha256
         && left.baseline_logical_kv_bytes == right.baseline_logical_kv_bytes
         && left.metrics.len() == right.metrics.len()
-        && left.metrics.iter().zip(&right.metrics).all(|(left, right)| {
-            left.name == right.name
-                && left.kind == right.kind
-                && left.unit == right.unit
-                && left.preference == right.preference
-                && left.baseline_value.to_bits() == right.baseline_value.to_bits()
-        })
+        && left
+            .metrics
+            .iter()
+            .zip(&right.metrics)
+            .all(|(left, right)| {
+                left.name == right.name
+                    && left.kind == right.kind
+                    && left.unit == right.unit
+                    && left.preference == right.preference
+                    && left.baseline_value.to_bits() == right.baseline_value.to_bits()
+            })
 }
 
 fn float_close(left: f64, right: f64) -> bool {
@@ -583,10 +586,7 @@ fn float_close(left: f64, right: f64) -> bool {
         || difference <= FLOAT_REL_TOLERANCE * left.abs().max(right.abs())
 }
 
-fn require_text(
-    field: &'static str,
-    value: &str,
-) -> Result<(), KvlabKvRealModelPositionError> {
+fn require_text(field: &'static str, value: &str) -> Result<(), KvlabKvRealModelPositionError> {
     if value.trim().is_empty() {
         return Err(KvlabKvRealModelPositionError::EmptyText(field));
     }
@@ -663,22 +663,27 @@ impl fmt::Display for KvlabKvRealModelPositionError {
             Self::InvalidSha256(field) => {
                 write!(formatter, "{field} must be a lowercase SHA-256 digest")
             }
-            Self::EmbeddedSelection(error) => write!(formatter, "invalid embedded selection: {error}"),
-            Self::BaselineLogicalBytesMismatch => formatter.write_str(
-                "baseline logical KV bytes do not match position-selection input",
-            ),
-            Self::CandidateLogicalBytesMismatch => formatter.write_str(
-                "candidate logical KV bytes do not match position-selection retention",
-            ),
+            Self::EmbeddedSelection(error) => {
+                write!(formatter, "invalid embedded selection: {error}")
+            }
+            Self::BaselineLogicalBytesMismatch => formatter
+                .write_str("baseline logical KV bytes do not match position-selection input"),
+            Self::CandidateLogicalBytesMismatch => formatter
+                .write_str("candidate logical KV bytes do not match position-selection retention"),
             Self::EmptyMetrics => formatter.write_str("observed evidence must contain metrics"),
             Self::DuplicateMetric(name) => write!(formatter, "duplicate observed metric {name}"),
-            Self::UnknownMetricKind(kind) => write!(formatter, "unknown observed metric kind {kind}"),
+            Self::UnknownMetricKind(kind) => {
+                write!(formatter, "unknown observed metric kind {kind}")
+            }
             Self::UnknownMetricPreference(preference) => {
                 write!(formatter, "unknown observed metric preference {preference}")
             }
             Self::NonFiniteMetric(name) => write!(formatter, "non-finite observed metric {name}"),
             Self::MetricDeltaMismatch(name) => {
-                write!(formatter, "observed metric delta does not replay for {name}")
+                write!(
+                    formatter,
+                    "observed metric delta does not replay for {name}"
+                )
             }
             Self::Evidence(error) => write!(formatter, "invalid evidence source: {error}"),
         }
@@ -720,13 +725,14 @@ mod tests {
     use prospect_evidence::EvidenceNature;
     use serde_json::{Value, json};
 
-    use super::{
-        KvlabKvRealModelPositionEvidenceV2, ObservedKvPositionComparison, canonical_json,
-    };
+    use super::{KvlabKvRealModelPositionEvidenceV2, ObservedKvPositionComparison, canonical_json};
 
     fn fixture(policy: &str, retained: &[usize], candidate_hash: char, accuracy: f64) -> String {
         let input = [7_u64, 11, 7, 7, 19];
-        let retained_set = retained.iter().copied().collect::<std::collections::BTreeSet<_>>();
+        let retained_set = retained
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>();
         let evicted = (0..input.len())
             .filter(|position| !retained_set.contains(position))
             .collect::<Vec<_>>();
@@ -792,9 +798,18 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(record.selection().state().token_ids(), &[7, 11, 7, 7, 19]);
-        assert_eq!(record.selection().outcome().retained_positions(), &[0, 2, 4]);
-        assert_eq!(record.selection().outcome().retained_token_ids(), &[7, 7, 19]);
-        assert_eq!(record.evidence_source().unwrap().nature(), EvidenceNature::Observed);
+        assert_eq!(
+            record.selection().outcome().retained_positions(),
+            &[0, 2, 4]
+        );
+        assert_eq!(
+            record.selection().outcome().retained_token_ids(),
+            &[7, 7, 19]
+        );
+        assert_eq!(
+            record.evidence_source().unwrap().nature(),
+            EvidenceNature::Observed
+        );
         assert_eq!(record.metrics().len(), 2);
     }
 
@@ -803,17 +818,21 @@ mod tests {
         let original = fixture("fixture", &[0, 2, 4], '3', 0.75);
         let mut value: Value = serde_json::from_str(&original).unwrap();
         value["candidate_logical_kv_bytes"] = json!(128);
-        assert!(KvlabKvRealModelPositionEvidenceV2::from_canonical_json(
-            &canonical_json(&value).unwrap()
-        )
-        .is_err());
+        assert!(
+            KvlabKvRealModelPositionEvidenceV2::from_canonical_json(
+                &canonical_json(&value).unwrap()
+            )
+            .is_err()
+        );
 
         let mut value: Value = serde_json::from_str(&original).unwrap();
         value["metrics"][0]["delta"] = json!(0.5);
-        assert!(KvlabKvRealModelPositionEvidenceV2::from_canonical_json(
-            &canonical_json(&value).unwrap()
-        )
-        .is_err());
+        assert!(
+            KvlabKvRealModelPositionEvidenceV2::from_canonical_json(
+                &canonical_json(&value).unwrap()
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -835,9 +854,15 @@ mod tests {
         let comparison = ObservedKvPositionComparison::new(vec![left, right]).unwrap();
         assert_eq!(comparison.logical_budget_bytes(), 192);
         assert_eq!(comparison.baseline().retained_positions(), &[0, 1, 2, 3, 4]);
-        assert_eq!(comparison.candidate("lru").unwrap().retained_positions(), &[0, 2, 4]);
         assert_eq!(
-            comparison.candidate("magnitude").unwrap().retained_token_ids(),
+            comparison.candidate("lru").unwrap().retained_positions(),
+            &[0, 2, 4]
+        );
+        assert_eq!(
+            comparison
+                .candidate("magnitude")
+                .unwrap()
+                .retained_token_ids(),
             &[11, 7, 19]
         );
     }
@@ -860,13 +885,8 @@ mod tests {
         .unwrap();
         assert!(ObservedKvPositionComparison::new(vec![left.clone(), smaller]).is_err());
 
-        let mut value: Value = serde_json::from_str(&fixture(
-            "magnitude",
-            &[1, 2, 4],
-            '4',
-            0.8,
-        ))
-        .unwrap();
+        let mut value: Value =
+            serde_json::from_str(&fixture("magnitude", &[1, 2, 4], '4', 0.8)).unwrap();
         value["baseline_output_sha256"] = json!("5".repeat(64));
         let drifted = KvlabKvRealModelPositionEvidenceV2::from_canonical_json(
             &canonical_json(&value).unwrap(),
