@@ -189,7 +189,10 @@ impl fmt::Display for ElasticProbeError {
             }
             Self::DuplicateProbeId { id } => write!(formatter, "duplicate Elastic probe id: {id}"),
             Self::ProbeConflictsWithBaseline { id } => {
-                write!(formatter, "Elastic probe id conflicts with no-op baseline: {id}")
+                write!(
+                    formatter,
+                    "Elastic probe id conflicts with no-op baseline: {id}"
+                )
             }
             Self::Bridge(error) => write!(formatter, "invalid Elastic intervention: {error}"),
         }
@@ -243,11 +246,8 @@ mod tests {
     }
 
     fn intervention(kind: &str, target: f64) -> ElasticIntervention {
-        ElasticIntervention::new(
-            kind,
-            BTreeMap::from([("target".to_owned(), target)]),
-        )
-        .expect("valid intervention")
+        ElasticIntervention::new(kind, BTreeMap::from([("target".to_owned(), target)]))
+            .expect("valid intervention")
     }
 
     #[test]
@@ -279,11 +279,9 @@ mod tests {
             intervention("set-concurrency", 4.0),
             intervention("restore-concurrency", 8.0),
         );
-        let probes = ElasticProbeSetV1::new(
-            ScenarioId::new("noop").expect("baseline"),
-            vec![probe],
-        )
-        .expect("probe set");
+        let probes =
+            ElasticProbeSetV1::new(ScenarioId::new("noop").expect("baseline"), vec![probe])
+                .expect("probe set");
 
         assert_eq!(probes.baseline_id().as_str(), "noop");
         assert_eq!(probes.probes().len(), 1);
@@ -300,7 +298,8 @@ mod tests {
             intervention("forward", 1.0),
             intervention("rollback", 0.0),
         );
-        let result = ElasticProbeSetV1::new(ScenarioId::new("noop").expect("baseline"), vec![probe]);
+        let result =
+            ElasticProbeSetV1::new(ScenarioId::new("noop").expect("baseline"), vec![probe]);
 
         assert!(matches!(
             result,
