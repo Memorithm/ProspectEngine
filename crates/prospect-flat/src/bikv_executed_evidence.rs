@@ -4,8 +4,7 @@ use prospect_evidence::{EvidenceError, EvidenceSource};
 use serde::Deserialize;
 
 pub const FLAT_BIKV_EVIDENCE_SCHEMA_VERSION: u16 = 1;
-pub const FLAT_BIKV_EVIDENCE_CONTRACT_REVISION: &str =
-    "a5b6598ffe475c74c938f45feb86b009d0e4ad0a";
+pub const FLAT_BIKV_EVIDENCE_CONTRACT_REVISION: &str = "a5b6598ffe475c74c938f45feb86b009d0e4ad0a";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ObservedBikvDecision {
@@ -29,6 +28,12 @@ pub struct ObservedBikvSignature {
     avoided_numerical_kv_bytes: u64,
     correctness_gate_passed: bool,
     quality_gate_passed: bool,
+    q_device_resident: bool,
+    q_host_mirror_retained: bool,
+    kv_device_resident: bool,
+    uploads_readbacks_excluded: bool,
+    resident_only_production_claim: bool,
+    gpu_timestamp_claim: bool,
     physical_dram_traffic_claim: bool,
     model_quality_claim: bool,
     decision: ObservedBikvDecision,
@@ -250,6 +255,12 @@ impl FlatBikvExecutedEvidenceV1 {
             avoided_numerical_kv_bytes: wire.accounting.avoided_numerical_kv_bytes,
             correctness_gate_passed: wire.gates.correctness_gate_passed,
             quality_gate_passed: wire.gates.quality_gate_passed,
+            q_device_resident: wire.scope.q_device_resident,
+            q_host_mirror_retained: wire.scope.q_host_mirror_retained,
+            kv_device_resident: wire.scope.kv_device_resident,
+            uploads_readbacks_excluded: wire.scope.uploads_readbacks_excluded,
+            resident_only_production_claim: wire.scope.resident_only_production_claim,
+            gpu_timestamp_claim: wire.scope.gpu_timestamp_claim,
             physical_dram_traffic_claim: wire.scope.physical_dram_traffic_claim,
             model_quality_claim: wire.scope.model_quality_claim,
             decision,
@@ -376,6 +387,36 @@ impl ObservedBikvSignature {
     }
 
     #[must_use]
+    pub const fn q_device_resident(&self) -> bool {
+        self.q_device_resident
+    }
+
+    #[must_use]
+    pub const fn q_host_mirror_retained(&self) -> bool {
+        self.q_host_mirror_retained
+    }
+
+    #[must_use]
+    pub const fn kv_device_resident(&self) -> bool {
+        self.kv_device_resident
+    }
+
+    #[must_use]
+    pub const fn uploads_readbacks_excluded(&self) -> bool {
+        self.uploads_readbacks_excluded
+    }
+
+    #[must_use]
+    pub const fn resident_only_production_claim(&self) -> bool {
+        self.resident_only_production_claim
+    }
+
+    #[must_use]
+    pub const fn gpu_timestamp_claim(&self) -> bool {
+        self.gpu_timestamp_claim
+    }
+
+    #[must_use]
     pub const fn physical_dram_traffic_claim(&self) -> bool {
         self.physical_dram_traffic_claim
     }
@@ -429,7 +470,11 @@ fn validate_benchmark(
             return Err(FlatBikvExecutedEvidenceError::InvalidProblem(field));
         }
     }
-    if !manifest.problem.q_heads.is_multiple_of(manifest.problem.kv_heads) {
+    if !manifest
+        .problem
+        .q_heads
+        .is_multiple_of(manifest.problem.kv_heads)
+    {
         return Err(FlatBikvExecutedEvidenceError::InvalidProblem(
             "head_grouping",
         ));
@@ -481,9 +526,7 @@ fn validate_pair(
     dense: &BenchmarkManifestWire,
 ) -> Result<(), FlatBikvExecutedEvidenceError> {
     if candidate.commit_sha != dense.commit_sha {
-        return Err(FlatBikvExecutedEvidenceError::ProvenanceMismatch(
-            "commit",
-        ));
+        return Err(FlatBikvExecutedEvidenceError::ProvenanceMismatch("commit"));
     }
     if candidate.environment != dense.environment {
         return Err(FlatBikvExecutedEvidenceError::ProvenanceMismatch(
@@ -491,9 +534,7 @@ fn validate_pair(
         ));
     }
     if candidate.problem != dense.problem {
-        return Err(FlatBikvExecutedEvidenceError::ProvenanceMismatch(
-            "problem",
-        ));
+        return Err(FlatBikvExecutedEvidenceError::ProvenanceMismatch("problem"));
     }
     if candidate.protocol != dense.protocol {
         return Err(FlatBikvExecutedEvidenceError::ProvenanceMismatch(
@@ -517,7 +558,8 @@ fn validate_selection(selection: &SelectionWire) -> Result<(), FlatBikvExecutedE
 }
 
 fn validate_scope(scope: &ScopeWire) -> Result<(), FlatBikvExecutedEvidenceError> {
-    if scope.timing.trim().is_empty() || scope.q_host_mirror_retained && scope.resident_only_production_claim
+    if scope.timing.trim().is_empty()
+        || scope.q_host_mirror_retained && scope.resident_only_production_claim
     {
         return Err(FlatBikvExecutedEvidenceError::InvalidScope);
     }
@@ -751,7 +793,9 @@ impl fmt::Display for FlatBikvExecutedEvidenceError {
             }
             Self::InvalidCommitSha => formatter.write_str("invalid FLAT BIKV measured commit SHA"),
             Self::EmptyField(field) => write!(formatter, "empty FLAT BIKV field {field}"),
-            Self::InvalidProblem(field) => write!(formatter, "invalid FLAT BIKV problem field {field}"),
+            Self::InvalidProblem(field) => {
+                write!(formatter, "invalid FLAT BIKV problem field {field}")
+            }
             Self::ProvenanceMismatch(field) => {
                 write!(formatter, "FLAT BIKV candidate/dense {field} mismatch")
             }
@@ -765,10 +809,11 @@ impl fmt::Display for FlatBikvExecutedEvidenceError {
             }
             Self::InvalidPhaseMedians => formatter.write_str("invalid FLAT BIKV phase medians"),
             Self::InvalidGates => formatter.write_str("invalid FLAT BIKV correctness gates"),
-            Self::InvalidPromotionDecision => {
-                formatter.write_str("FLAT BIKV promotion decision does not match measured gates/latency")
+            Self::InvalidPromotionDecision => formatter
+                .write_str("FLAT BIKV promotion decision does not match measured gates/latency"),
+            Self::Evidence(error) => {
+                write!(formatter, "invalid ProspectEngine evidence source: {error}")
             }
-            Self::Evidence(error) => write!(formatter, "invalid ProspectEngine evidence source: {error}"),
         }
     }
 }
@@ -788,8 +833,7 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        fnv1a64, FlatBikvExecutedEvidenceError, FlatBikvExecutedEvidenceV1,
-        ObservedBikvDecision,
+        FlatBikvExecutedEvidenceError, FlatBikvExecutedEvidenceV1, ObservedBikvDecision, fnv1a64,
     };
 
     fn result_json(median: u64, p95: u64, throughput: u64) -> String {
@@ -799,7 +843,10 @@ mod tests {
     }
 
     fn result_checksum(median: u64, p95: u64, throughput: u64) -> String {
-        format!("{:016x}", fnv1a64(result_json(median, p95, throughput).as_bytes()))
+        format!(
+            "{:016x}",
+            fnv1a64(result_json(median, p95, throughput).as_bytes())
+        )
     }
 
     fn fixture() -> String {
@@ -842,7 +889,8 @@ mod tests {
 
     #[test]
     fn ingests_executed_bikv_evidence_without_using_phase_sum_as_end_to_end_latency() {
-        let evidence = FlatBikvExecutedEvidenceV1::from_canonical_json(&fixture()).expect("evidence");
+        let evidence =
+            FlatBikvExecutedEvidenceV1::from_canonical_json(&fixture()).expect("evidence");
         let signature = evidence.signature();
 
         assert_eq!(signature.candidate_median_latency_ns(), 900);
@@ -850,6 +898,12 @@ mod tests {
         assert_eq!(signature.latency_advantage_ns(), 300);
         assert_eq!(signature.avoided_numerical_kv_bytes(), 208_896);
         assert_eq!(signature.decision(), ObservedBikvDecision::Promote);
+        assert!(signature.q_device_resident());
+        assert!(signature.q_host_mirror_retained());
+        assert!(signature.kv_device_resident());
+        assert!(signature.uploads_readbacks_excluded());
+        assert!(!signature.resident_only_production_claim());
+        assert!(!signature.gpu_timestamp_claim());
         assert!(!signature.physical_dram_traffic_claim());
         assert!(!signature.model_quality_claim());
         assert_eq!(evidence.max_distance(), 64);
@@ -873,8 +927,10 @@ mod tests {
         let original = fixture();
         let marker = ",\"evidence_checksum\":";
         let index = original.rfind(marker).expect("marker");
-        let mut payload = original[..index]
-            .replace("\"promotion_decision\":\"promote\"", "\"promotion_decision\":\"fallback_no_latency_win\"");
+        let mut payload = original[..index].replace(
+            "\"promotion_decision\":\"promote\"",
+            "\"promotion_decision\":\"fallback_no_latency_win\"",
+        );
         let checksum = fnv1a64(payload.as_bytes());
         payload.push_str(&format!(
             ",\"evidence_checksum\":{{\"algorithm\":\"fnv1a64\",\"value\":\"{checksum:016x}\"}}}}"
