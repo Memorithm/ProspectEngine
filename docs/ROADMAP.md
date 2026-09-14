@@ -23,7 +23,7 @@ Goal: prove the architecture with the smallest reusable executable core.
 - [x] explicit distinction between observed, simulated and inferred values;
 - [x] no domain-specific safety claims.
 
-## Milestone 0.3 — first operational adapter
+## Milestone 0.3 — first operational adapter — complete
 
 Target: ElasticXxx.
 
@@ -31,16 +31,17 @@ Target: ElasticXxx.
 - [x] preserve unsupported telemetry without fabricated values;
 - [x] define a versioned probe contract requiring a validated, resource-declared plan and an explicit paired rollback intent;
 - [x] compare resource actions before commit;
-- [ ] connect selected ProspectEngine decisions to PLAN -> VALIDATE -> ACT -> VERIFY -> COMMIT/ROLLBACK;
-- [x] preserve an explicit no-op baseline and rollback intent without claiming physical reversibility.
+- [x] connect selected ProspectEngine decisions to PLAN -> VALIDATE -> ACT -> VERIFY -> COMMIT/ROLLBACK through the trusted ElasticXxx runtime;
+- [x] preserve an explicit no-op baseline and rollback intent without claiming physical reversibility;
+- [x] record policy utilities and observed transaction outcomes as separate canonical evidence linked by one run id.
 
-Proposed control loop:
+Operational control loop:
 
 ```text
 OBSERVE -> PROBE -> PROSPECT -> PLAN -> VALIDATE -> ACT -> VERIFY -> COMMIT/ROLLBACK
 ```
 
-The trusted ElasticXxx `TransactionalActuator` remains authoritative for physical feasibility, verification, commit, and rollback. ProspectEngine does not infer reversibility from a transition declaration.
+The trusted ElasticXxx `TransactionalActuator` remains authoritative for physical feasibility, verification, commit, and rollback. ProspectEngine does not infer reversibility from a transition declaration. Prospective decision evidence and observed transaction evidence remain separate records so predicted utility cannot be confused with physical outcome.
 
 ## Milestone 0.4 — AI-memory experiments
 
