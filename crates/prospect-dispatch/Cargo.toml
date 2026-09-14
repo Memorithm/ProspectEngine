@@ -1,0 +1,18 @@
+[package]
+name = "prospect-dispatch"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fail-closed scenario-bundle requirement resolution for ProspectEngine"
+
+[lints]
+workspace = true
+
+[dependencies]
+prospect-adapter = { path = "../prospect-adapter" }
+prospect-bundle = { path = "../prospect-bundle" }
+prospect-core = { path = "../prospect-core" }
+prospect-registry = { path = "../prospect-registry" }
