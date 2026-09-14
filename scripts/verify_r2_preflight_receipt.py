@@ -56,13 +56,13 @@ def verify_receipt(payload: bytes) -> dict[str, Any]:
         def reject_constant(value):
             raise ReceiptError(f"non-finite JSON value: {value}")
         value = json.loads(text, parse_constant=reject_constant)
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        canonical = canonical_json(value)
+    except (UnicodeDecodeError, ValueError, RecursionError) as error:
         raise ReceiptError("invalid UTF-8 readiness JSON") from error
     if not isinstance(value, dict):
         raise ReceiptError("readiness receipt must be an object")
     # The launcher CLI adds exactly one optional final LF; no other whitespace
     # or duplicate key is accepted as canonical content.
-    canonical = canonical_json(value)
     if text not in (canonical, canonical + "\n"):
         raise ReceiptError("readiness receipt is not canonical")
     if set(value) != set(IDENTITY) | {"device_ordinal", "campaigns"}:
@@ -73,7 +73,8 @@ def verify_receipt(payload: bytes) -> dict[str, Any]:
     device = value["device_ordinal"]
     if type(device) is not int or not 0 <= device <= 2**31 - 1:
         raise ReceiptError("device ordinal must be a non-negative i32")
-    if value["campaigns"] != expected_campaigns():
+    # Compare canonical encodings, not Python equality (7.0 == 7 is true).
+    if canonical_json(value["campaigns"]) != canonical_json(expected_campaigns()):
         raise ReceiptError("readiness campaign identities/order differ from preregistration")
     return {
         "schema": "prospect.r2-readiness-receipt-check/v1",
