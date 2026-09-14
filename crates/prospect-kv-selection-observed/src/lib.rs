@@ -10,8 +10,7 @@ use serde_json::Value;
 
 pub const KVLAB_KV_REAL_MODEL_SELECTION_SCHEMA_V1: &str =
     "kvlab.prospect-kv-real-model-selection/v1";
-pub const KVLAB_KV_REAL_MODEL_SELECTION_REVISION: &str =
-    "0e7274bf565d9079943845ea4eb0699a525b1db1";
+pub const KVLAB_KV_REAL_MODEL_SELECTION_REVISION: &str = "0e7274bf565d9079943845ea4eb0699a525b1db1";
 
 const FLOAT_ABS_TOLERANCE: f64 = 1.0e-12;
 const FLOAT_REL_TOLERANCE: f64 = 1.0e-12;
@@ -309,7 +308,8 @@ impl ObservedKvSelectionSignature {
 
 impl KvlabKvRealModelSelectionEvidenceV1 {
     pub fn from_canonical_json(json: &str) -> Result<Self, KvlabKvRealModelSelectionError> {
-        let value: Value = serde_json::from_str(json).map_err(KvlabKvRealModelSelectionError::Json)?;
+        let value: Value =
+            serde_json::from_str(json).map_err(KvlabKvRealModelSelectionError::Json)?;
         let canonical = canonical_json(&value).map_err(KvlabKvRealModelSelectionError::Json)?;
         if canonical != json {
             return Err(KvlabKvRealModelSelectionError::NonCanonicalJson);
@@ -336,8 +336,14 @@ impl KvlabKvRealModelSelectionEvidenceV1 {
         }
         for (field, digest) in [
             ("trace_sha256", wire.trace_sha256.as_str()),
-            ("baseline_output_sha256", wire.baseline_output_sha256.as_str()),
-            ("candidate_output_sha256", wire.candidate_output_sha256.as_str()),
+            (
+                "baseline_output_sha256",
+                wire.baseline_output_sha256.as_str(),
+            ),
+            (
+                "candidate_output_sha256",
+                wire.candidate_output_sha256.as_str(),
+            ),
         ] {
             if !is_lower_hex(digest, 64) {
                 return Err(KvlabKvRealModelSelectionError::InvalidSha256(field));
@@ -358,37 +364,7 @@ impl KvlabKvRealModelSelectionEvidenceV1 {
             return Err(KvlabKvRealModelSelectionError::EmptyMetrics);
         }
 
-        let mut seen = BTreeSet::new();
-        let mut metrics = Vec::with_capacity(wire.metrics.len());
-        for metric in wire.metrics {
-            require_text("metric.name", &metric.name)?;
-            require_text("metric.unit", &metric.unit)?;
-            if !seen.insert(metric.name.clone()) {
-                return Err(KvlabKvRealModelSelectionError::DuplicateMetric(metric.name));
-            }
-            if !metric.baseline_value.is_finite()
-                || !metric.candidate_value.is_finite()
-                || !metric.delta.is_finite()
-            {
-                return Err(KvlabKvRealModelSelectionError::NonFiniteMetric(metric.name));
-            }
-            let expected_delta = metric.candidate_value - metric.baseline_value;
-            if !nearly_equal(metric.delta, expected_delta) {
-                return Err(KvlabKvRealModelSelectionError::MetricDeltaMismatch(
-                    metric.name,
-                ));
-            }
-            metrics.push(ObservedMetricPair {
-                name: metric.name,
-                kind: ObservedMetricKind::parse(&metric.kind)?,
-                unit: metric.unit,
-                preference: MetricPreference::parse(&metric.preference)?,
-                baseline_value: metric.baseline_value,
-                candidate_value: metric.candidate_value,
-                delta: metric.delta,
-            });
-        }
-
+        let metrics = parse_metrics(wire.metrics)?;
         Ok(Self {
             experiment_id: wire.experiment_id,
             run_repository_revision: wire.run_repository_revision,
@@ -515,6 +491,41 @@ impl ObservedKvSelectionComparison {
     }
 }
 
+fn parse_metrics(
+    wires: Vec<MetricWire>,
+) -> Result<Vec<ObservedMetricPair>, KvlabKvRealModelSelectionError> {
+    let mut seen = BTreeSet::new();
+    let mut metrics = Vec::with_capacity(wires.len());
+    for metric in wires {
+        require_text("metric.name", &metric.name)?;
+        require_text("metric.unit", &metric.unit)?;
+        if !seen.insert(metric.name.clone()) {
+            return Err(KvlabKvRealModelSelectionError::DuplicateMetric(metric.name));
+        }
+        if !metric.baseline_value.is_finite()
+            || !metric.candidate_value.is_finite()
+            || !metric.delta.is_finite()
+        {
+            return Err(KvlabKvRealModelSelectionError::NonFiniteMetric(metric.name));
+        }
+        if !nearly_equal(metric.delta, metric.candidate_value - metric.baseline_value) {
+            return Err(KvlabKvRealModelSelectionError::MetricDeltaMismatch(
+                metric.name,
+            ));
+        }
+        metrics.push(ObservedMetricPair {
+            name: metric.name,
+            kind: ObservedMetricKind::parse(&metric.kind)?,
+            unit: metric.unit,
+            preference: MetricPreference::parse(&metric.preference)?,
+            baseline_value: metric.baseline_value,
+            candidate_value: metric.candidate_value,
+            delta: metric.delta,
+        });
+    }
+    Ok(metrics)
+}
+
 fn same_context(
     left: &KvlabKvRealModelSelectionEvidenceV1,
     right: &KvlabKvRealModelSelectionEvidenceV1,
@@ -538,13 +549,17 @@ fn same_baseline(
     left.baseline_output_sha256 == right.baseline_output_sha256
         && left.baseline_logical_kv_bytes == right.baseline_logical_kv_bytes
         && left.metrics.len() == right.metrics.len()
-        && left.metrics.iter().zip(&right.metrics).all(|(left, right)| {
-            left.name == right.name
-                && left.kind == right.kind
-                && left.unit == right.unit
-                && left.preference == right.preference
-                && nearly_equal(left.baseline_value, right.baseline_value)
-        })
+        && left
+            .metrics
+            .iter()
+            .zip(&right.metrics)
+            .all(|(left, right)| {
+                left.name == right.name
+                    && left.kind == right.kind
+                    && left.unit == right.unit
+                    && left.preference == right.preference
+                    && nearly_equal(left.baseline_value, right.baseline_value)
+            })
 }
 
 fn require_text(field: &'static str, value: &str) -> Result<(), KvlabKvRealModelSelectionError> {
@@ -615,21 +630,52 @@ fn canonical_json(value: &Value) -> Result<String, serde_json::Error> {
 impl fmt::Display for KvlabKvRealModelSelectionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Json(error) => write!(formatter, "invalid KVLab selection evidence JSON: {error}"),
-            Self::NonCanonicalJson => formatter.write_str("KVLab selection evidence JSON is not canonical"),
-            Self::UnsupportedSchema => formatter.write_str("unsupported KVLab selection evidence schema"),
-            Self::EmptyText(field) => write!(formatter, "KVLab selection evidence field {field} must not be empty"),
-            Self::InvalidRunRevision => formatter.write_str("KVLab run revision must be a lowercase full Git SHA"),
-            Self::InvalidSha256(field) => write!(formatter, "KVLab selection evidence field {field} must be a lowercase SHA-256 digest"),
-            Self::EmbeddedSelection(error) => write!(formatter, "invalid embedded KV selection: {error}"),
-            Self::BaselineLogicalBytesMismatch => formatter.write_str("baseline logical KV bytes do not match selection input"),
-            Self::CandidateLogicalBytesMismatch => formatter.write_str("candidate logical KV bytes do not match selection retention"),
-            Self::EmptyMetrics => formatter.write_str("selection evidence must contain at least one metric"),
+            Self::Json(error) => {
+                write!(formatter, "invalid KVLab selection evidence JSON: {error}")
+            }
+            Self::NonCanonicalJson => {
+                formatter.write_str("KVLab selection evidence JSON is not canonical")
+            }
+            Self::UnsupportedSchema => {
+                formatter.write_str("unsupported KVLab selection evidence schema")
+            }
+            Self::EmptyText(field) => write!(
+                formatter,
+                "KVLab selection evidence field {field} must not be empty"
+            ),
+            Self::InvalidRunRevision => {
+                formatter.write_str("KVLab run revision must be a lowercase full Git SHA")
+            }
+            Self::InvalidSha256(field) => write!(
+                formatter,
+                "KVLab selection evidence field {field} must be a lowercase SHA-256 digest"
+            ),
+            Self::EmbeddedSelection(error) => {
+                write!(formatter, "invalid embedded KV selection: {error}")
+            }
+            Self::BaselineLogicalBytesMismatch => {
+                formatter.write_str("baseline logical KV bytes do not match selection input")
+            }
+            Self::CandidateLogicalBytesMismatch => {
+                formatter.write_str("candidate logical KV bytes do not match selection retention")
+            }
+            Self::EmptyMetrics => {
+                formatter.write_str("selection evidence must contain at least one metric")
+            }
             Self::DuplicateMetric(name) => write!(formatter, "duplicate observed metric {name}"),
-            Self::UnknownMetricKind(kind) => write!(formatter, "unknown observed metric kind {kind}"),
-            Self::UnknownMetricPreference(preference) => write!(formatter, "unknown observed metric preference {preference}"),
-            Self::NonFiniteMetric(name) => write!(formatter, "observed metric {name} contains a non-finite value"),
-            Self::MetricDeltaMismatch(name) => write!(formatter, "observed metric {name} delta is inconsistent"),
+            Self::UnknownMetricKind(kind) => {
+                write!(formatter, "unknown observed metric kind {kind}")
+            }
+            Self::UnknownMetricPreference(preference) => {
+                write!(formatter, "unknown observed metric preference {preference}")
+            }
+            Self::NonFiniteMetric(name) => write!(
+                formatter,
+                "observed metric {name} contains a non-finite value"
+            ),
+            Self::MetricDeltaMismatch(name) => {
+                write!(formatter, "observed metric {name} delta is inconsistent")
+            }
             Self::Evidence(error) => write!(formatter, "invalid evidence source: {error}"),
         }
     }
@@ -650,11 +696,22 @@ impl fmt::Display for ObservedKvSelectionComparisonError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyEvidence => formatter.write_str("observed KV selection comparison is empty"),
-            Self::ContextMismatch => formatter.write_str("observed KV selections do not share one experimental context"),
-            Self::BaselineMismatch => formatter.write_str("observed KV selections do not share one paired baseline"),
-            Self::BudgetMismatch => formatter.write_str("observed KV selections do not share one logical byte budget"),
-            Self::DuplicatePolicy(policy) => write!(formatter, "duplicate observed KV selection policy {policy}"),
-            Self::MissingPolicy(policy) => write!(formatter, "no observed KV selection evidence exists for policy {policy}"),
+            Self::ContextMismatch => {
+                formatter.write_str("observed KV selections do not share one experimental context")
+            }
+            Self::BaselineMismatch => {
+                formatter.write_str("observed KV selections do not share one paired baseline")
+            }
+            Self::BudgetMismatch => {
+                formatter.write_str("observed KV selections do not share one logical byte budget")
+            }
+            Self::DuplicatePolicy(policy) => {
+                write!(formatter, "duplicate observed KV selection policy {policy}")
+            }
+            Self::MissingPolicy(policy) => write!(
+                formatter,
+                "no observed KV selection evidence exists for policy {policy}"
+            ),
         }
     }
 }
@@ -663,6 +720,8 @@ impl std::error::Error for ObservedKvSelectionComparisonError {}
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use prospect_evidence::EvidenceNature;
     use serde_json::{Value, json};
 
@@ -671,12 +730,7 @@ mod tests {
         ObservedKvSelectionComparisonError, canonical_json,
     };
 
-    fn record_json(
-        policy: &str,
-        retained: &[u64],
-        candidate_hash: char,
-        accuracy: f64,
-    ) -> String {
+    fn record_json(policy: &str, retained: &[u64], candidate_hash: char, accuracy: f64) -> String {
         let input = [10_u64, 11, 12, 13];
         let retained_set = retained.iter().copied().collect::<BTreeSet<_>>();
         let evicted = input
@@ -736,7 +790,10 @@ mod tests {
         .unwrap();
         assert_eq!(record.selection().outcome().policy(), "lru");
         assert_eq!(record.selection().outcome().retained_token_ids(), &[10, 12]);
-        assert_eq!(record.evidence_source().unwrap().nature(), EvidenceNature::Observed);
+        assert_eq!(
+            record.evidence_source().unwrap().nature(),
+            EvidenceNature::Observed
+        );
     }
 
     #[test]
@@ -786,13 +843,8 @@ mod tests {
             Err(ObservedKvSelectionComparisonError::BudgetMismatch)
         ));
 
-        let mut value: Value = serde_json::from_str(&record_json(
-            "magnitude",
-            &[11, 13],
-            '4',
-            0.76,
-        ))
-        .unwrap();
+        let mut value: Value =
+            serde_json::from_str(&record_json("magnitude", &[11, 13], '4', 0.76)).unwrap();
         value["model_revision"] = json!("model-r2");
         let drifted = KvlabKvRealModelSelectionEvidenceV1::from_canonical_json(
             &canonical_json(&value).unwrap(),
