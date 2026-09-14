@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/prospect-core",
+    "crates/prospect-scenario",
+    "crates/prospect-tdi",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+authors = ["Tarek Zekriti"]
+license = "PolyForm-Noncommercial-1.0.0"
+repository = "https://github.com/Memorithm/ProspectEngine"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
