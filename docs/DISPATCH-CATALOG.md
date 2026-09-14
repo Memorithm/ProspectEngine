@@ -18,15 +18,15 @@ All identifiers use the existing `prospect-adapter` namespaced-ID validation. Co
 
 ## Canonical serialization
 
-`DispatchCatalog::canonical_json` emits recursively key-sorted compact JSON. `from_canonical_json` rejects:
+`DispatchCatalog::canonical_json` emits compact deterministic JSON in the fixed schema field order after deterministic collection sorting. `from_canonical_json` reconstructs the validated catalog and requires byte-for-byte equality with that canonical encoding. It rejects:
 
-- non-canonical bytes;
+- non-canonical bytes or whitespace;
 - unknown fields;
 - unsupported schemas;
 - invalid namespaced IDs or zero-major versions;
 - empty upstream revisions;
 - duplicate adapter, metric, or policy IDs;
-- semantically non-canonical ordering.
+- semantically non-canonical collection ordering.
 
 The catalog can therefore be persisted or exchanged as a reproducible software-availability input.
 
