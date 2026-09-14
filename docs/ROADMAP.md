@@ -54,6 +54,7 @@ Targets: KVLab and FLAT-ATTENTION.
 - [x] prospective-model boundary that assigns no performance or quality meaning to sparsity by itself;
 - [x] canonical replayable routing evidence binding exact Q/K Boolean signatures, routing mode, derived mask and mask-storage bytes;
 - [x] canonical KVLab BKV handoff consumed and independently revalidated against FLAT routing, bound to KVLab handoff revision `0fb5adc5babfaea9077342db881ce775eacc4442`;
+- [x] FLAT BKV-K6.3 executed evidence envelope ingestion with checksum, provenance, accounting, gate and promotion-decision revalidation;
 - [ ] prospective signatures backed by executed FLAT/KV experiments;
 - [ ] evidence-backed comparisons against existing heuristics;
 - [ ] representative benchmark gates for any speedup, traffic, TTFT/TPOT or quality claim.
@@ -63,6 +64,8 @@ The first adapter intentionally consumes only FLAT's public backend-neutral Bool
 The bounded scenario generator sorts and validates a caller-provided threshold set, emits stable scenario IDs, and keeps the dense all-admitted path as the explicit engine baseline. These scenarios represent Boolean page-selection interventions; they are not equivalent to physical KV eviction after numerical state has been materialized.
 
 Routing and KVLab handoff evidence are structural and pre-execution: they prove which Boolean inputs and threshold produced a specific canonical mask. They do not by themselves prove numerical correctness, runtime speed, physical traffic reduction, or model-quality preservation.
+
+Executed BKV-K6.3 evidence is handled separately. ProspectEngine revalidates the candidate/dense benchmark checksums, shared commit/environment/problem/protocol, exact logical KV-byte accounting, correctness/quality gates, scope declarations and top-level evidence checksum. The observed signature uses the candidate and dense **end-to-end benchmark medians**; the sum of per-phase medians remains diagnostic and is never substituted for an end-to-end latency measurement. Logical numerical KV bytes avoided remain logical accounting unless the source evidence explicitly claims physical DRAM traffic measurement.
 
 ## Milestone 0.5 — plugin boundary
 
