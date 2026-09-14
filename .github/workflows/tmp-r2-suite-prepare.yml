@@ -1,0 +1,44 @@
+name: Prepare R2 observed suite verifier
+
+on:
+  push:
+    branches: [feat/r2-observed-suite-verifier]
+    paths:
+      - scripts/_prepare_r2_suite.py
+      - scripts/_r2_suite_tests.rs
+      - .github/workflows/tmp-r2-suite-prepare.yml
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: feat/r2-observed-suite-verifier
+      - name: Install the project Rust toolchain
+        run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt,clippy
+      - name: Prepare, format, lint and test the actual source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/_prepare_r2_suite.py
+          python3 scripts/_prepare_r2_suite.py
+          cargo +1.89.0 fmt --all
+          cargo +1.89.0 clippy --locked --workspace --all-targets -- -D warnings
+          cargo +1.89.0 test --locked --workspace
+          cargo +1.89.0 build --locked --release -p prospect-cli --bin prospect
+      - name: Commit only validated source and remove preparation helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MEMOPERF'
+          git config user.email 'contact@checkupauto.fr'
+          git add crates/prospect-cli/src/main.rs crates/prospect-cli/src/kv_campaign_suite.rs
+          git rm scripts/_prepare_r2_suite.py scripts/_r2_suite_tests.rs .github/workflows/tmp-r2-suite-prepare.yml
+          git diff --cached --stat
+          git commit -m 'feat(cli): independently verify frozen R2 observed suites'
+          git push origin HEAD:feat/r2-observed-suite-verifier
