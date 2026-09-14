@@ -44,8 +44,9 @@ impl TransitionPlanner for LockedCandidatePlanner {
             PlanOutcome::Candidate(self.candidate.clone())
         } else {
             PlanOutcome::InsufficientEvidence {
-                detail: "ProspectEngine-selected candidate is not declared by the action-time resource"
-                    .to_owned(),
+                detail:
+                    "ProspectEngine-selected candidate is not declared by the action-time resource"
+                        .to_owned(),
             }
         }
     }
@@ -154,12 +155,7 @@ where
                 .clone();
             let planner = LockedCandidatePlanner { candidate };
             let cycle = runtime
-                .cycle(
-                    &selected_plan.plan.resource,
-                    &planner,
-                    observer,
-                    actuator,
-                )
+                .cycle(&selected_plan.plan.resource, &planner, observer, actuator)
                 .map_err(ElasticTransactionGateError::Runtime)?;
 
             Ok(ElasticTransactionOutcome::Cycle {
@@ -178,7 +174,10 @@ impl fmt::Display for ElasticTransactionGateError {
                 "precommit no-op choice does not match the supplied Elastic probe set baseline",
             ),
             Self::SelectedProbeMissing { id } => {
-                write!(formatter, "selected Elastic probe is absent from probe set: {id}")
+                write!(
+                    formatter,
+                    "selected Elastic probe is absent from probe set: {id}"
+                )
             }
             Self::PlanIntentMismatch { id } => write!(
                 formatter,
@@ -189,7 +188,9 @@ impl fmt::Display for ElasticTransactionGateError {
                 "selected Elastic rollback intent differs from supplied probe set: {id}"
             ),
             Self::Probe(error) => write!(formatter, "invalid Elastic probe plan: {error}"),
-            Self::Runtime(error) => write!(formatter, "Elastic runtime transaction failed: {error}"),
+            Self::Runtime(error) => {
+                write!(formatter, "Elastic runtime transaction failed: {error}")
+            }
         }
     }
 }
@@ -216,7 +217,7 @@ mod tests {
 
     use elastic_eir::{FirstGroundedPlanner, PlanningContext};
     use elastic_runtime::{
-        Actuation, CommitRecord, InvariantCheck, ObservationSnapshot, Plan, RollbackRecord,
+        Actuation, CommitRecord, InvariantCheck, ObservationSnapshot, Plan, RollbackRecord, Runtime,
         RuntimeConfig, RuntimeMode, TransactionalActuator, ValidatedPlan, VerificationResult,
         plan::plan_with_context, plan::validate_with_checks,
     };
@@ -290,7 +291,10 @@ mod tests {
             "prospect-test-actuator"
         }
 
-        fn validate(&self, plan: &Plan) -> Result<Vec<InvariantCheck>, elastic_runtime::RuntimeError> {
+        fn validate(
+            &self,
+            plan: &Plan,
+        ) -> Result<Vec<InvariantCheck>, elastic_runtime::RuntimeError> {
             self.validate_calls.set(self.validate_calls.get() + 1);
             Ok(plan
                 .resource
@@ -308,7 +312,9 @@ mod tests {
             self.prepare_calls += 1;
             Ok(Actuation::new(
                 plan.clone(),
-                plan.plan.candidate().and_then(|candidate| candidate.magnitude()),
+                plan.plan
+                    .candidate()
+                    .and_then(|candidate| candidate.magnitude()),
                 self.name(),
             ))
         }
@@ -408,15 +414,9 @@ mod tests {
         .expect("comparison");
         let mut actuator = CountingActuator::default();
 
-        let outcome = execute_selected_probe(
-            &runtime(),
-            &comparison,
-            &probes,
-            &plan,
-            &(),
-            &mut actuator,
-        )
-        .expect("no-op gate");
+        let outcome =
+            execute_selected_probe(&runtime(), &comparison, &probes, &plan, &(), &mut actuator)
+                .expect("no-op gate");
 
         assert!(outcome.is_noop());
         assert_eq!(actuator.validate_calls.get(), 0);
@@ -439,15 +439,9 @@ mod tests {
         .expect("comparison");
         let mut actuator = CountingActuator::default();
 
-        let outcome = execute_selected_probe(
-            &runtime(),
-            &comparison,
-            &probes,
-            &plan,
-            &(),
-            &mut actuator,
-        )
-        .expect("transaction gate");
+        let outcome =
+            execute_selected_probe(&runtime(), &comparison, &probes, &plan, &(), &mut actuator)
+                .expect("transaction gate");
 
         match outcome {
             ElasticTransactionOutcome::Cycle {
