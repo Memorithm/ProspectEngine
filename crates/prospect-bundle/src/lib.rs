@@ -3,9 +3,7 @@
 use core::fmt;
 use std::collections::BTreeSet;
 
-use prospect_adapter::{
-    AdapterMetadata, AdapterMetadataError, ContractVersion, NamespacedId,
-};
+use prospect_adapter::{AdapterMetadata, AdapterMetadataError, ContractVersion, NamespacedId};
 use prospect_core::{Scenario, ScenarioId};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -361,10 +359,14 @@ where
             adapter: AdapterBindingWireRef {
                 adapter_id: self.adapter.adapter_id.as_str(),
                 contract_version: self.adapter.contract_version.into(),
-                upstream: self.adapter.upstream.as_ref().map(|upstream| UpstreamWireRef {
-                    component: upstream.component.as_str(),
-                    revision: &upstream.revision,
-                }),
+                upstream: self
+                    .adapter
+                    .upstream
+                    .as_ref()
+                    .map(|upstream| UpstreamWireRef {
+                        component: upstream.component.as_str(),
+                        revision: &upstream.revision,
+                    }),
             },
             seed: self.seed,
             state: &self.state,
@@ -412,14 +414,8 @@ where
                 .map(|upstream| UpstreamBinding::new(upstream.component, upstream.revision))
                 .transpose()?,
         )?;
-        let metric = wire
-            .metric
-            .map(requirement_from_wire)
-            .transpose()?;
-        let policy = wire
-            .policy
-            .map(requirement_from_wire)
-            .transpose()?;
+        let metric = wire.metric.map(requirement_from_wire).transpose()?;
+        let policy = wire.policy.map(requirement_from_wire).transpose()?;
         let scenarios = wire
             .scenarios
             .into_iter()
@@ -445,7 +441,9 @@ where
     }
 }
 
-fn requirement_from_wire(wire: RequirementWire) -> Result<RegistryRequirement, ScenarioBundleError> {
+fn requirement_from_wire(
+    wire: RequirementWire,
+) -> Result<RegistryRequirement, ScenarioBundleError> {
     RegistryRequirement::new(wire.id, wire.version.try_into()?)
 }
 
@@ -510,9 +508,13 @@ impl fmt::Display for ScenarioBundleError {
             Self::NonCanonicalJson => formatter.write_str("scenario bundle JSON is not canonical"),
             Self::UnsupportedSchema => formatter.write_str("unsupported scenario bundle schema"),
             Self::AdapterMetadata(error) => write!(formatter, "invalid bundle metadata: {error}"),
-            Self::EmptyUpstreamRevision => formatter.write_str("bundle upstream revision must not be empty"),
+            Self::EmptyUpstreamRevision => {
+                formatter.write_str("bundle upstream revision must not be empty")
+            }
             Self::InvalidScenarioId => formatter.write_str("bundle scenario id must not be empty"),
-            Self::EmptyScenarios => formatter.write_str("scenario bundle must contain at least one scenario"),
+            Self::EmptyScenarios => {
+                formatter.write_str("scenario bundle must contain at least one scenario")
+            }
             Self::DuplicateScenario(id) => write!(formatter, "duplicate bundle scenario {id}"),
         }
     }
@@ -576,13 +578,12 @@ mod tests {
     }
 
     fn scenario(id: &str, delta: i32) -> BundleScenario<FixtureIntervention> {
-        BundleScenario::new(
-            ScenarioId::new(id).unwrap(),
-            FixtureIntervention { delta },
-        )
+        BundleScenario::new(ScenarioId::new(id).unwrap(), FixtureIntervention { delta })
     }
 
-    fn bundle(scenarios: Vec<BundleScenario<FixtureIntervention>>) -> ScenarioBundle<FixtureState, FixtureIntervention> {
+    fn bundle(
+        scenarios: Vec<BundleScenario<FixtureIntervention>>,
+    ) -> ScenarioBundle<FixtureState, FixtureIntervention> {
         ScenarioBundle::new(
             "bundle.fixture",
             adapter(),
@@ -612,7 +613,9 @@ mod tests {
         let bundle = bundle(vec![scenario("zeta", 2), scenario("alpha", -1)]);
         let payload = bundle.canonical_json().unwrap();
         assert!(payload.contains(SCENARIO_BUNDLE_SCHEMA_V1));
-        let replayed = ScenarioBundle::<FixtureState, FixtureIntervention>::from_canonical_json(&payload).unwrap();
+        let replayed =
+            ScenarioBundle::<FixtureState, FixtureIntervention>::from_canonical_json(&payload)
+                .unwrap();
         assert_eq!(replayed, bundle);
         assert_eq!(replayed.scenarios()[0].id().as_str(), "alpha");
         assert_eq!(replayed.adapter().adapter_id().as_str(), "prospect.fixture");
@@ -630,7 +633,10 @@ mod tests {
     fn equivalent_insertion_orders_have_identical_digest() {
         let left = bundle(vec![scenario("zeta", 2), scenario("alpha", -1)]);
         let right = bundle(vec![scenario("alpha", -1), scenario("zeta", 2)]);
-        assert_eq!(left.canonical_json().unwrap(), right.canonical_json().unwrap());
+        assert_eq!(
+            left.canonical_json().unwrap(),
+            right.canonical_json().unwrap()
+        );
         assert_eq!(left.sha256().unwrap(), right.sha256().unwrap());
     }
 
