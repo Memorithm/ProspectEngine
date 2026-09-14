@@ -50,7 +50,7 @@ pub fn evaluate_batch<E, State, Intervention>(
     scenarios: Vec<Scenario<Intervention>>,
 ) -> Result<BatchResult<Intervention, E::Signature>, E::Error>
 where
-    E: ProspectiveEngine<State, Intervention>,
+    E: ProspectiveEngine<State, Intervention> + ?Sized,
 {
     let baseline = engine.baseline(state)?;
     let mut outcomes = Vec::with_capacity(scenarios.len());
@@ -72,7 +72,7 @@ pub fn score_against_baseline<I, S, M>(
     metric: &M,
 ) -> Vec<ScenarioScore<M::Score>>
 where
-    M: SignatureMetric<S>,
+    M: SignatureMetric<S> + ?Sized,
 {
     batch
         .outcomes()
@@ -89,7 +89,7 @@ pub fn best_by_policy<'a, I, S, P>(
     policy: &P,
 ) -> Option<(&'a ScenarioOutcome<I, S>, P::Score)>
 where
-    P: DecisionPolicy<S>,
+    P: DecisionPolicy<S> + ?Sized,
 {
     let mut outcomes = batch.outcomes().iter();
     let first = outcomes.next()?;
