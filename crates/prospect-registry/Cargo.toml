@@ -1,0 +1,16 @@
+[package]
+name = "prospect-registry"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Versioned metric and decision-policy registries for ProspectEngine"
+
+[lints]
+workspace = true
+
+[dependencies]
+prospect-adapter = { path = "../prospect-adapter" }
+prospect-core = { path = "../prospect-core" }
