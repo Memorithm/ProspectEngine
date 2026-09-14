@@ -59,7 +59,7 @@ pub trait VersionedAdapter {
 }
 
 impl ContractVersion {
-    pub const fn new(major: u16, minor: u16) -> Result<Self, AdapterMetadataError> {
+    pub fn new(major: u16, minor: u16) -> Result<Self, AdapterMetadataError> {
         if major == 0 {
             return Err(AdapterMetadataError::ZeroMajorVersion);
         }
@@ -258,16 +258,10 @@ fn built_in_metadata(
     AdapterMetadata::new(
         adapter_id,
         ADAPTER_CONTRACT_VERSION,
-        Some(AdapterUpstream::new(
-            upstream_component,
-            upstream_revision,
-        )?),
+        Some(AdapterUpstream::new(upstream_component, upstream_revision)?),
         vec![
             AdapterCapability::new("prospect.baseline_evaluation", capability_version)?,
-            AdapterCapability::new(
-                "prospect.intervention_evaluation",
-                capability_version,
-            )?,
+            AdapterCapability::new("prospect.intervention_evaluation", capability_version)?,
             AdapterCapability::new(domain_capability, capability_version)?,
         ],
     )
@@ -284,10 +278,7 @@ fn valid_namespaced_id(value: &str) -> bool {
         };
         first.is_ascii_lowercase()
             && bytes.all(|byte| {
-                byte.is_ascii_lowercase()
-                    || byte.is_ascii_digit()
-                    || byte == b'-'
-                    || byte == b'_'
+                byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-' || byte == b'_'
             })
     })
 }
@@ -299,9 +290,14 @@ impl fmt::Display for AdapterMetadataError {
                 formatter.write_str("adapter contract major version must be positive")
             }
             Self::InvalidNamespacedId(value) => {
-                write!(formatter, "invalid namespaced adapter metadata id {value:?}")
+                write!(
+                    formatter,
+                    "invalid namespaced adapter metadata id {value:?}"
+                )
             }
-            Self::EmptyRevision => formatter.write_str("adapter upstream revision must not be empty"),
+            Self::EmptyRevision => {
+                formatter.write_str("adapter upstream revision must not be empty")
+            }
             Self::EmptyCapabilities => {
                 formatter.write_str("adapter metadata must declare at least one capability")
             }
@@ -370,7 +366,8 @@ mod tests {
             None,
             vec![
                 AdapterCapability::new("fixture.same", version).unwrap(),
-                AdapterCapability::new("fixture.same", ContractVersion::new(1, 1).unwrap()).unwrap(),
+                AdapterCapability::new("fixture.same", ContractVersion::new(1, 1).unwrap())
+                    .unwrap(),
             ],
         );
         assert!(matches!(
