@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod dispatch_preflight;
+mod kv_campaign_spec;
 mod scenario_bundle;
 
 use std::env;
@@ -8,11 +9,12 @@ use std::ffi::OsString;
 use std::process::ExitCode;
 
 use dispatch_preflight::preflight_scenario_bundle_files;
+use kv_campaign_spec::verify_kv_campaign_spec_file;
 use prospect_adapter::built_in_adapter_catalog;
 use prospect_cli::verify_kv_campaign_directory;
 use scenario_bundle::verify_scenario_bundle_file;
 
-const USAGE: &str = "Usage:\n  prospect list-adapters\n  prospect preflight-scenario-bundle <bundle.json> <catalog.json>\n  prospect verify-kv-campaign <campaign-directory>\n  prospect verify-scenario-bundle <bundle.json>";
+const USAGE: &str = "Usage:\n  prospect list-adapters\n  prospect preflight-scenario-bundle <bundle.json> <catalog.json>\n  prospect verify-kv-campaign-spec <campaign.json>\n  prospect verify-kv-campaign <campaign-directory>\n  prospect verify-scenario-bundle <bundle.json>";
 
 fn main() -> ExitCode {
     match run(env::args_os()) {
@@ -62,6 +64,20 @@ where
             serde_json::to_string(&summary).map_err(|error| {
                 CliError::Verification(format!(
                     "failed to encode dispatch preflight summary: {error}"
+                ))
+            })
+        }
+        Some("verify-kv-campaign-spec") => {
+            let path = exactly_one_argument(
+                &mut arguments,
+                "verify-kv-campaign-spec",
+                "campaign specification file",
+            )?;
+            let summary = verify_kv_campaign_spec_file(path)
+                .map_err(|error| CliError::Verification(error.to_string()))?;
+            serde_json::to_string(&summary).map_err(|error| {
+                CliError::Verification(format!(
+                    "failed to encode campaign specification summary: {error}"
                 ))
             })
         }
@@ -224,6 +240,26 @@ mod tests {
                 Err(CliError::Usage(_))
             ));
         }
+    }
+
+    #[test]
+    fn kv_campaign_spec_requires_exactly_one_file() {
+        assert!(matches!(
+            run([
+                OsString::from("prospect"),
+                OsString::from("verify-kv-campaign-spec")
+            ]),
+            Err(CliError::Usage(_))
+        ));
+        assert!(matches!(
+            run([
+                OsString::from("prospect"),
+                OsString::from("verify-kv-campaign-spec"),
+                OsString::from("a.json"),
+                OsString::from("b.json")
+            ]),
+            Err(CliError::Usage(_))
+        ));
     }
 
     #[test]
