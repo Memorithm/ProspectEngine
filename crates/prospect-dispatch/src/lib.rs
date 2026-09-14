@@ -138,7 +138,10 @@ impl fmt::Display for BundleDispatchError {
         match self {
             Self::MissingAdapter(id) => write!(formatter, "bundle adapter {id} is not available"),
             Self::DuplicateAdapter(id) => {
-                write!(formatter, "bundle adapter {id} is ambiguous in the adapter catalog")
+                write!(
+                    formatter,
+                    "bundle adapter {id} is ambiguous in the adapter catalog"
+                )
             }
             Self::IncompatibleAdapterVersion {
                 id,
@@ -180,9 +183,7 @@ impl std::error::Error for BundleDispatchError {
 
 #[cfg(test)]
 mod tests {
-    use prospect_adapter::{
-        AdapterCapability, AdapterMetadata, AdapterUpstream, ContractVersion,
-    };
+    use prospect_adapter::{AdapterCapability, AdapterMetadata, AdapterUpstream, ContractVersion};
     use prospect_bundle::{
         AdapterBinding, BundleScenario, RegistryRequirement, ScenarioBundle, UpstreamBinding,
     };
@@ -277,7 +278,8 @@ mod tests {
         )];
         let (metrics, policies) = registries();
 
-        let resolved = resolve_bundle_requirements(&bundle, &adapters, &metrics, &policies).unwrap();
+        let resolved =
+            resolve_bundle_requirements(&bundle, &adapters, &metrics, &policies).unwrap();
         assert_eq!(resolved.adapter().adapter_id().as_str(), "prospect.fixture");
         assert_eq!(resolved.metric().unwrap().compare(&10, &16), 6);
         assert_eq!(resolved.policy().unwrap().utility(&23), 23);
@@ -298,7 +300,8 @@ mod tests {
         let metrics = MetricRegistry::<i32, i32>::new();
         let policies = DecisionPolicyRegistry::<i32, i32>::new();
 
-        let resolved = resolve_bundle_requirements(&bundle, &adapters, &metrics, &policies).unwrap();
+        let resolved =
+            resolve_bundle_requirements(&bundle, &adapters, &metrics, &policies).unwrap();
         assert!(resolved.metric().is_none());
         assert!(resolved.policy().is_none());
     }
