@@ -681,7 +681,7 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use serde_json::{Value, json};
+    use serde_json::json;
 
     use super::*;
 
@@ -810,7 +810,7 @@ mod tests {
         baseline_char: char,
     ) -> (String, String, CampaignVerificationSummary) {
         let model_tokens = (100_u64..127).collect::<Vec<_>>();
-        let evaluation_tokens = vec![200_u64, 201];
+        let evaluation_tokens = (200_u64..208).collect::<Vec<_>>();
         let lru_positions = ((INPUT_TOKENS - retained_count)..INPUT_TOKENS).collect::<Vec<_>>();
         let random_positions = (0..retained_count).collect::<Vec<_>>();
         let experiment_id = format!("smollm2-r1-position-retain-{retained_count:02}-of-27");
