@@ -1,0 +1,69 @@
+name: Temporary PR 30 autofix
+
+on:
+  push:
+    branches:
+      - feature/dispatch-availability-catalog
+
+permissions:
+  contents: write
+
+jobs:
+  autofix:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/dispatch-availability-catalog
+          fetch-depth: 0
+
+      - name: Install Rust 1.89 with rustfmt
+        run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt
+
+      - name: Fix shadowed bundle helper and format
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("crates/prospect-dispatch/src/catalog.rs")
+          text = path.read_text()
+          marker = "fn catalog_preflight_fails_closed_on_missing_registry_and_upstream_drift()"
+          before, after = text.split(marker, 1)
+          after = after.replace(
+              "let bundle = bundle(true, false,",
+              "let missing_metric_bundle = bundle(true, false,",
+              1,
+          )
+          after = after.replace(
+              "catalog.resolve_bundle(&bundle)",
+              "catalog.resolve_bundle(&missing_metric_bundle)",
+              1,
+          )
+          after = after.replace(
+              "let bundle = bundle(false, false,",
+              "let upstream_drift_bundle = bundle(false, false,",
+              1,
+          )
+          after = after.replace(
+              "catalog.resolve_bundle(&bundle)",
+              "catalog.resolve_bundle(&upstream_drift_bundle)",
+              1,
+          )
+          path.write_text(before + marker + after)
+          PY
+          cargo +1.89.0 fmt --all
+
+      - name: Commit autofix when needed
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No autofix changes required"
+            exit 0
+          fi
+          git config user.name "MEMOPERF"
+          git config user.email "contact@checkupauto.fr"
+          git add crates/prospect-dispatch/src/catalog.rs
+          git commit -m "test(dispatch): avoid bundle helper shadowing"
+          git push origin HEAD:feature/dispatch-availability-catalog
