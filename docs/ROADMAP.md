@@ -52,13 +52,14 @@ Targets: KVLab and FLAT-ATTENTION.
 - [x] FLAT dependency pinned to reviewed commit `a5b6598ffe475c74c938f45feb86b009d0e4ad0a`;
 - [x] prospective-model boundary that assigns no performance or quality meaning to sparsity by itself;
 - [x] canonical replayable routing evidence binding exact Q/K Boolean signatures, routing mode, derived mask and mask-storage bytes;
+- [x] canonical KVLab BKV handoff consumed and independently revalidated against FLAT routing, bound to KVLab handoff revision `0fb5adc5babfaea9077342db881ce775eacc4442`;
 - [ ] prospective signatures backed by executed FLAT/KV experiments;
 - [ ] evidence-backed comparisons against existing heuristics;
 - [ ] representative benchmark gates for any speedup, traffic, TTFT/TPOT or quality claim.
 
-The first adapter intentionally consumes only FLAT's public backend-neutral Boolean contracts (`BooleanAttentionSignature`, `HammingAdmissionRule`, and `BooleanAttentionMask`). Internal BIKV paged-selection implementation details are not treated as a stable cross-repository API. A separate public contract or evidence handoff is required before ProspectEngine depends on that path.
+The first adapter intentionally consumes only FLAT's public backend-neutral Boolean contracts (`BooleanAttentionSignature`, `HammingAdmissionRule`, and `BooleanAttentionMask`). Internal BIKV paged-selection implementation details are not treated as a stable cross-repository API. KVLab now provides the separate schema `kvlab.prospect-bkv-handoff/v1`, whose exact bit-packed signatures and candidate pages are independently revalidated by ProspectEngine before conversion into a FLAT mask.
 
-Routing evidence is structural and pre-execution: it proves which Boolean inputs and threshold produced a specific canonical mask. It does not by itself prove numerical correctness, runtime speed, physical traffic reduction, or model-quality preservation.
+Routing and KVLab handoff evidence are structural and pre-execution: they prove which Boolean inputs and threshold produced a specific canonical mask. They do not by themselves prove numerical correctness, runtime speed, physical traffic reduction, or model-quality preservation.
 
 ## Milestone 0.5 — plugin boundary
 
