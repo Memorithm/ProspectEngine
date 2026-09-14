@@ -67,7 +67,10 @@ pub struct KvCampaignSuiteSummary {
 
 #[derive(Debug)]
 pub enum KvCampaignSuiteError {
-    Io { path: PathBuf, source: io::Error },
+    Io {
+        path: PathBuf,
+        source: io::Error,
+    },
     Json(serde_json::Error),
     NonCanonicalManifest,
     UnsupportedSchema,
@@ -76,9 +79,15 @@ pub enum KvCampaignSuiteError {
     NonUtf8EntryName(PathBuf),
     UnexpectedEntry(String),
     EntryTypeMismatch(String),
-    CampaignVerification { retained_count: usize, message: String },
+    CampaignVerification {
+        retained_count: usize,
+        message: String,
+    },
     PublishedVerificationMismatch(usize),
-    ComparisonInvalid { retained_count: usize, message: String },
+    ComparisonInvalid {
+        retained_count: usize,
+        message: String,
+    },
     BudgetMismatch(usize),
     CrossCampaignTraceMismatch,
     CrossCampaignBaselineMismatch,
@@ -264,7 +273,11 @@ fn validate_manifest(manifest: &SuiteManifestWire) -> Result<(), KvCampaignSuite
             PROSPECT_LAUNCH_VERIFIER_REVISION,
         ),
         ("model_id", manifest.model_id.as_str(), MODEL_ID),
-        ("model_revision", manifest.model_revision.as_str(), MODEL_REVISION),
+        (
+            "model_revision",
+            manifest.model_revision.as_str(),
+            MODEL_REVISION,
+        ),
         (
             "source_model_sha256",
             manifest.source_model_sha256.as_str(),
@@ -304,12 +317,16 @@ fn validate_manifest(manifest: &SuiteManifestWire) -> Result<(), KvCampaignSuite
             return Err(KvCampaignSuiteError::InvalidManifest("campaign paths"));
         }
         if entry.record_count != POLICIES.len()
-            || entry.policies.iter().map(String::as_str).collect::<Vec<_>>() != POLICIES
+            || entry
+                .policies
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+                != POLICIES
         {
             return Err(KvCampaignSuiteError::InvalidManifest("policies"));
         }
-        if !is_lower_hex(&entry.campaign_spec_sha256, 64)
-            || !is_lower_hex(&entry.trace_sha256, 64)
+        if !is_lower_hex(&entry.campaign_spec_sha256, 64) || !is_lower_hex(&entry.trace_sha256, 64)
         {
             return Err(KvCampaignSuiteError::InvalidManifest("campaign digest"));
         }
@@ -317,7 +334,9 @@ fn validate_manifest(manifest: &SuiteManifestWire) -> Result<(), KvCampaignSuite
             || !outputs.insert(&entry.output_directory)
             || !verification_files.insert(&entry.verification_file)
         {
-            return Err(KvCampaignSuiteError::InvalidManifest("duplicate campaign entry"));
+            return Err(KvCampaignSuiteError::InvalidManifest(
+                "duplicate campaign entry",
+            ));
         }
     }
     Ok(())
@@ -351,13 +370,13 @@ fn validate_directory_entries(
         let Some(expect_directory) = expected.get(&name).copied() else {
             return Err(KvCampaignSuiteError::UnexpectedEntry(name));
         };
-        let file_type = entry.file_type().map_err(|source| KvCampaignSuiteError::Io {
-            path: path.clone(),
-            source,
-        })?;
-        if file_type.is_dir() != expect_directory
-            || (!expect_directory && !file_type.is_file())
-        {
+        let file_type = entry
+            .file_type()
+            .map_err(|source| KvCampaignSuiteError::Io {
+                path: path.clone(),
+                source,
+            })?;
+        if file_type.is_dir() != expect_directory || (!expect_directory && !file_type.is_file()) {
             return Err(KvCampaignSuiteError::EntryTypeMismatch(name));
         }
         seen.insert(name);
@@ -457,10 +476,12 @@ fn load_observed_comparison(
     for index in 0..POLICIES.len() {
         let path = campaign_directory.join(format!("selection-{index:03}.json"));
         let payload = read_text(&path)?;
-        let record = KvlabKvRealModelPositionEvidenceV2::from_canonical_json(&payload)
-            .map_err(|error| KvCampaignSuiteError::ComparisonInvalid {
-                retained_count,
-                message: error.to_string(),
+        let record =
+            KvlabKvRealModelPositionEvidenceV2::from_canonical_json(&payload).map_err(|error| {
+                KvCampaignSuiteError::ComparisonInvalid {
+                    retained_count,
+                    message: error.to_string(),
+                }
             })?;
         records.push(record);
     }
@@ -509,13 +530,17 @@ impl BaselineIdentity {
             && self.retained_positions == other.retained_positions
             && self.retained_token_ids == other.retained_token_ids
             && self.metrics.len() == other.metrics.len()
-            && self.metrics.iter().zip(&other.metrics).all(|(left, right)| {
-                left.name == right.name
-                    && left.kind == right.kind
-                    && left.unit == right.unit
-                    && left.preference == right.preference
-                    && left.value.to_bits() == right.value.to_bits()
-            })
+            && self
+                .metrics
+                .iter()
+                .zip(&other.metrics)
+                .all(|(left, right)| {
+                    left.name == right.name
+                        && left.kind == right.kind
+                        && left.unit == right.unit
+                        && left.preference == right.preference
+                        && left.value.to_bits() == right.value.to_bits()
+                })
     }
 }
 
@@ -523,7 +548,9 @@ fn checked_bytes(tokens: usize) -> Result<u64, KvCampaignSuiteError> {
     u64::try_from(tokens)
         .ok()
         .and_then(|tokens| tokens.checked_mul(BYTES_PER_TOKEN))
-        .ok_or(KvCampaignSuiteError::InvalidManifest("logical byte overflow"))
+        .ok_or(KvCampaignSuiteError::InvalidManifest(
+            "logical byte overflow",
+        ))
 }
 
 fn read_text(path: &Path) -> Result<String, KvCampaignSuiteError> {
@@ -583,21 +610,57 @@ fn canonical_json(value: &Value) -> Result<String, serde_json::Error> {
 impl fmt::Display for KvCampaignSuiteError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Io { path, source } => write!(formatter, "failed to read {}: {source}", path.display()),
+            Self::Io { path, source } => {
+                write!(formatter, "failed to read {}: {source}", path.display())
+            }
             Self::Json(error) => write!(formatter, "invalid suite JSON: {error}"),
-            Self::NonCanonicalManifest => formatter.write_str("suite manifest is not canonical JSON"),
+            Self::NonCanonicalManifest => {
+                formatter.write_str("suite manifest is not canonical JSON")
+            }
             Self::UnsupportedSchema => formatter.write_str("unsupported KV campaign suite schema"),
-            Self::ProvenanceMismatch(field) => write!(formatter, "suite provenance mismatch: {field}"),
-            Self::InvalidManifest(field) => write!(formatter, "invalid suite manifest field: {field}"),
-            Self::NonUtf8EntryName(path) => write!(formatter, "suite entry name is not UTF-8: {}", path.display()),
+            Self::ProvenanceMismatch(field) => {
+                write!(formatter, "suite provenance mismatch: {field}")
+            }
+            Self::InvalidManifest(field) => {
+                write!(formatter, "invalid suite manifest field: {field}")
+            }
+            Self::NonUtf8EntryName(path) => write!(
+                formatter,
+                "suite entry name is not UTF-8: {}",
+                path.display()
+            ),
             Self::UnexpectedEntry(name) => write!(formatter, "unexpected suite entry: {name}"),
-            Self::EntryTypeMismatch(name) => write!(formatter, "suite entry has wrong file type: {name}"),
-            Self::CampaignVerification { retained_count, message } => write!(formatter, "retain-{retained_count:02} campaign verification failed: {message}"),
-            Self::PublishedVerificationMismatch(retained_count) => write!(formatter, "retain-{retained_count:02} published verification summary does not match independent replay"),
-            Self::ComparisonInvalid { retained_count, message } => write!(formatter, "retain-{retained_count:02} observed comparison is invalid: {message}"),
-            Self::BudgetMismatch(retained_count) => write!(formatter, "retain-{retained_count:02} logical budget mismatch"),
-            Self::CrossCampaignTraceMismatch => formatter.write_str("suite campaigns do not share one trace"),
-            Self::CrossCampaignBaselineMismatch => formatter.write_str("suite campaigns do not share one exact observed baseline"),
+            Self::EntryTypeMismatch(name) => {
+                write!(formatter, "suite entry has wrong file type: {name}")
+            }
+            Self::CampaignVerification {
+                retained_count,
+                message,
+            } => write!(
+                formatter,
+                "retain-{retained_count:02} campaign verification failed: {message}"
+            ),
+            Self::PublishedVerificationMismatch(retained_count) => write!(
+                formatter,
+                "retain-{retained_count:02} published verification summary does not match independent replay"
+            ),
+            Self::ComparisonInvalid {
+                retained_count,
+                message,
+            } => write!(
+                formatter,
+                "retain-{retained_count:02} observed comparison is invalid: {message}"
+            ),
+            Self::BudgetMismatch(retained_count) => write!(
+                formatter,
+                "retain-{retained_count:02} logical budget mismatch"
+            ),
+            Self::CrossCampaignTraceMismatch => {
+                formatter.write_str("suite campaigns do not share one trace")
+            }
+            Self::CrossCampaignBaselineMismatch => {
+                formatter.write_str("suite campaigns do not share one exact observed baseline")
+            }
         }
     }
 }
@@ -695,7 +758,11 @@ mod tests {
             let stem = format!("retain-{retained_count:02}-of-27");
             let campaign_dir = directory.join(&stem);
             fs::create_dir(&campaign_dir).unwrap();
-            let baseline_char = if baseline_drift && retained_count == 20 { '9' } else { '2' };
+            let baseline_char = if baseline_drift && retained_count == 20 {
+                '9'
+            } else {
+                '2'
+            };
             let (campaign_sha, trace_sha, summary) =
                 write_campaign(&campaign_dir, retained_count, baseline_char);
             let verification_file = format!("verification-{stem}.json");
@@ -771,15 +838,13 @@ mod tests {
             "schema":"kvlab.prospect-kv-real-model-position-trace/v1",
             "model_input_token_ids":campaign["model_input_token_ids"],
             "evaluation_token_ids":campaign["evaluation_token_ids"]
-        })).unwrap();
+        }))
+        .unwrap();
         let trace_sha = sha256_hex(trace_json.as_bytes());
         let campaign_sha = sha256_hex(campaign_json.as_bytes());
         fs::write(directory.join("campaign.json"), &campaign_json).unwrap();
 
-        let selections = [
-            ("lru", lru_positions),
-            ("random_seeded", random_positions),
-        ];
+        let selections = [("lru", lru_positions), ("random_seeded", random_positions)];
         let mut descriptors = Vec::new();
         for (index, (policy, retained_positions)) in selections.into_iter().enumerate() {
             let retained = retained_positions.iter().copied().collect::<BTreeSet<_>>();
