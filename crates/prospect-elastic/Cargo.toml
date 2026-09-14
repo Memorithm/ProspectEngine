@@ -13,6 +13,7 @@ workspace = true
 
 [dependencies]
 prospect-core = { path = "../prospect-core" }
+prospect-scenario = { path = "../prospect-scenario" }
 elastic-core = { git = "https://github.com/Memorithm/ElasticXxx", rev = "50bb85ea84191c01d95e5b4e5e3c81af10e95ebd", package = "elastic-core" }
 elastic-runtime = { git = "https://github.com/Memorithm/ElasticXxx", rev = "50bb85ea84191c01d95e5b4e5e3c81af10e95ebd", package = "elastic-runtime" }
 
