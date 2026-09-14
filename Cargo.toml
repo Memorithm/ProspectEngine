@@ -13,6 +13,7 @@ members = [
     "crates/prospect-kv-selection-observed",
     "crates/prospect-kv-position",
     "crates/prospect-kv-position-observed",
+    "crates/prospect-kv-position-campaign",
 ]
 
 [workspace.package]
