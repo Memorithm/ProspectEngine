@@ -1,10 +1,17 @@
 #![forbid(unsafe_code)]
 
+mod probe;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use elastic_runtime::ObservationSnapshot;
 use prospect_core::ProspectiveEngine;
+
+pub use probe::{
+    ELASTIC_PROBE_SCHEMA_V1, ElasticProbeError, ElasticProbeSetV1, ElasticProbeV1,
+    ValidatedPlanIntentV1,
+};
 
 pub const ELASTICXXX_REVISION: &str = "50bb85ea84191c01d95e5b4e5e3c81af10e95ebd";
 
