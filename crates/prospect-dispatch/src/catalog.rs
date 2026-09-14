@@ -709,15 +709,16 @@ mod tests {
     fn catalog_preflight_fails_closed_on_missing_registry_and_upstream_drift() {
         let catalog =
             DispatchCatalog::new(catalog().adapters().to_vec(), Vec::new(), Vec::new()).unwrap();
-        let bundle = bundle(true, false, "0123456789abcdef0123456789abcdef01234567");
+        let missing_metric_bundle = bundle(true, false, "0123456789abcdef0123456789abcdef01234567");
         assert!(matches!(
-            catalog.resolve_bundle(&bundle),
+            catalog.resolve_bundle(&missing_metric_bundle),
             Err(CatalogPreflightError::MissingMetric(id)) if id == "metric.distance"
         ));
 
-        let bundle = bundle(false, false, "ffffffffffffffffffffffffffffffffffffffff");
+        let upstream_drift_bundle =
+            bundle(false, false, "ffffffffffffffffffffffffffffffffffffffff");
         assert!(matches!(
-            catalog.resolve_bundle(&bundle),
+            catalog.resolve_bundle(&upstream_drift_bundle),
             Err(CatalogPreflightError::AdapterUpstreamMismatch { .. })
         ));
     }
