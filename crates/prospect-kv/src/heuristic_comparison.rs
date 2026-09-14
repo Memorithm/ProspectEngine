@@ -5,14 +5,11 @@ use std::collections::BTreeSet;
 use prospect_evidence::{EvidenceError, EvidenceNature, EvidenceSource};
 use serde::Deserialize;
 
-use crate::synthetic_effect::{
-    BoundKvRegion, KvlabKvEvictionEffectError, KvlabKvEvictionEffectV1,
-};
+use crate::synthetic_effect::{BoundKvRegion, KvlabKvEvictionEffectError, KvlabKvEvictionEffectV1};
 
 pub const KVLAB_KV_HEURISTIC_COMPARISON_SCHEMA_V1: &str =
     "kvlab.prospect-kv-heuristic-comparison/v1";
-pub const KVLAB_KV_HEURISTIC_COMPARISON_REVISION: &str =
-    "407c6f2e15a9cb4b1bcbdfa273e41a930483af39";
+pub const KVLAB_KV_HEURISTIC_COMPARISON_REVISION: &str = "407c6f2e15a9cb4b1bcbdfa273e41a930483af39";
 
 const FLOAT_ABS_TOLERANCE: f64 = 1.0e-12;
 const FLOAT_REL_TOLERANCE: f64 = 1.0e-12;
@@ -348,7 +345,10 @@ fn greedy_lru(regions: &[BoundKvRegion], budget_bytes: u64) -> Vec<String> {
     let mut used = 0_u64;
     for index in (0..regions.len()).rev() {
         let bytes = regions[index].storage_bytes();
-        if used.checked_add(bytes).is_some_and(|next| next <= budget_bytes) {
+        if used
+            .checked_add(bytes)
+            .is_some_and(|next| next <= budget_bytes)
+        {
             used += bytes;
             retained.insert(index);
         }
@@ -361,11 +361,7 @@ fn greedy_lru(regions: &[BoundKvRegion], budget_bytes: u64) -> Vec<String> {
         .collect()
 }
 
-fn greedy_ranked<F>(
-    regions: &[BoundKvRegion],
-    budget_bytes: u64,
-    score: F,
-) -> Vec<String>
+fn greedy_ranked<F>(regions: &[BoundKvRegion], budget_bytes: u64, score: F) -> Vec<String>
 where
     F: Fn(&BoundKvRegion) -> f64,
 {
@@ -374,18 +370,16 @@ where
         .enumerate()
         .map(|(index, region)| (index, score(region)))
         .collect::<Vec<_>>();
-    ranked.sort_by(|left, right| {
-        right
-            .1
-            .partial_cmp(&left.1)
-            .unwrap_or(Ordering::Equal)
-    });
+    ranked.sort_by(|left, right| right.1.partial_cmp(&left.1).unwrap_or(Ordering::Equal));
 
     let mut retained = BTreeSet::new();
     let mut used = 0_u64;
     for (index, _) in ranked {
         let bytes = regions[index].storage_bytes();
-        if used.checked_add(bytes).is_some_and(|next| next <= budget_bytes) {
+        if used
+            .checked_add(bytes)
+            .is_some_and(|next| next <= budget_bytes)
+        {
             used += bytes;
             retained.insert(index);
         }
@@ -449,26 +443,62 @@ impl fmt::Display for KvlabKvHeuristicComparisonError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Json(error) => write!(formatter, "invalid KV heuristic comparison JSON: {error}"),
-            Self::NonCanonicalJson => formatter.write_str("KV heuristic comparison JSON is not canonical"),
-            Self::UnsupportedSchema => formatter.write_str("unsupported KV heuristic comparison schema"),
-            Self::Effect(error) => write!(formatter, "invalid embedded KV eviction effect: {error}"),
-            Self::BudgetMismatch => formatter.write_str("KV heuristic comparison budget does not match the embedded eviction"),
-            Self::InvalidResultCount => formatter.write_str("KV heuristic comparison must contain exactly five policy results"),
-            Self::UnknownPolicy(policy) => write!(formatter, "unknown KV heuristic policy {policy}"),
-            Self::PolicyOrderMismatch => formatter.write_str("KV heuristic comparison policy order does not match schema v1"),
-            Self::DuplicateRetainedRegion => formatter.write_str("KV heuristic result contains duplicate retained regions"),
-            Self::UnknownRetainedRegion(region) => write!(formatter, "KV heuristic result references unknown region {region}"),
-            Self::RetainedBytesOverflow => formatter.write_str("KV heuristic retained-byte accounting overflow"),
-            Self::RetainedBytesMismatch => formatter.write_str("KV heuristic retained bytes do not match retained regions"),
-            Self::BudgetExceeded => formatter.write_str("KV heuristic retained regions exceed the shared budget"),
-            Self::UnusedBytesMismatch => formatter.write_str("KV heuristic unused bytes do not match shared budget accounting"),
-            Self::L2DeltaMismatch => formatter.write_str("KV heuristic L2 delta does not match the synthetic oracle replay"),
-            Self::OldestFirstMismatch => formatter.write_str("oldest_first result does not match the embedded eviction"),
-            Self::LruMismatch => formatter.write_str("LRU result does not match independent Rust replay"),
-            Self::MagnitudeMismatch => formatter.write_str("magnitude result does not match independent Rust replay"),
-            Self::SensitivityMismatch => formatter.write_str("sensitivity-per-byte result does not match independent Rust replay"),
-            Self::BestPolicyMismatch => formatter.write_str("best heuristic policy does not match replayed L2 results"),
-            Self::Evidence(error) => write!(formatter, "invalid ProspectEngine evidence source: {error}"),
+            Self::NonCanonicalJson => {
+                formatter.write_str("KV heuristic comparison JSON is not canonical")
+            }
+            Self::UnsupportedSchema => {
+                formatter.write_str("unsupported KV heuristic comparison schema")
+            }
+            Self::Effect(error) => {
+                write!(formatter, "invalid embedded KV eviction effect: {error}")
+            }
+            Self::BudgetMismatch => formatter
+                .write_str("KV heuristic comparison budget does not match the embedded eviction"),
+            Self::InvalidResultCount => formatter
+                .write_str("KV heuristic comparison must contain exactly five policy results"),
+            Self::UnknownPolicy(policy) => {
+                write!(formatter, "unknown KV heuristic policy {policy}")
+            }
+            Self::PolicyOrderMismatch => {
+                formatter.write_str("KV heuristic comparison policy order does not match schema v1")
+            }
+            Self::DuplicateRetainedRegion => {
+                formatter.write_str("KV heuristic result contains duplicate retained regions")
+            }
+            Self::UnknownRetainedRegion(region) => write!(
+                formatter,
+                "KV heuristic result references unknown region {region}"
+            ),
+            Self::RetainedBytesOverflow => {
+                formatter.write_str("KV heuristic retained-byte accounting overflow")
+            }
+            Self::RetainedBytesMismatch => {
+                formatter.write_str("KV heuristic retained bytes do not match retained regions")
+            }
+            Self::BudgetExceeded => {
+                formatter.write_str("KV heuristic retained regions exceed the shared budget")
+            }
+            Self::UnusedBytesMismatch => formatter
+                .write_str("KV heuristic unused bytes do not match shared budget accounting"),
+            Self::L2DeltaMismatch => formatter
+                .write_str("KV heuristic L2 delta does not match the synthetic oracle replay"),
+            Self::OldestFirstMismatch => {
+                formatter.write_str("oldest_first result does not match the embedded eviction")
+            }
+            Self::LruMismatch => {
+                formatter.write_str("LRU result does not match independent Rust replay")
+            }
+            Self::MagnitudeMismatch => {
+                formatter.write_str("magnitude result does not match independent Rust replay")
+            }
+            Self::SensitivityMismatch => formatter
+                .write_str("sensitivity-per-byte result does not match independent Rust replay"),
+            Self::BestPolicyMismatch => {
+                formatter.write_str("best heuristic policy does not match replayed L2 results")
+            }
+            Self::Evidence(error) => {
+                write!(formatter, "invalid ProspectEngine evidence source: {error}")
+            }
         }
     }
 }
@@ -490,8 +520,7 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        HeuristicPolicy, KVLAB_KV_HEURISTIC_COMPARISON_REVISION,
-        KvlabKvHeuristicComparisonV1,
+        HeuristicPolicy, KVLAB_KV_HEURISTIC_COMPARISON_REVISION, KvlabKvHeuristicComparisonV1,
     };
 
     fn effect_value() -> serde_json::Value {
@@ -552,7 +581,10 @@ mod tests {
         assert_eq!(comparison.random_seed(), 7);
         assert_eq!(comparison.best_policy(), HeuristicPolicy::Magnitude);
         assert_eq!(comparison.results().len(), 5);
-        assert_eq!(comparison.results()[0].policy(), HeuristicPolicy::OldestFirst);
+        assert_eq!(
+            comparison.results()[0].policy(),
+            HeuristicPolicy::OldestFirst
+        );
         assert_eq!(comparison.results()[1].policy(), HeuristicPolicy::Lru);
     }
 
