@@ -92,8 +92,7 @@ pub fn verify_kv_campaign_spec(payload: &str) -> Result<CampaignSpecSummary, Cam
     if canonical_json(&value).map_err(CampaignSpecError::Json)? != payload {
         return Err(CampaignSpecError::NonCanonical);
     }
-    let campaign: CampaignWire =
-        serde_json::from_value(value).map_err(CampaignSpecError::Json)?;
+    let campaign: CampaignWire = serde_json::from_value(value).map_err(CampaignSpecError::Json)?;
     validate_campaign(&campaign)?;
 
     let campaign_spec_sha256 = sha256_hex(payload.as_bytes());
@@ -276,21 +275,37 @@ impl fmt::Display for CampaignSpecError {
         match self {
             Self::Io(error) => write!(formatter, "failed to read campaign specification: {error}"),
             Self::Json(error) => write!(formatter, "invalid campaign specification JSON: {error}"),
-            Self::NonCanonical => formatter.write_str("campaign specification is not canonical JSON"),
-            Self::UnsupportedSchema => formatter.write_str("unsupported campaign specification schema"),
-            Self::InvalidField(field) => write!(formatter, "invalid campaign specification field {field}"),
-            Self::DuplicatePolicy(policy) => write!(formatter, "duplicate campaign policy {policy}"),
+            Self::NonCanonical => {
+                formatter.write_str("campaign specification is not canonical JSON")
+            }
+            Self::UnsupportedSchema => {
+                formatter.write_str("unsupported campaign specification schema")
+            }
+            Self::InvalidField(field) => {
+                write!(formatter, "invalid campaign specification field {field}")
+            }
+            Self::DuplicatePolicy(policy) => {
+                write!(formatter, "duplicate campaign policy {policy}")
+            }
             Self::SelectionDuplicatesBaseline(policy) => {
-                write!(formatter, "campaign policy {policy} duplicates the full-cache baseline")
+                write!(
+                    formatter,
+                    "campaign policy {policy} duplicates the full-cache baseline"
+                )
             }
             Self::PositionOutOfRange(policy) => {
-                write!(formatter, "campaign policy {policy} contains an out-of-range retained position")
+                write!(
+                    formatter,
+                    "campaign policy {policy} contains an out-of-range retained position"
+                )
             }
             Self::PositionsNotStrictlyIncreasing(policy) => write!(
                 formatter,
                 "campaign policy {policy} retained positions must be strictly increasing and unique"
             ),
-            Self::ByteAccountingOverflow => formatter.write_str("campaign logical byte accounting overflow"),
+            Self::ByteAccountingOverflow => {
+                formatter.write_str("campaign logical byte accounting overflow")
+            }
         }
     }
 }
@@ -324,8 +339,14 @@ mod tests {
         assert_eq!(summary.policies[0].logical_evicted_bytes, 921_600);
         assert_eq!(summary.policies[1].policy, "random_seeded");
         assert_eq!(summary.policies[1].logical_retained_bytes, 322_560);
-        assert_eq!(summary.run_repository_revision, "404577ce939093767dc75d2d67de2fe3c16fa4dc");
-        assert_eq!(summary.runtime_revision, "58e7db8e1c4b471a7fe82a4beba11904240c4e89");
+        assert_eq!(
+            summary.run_repository_revision,
+            "404577ce939093767dc75d2d67de2fe3c16fa4dc"
+        );
+        assert_eq!(
+            summary.runtime_revision,
+            "58e7db8e1c4b471a7fe82a4beba11904240c4e89"
+        );
     }
 
     #[test]
