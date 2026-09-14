@@ -1,83 +1,83 @@
 # ProspectEngine
 
-ProspectEngine is a domain-agnostic prospective dynamics and intervention engine built around experimentally validated primitives from the Memorithm ecosystem.
+ProspectEngine is a domain-agnostic prospective dynamics and intervention engine built around primitives from the Memorithm ecosystem.
 
-The project is intended to answer a narrow operational question:
+The project answers a narrow operational question:
 
 > Given a current system state and a set of admissible interventions, what prospective structure does each intervention induce, and what evidence supports selecting one intervention over another?
 
-ProspectEngine separates scientific primitives from domain models. TDI is the initial scientific foundation; adapters translate concrete systems into the generic scenario interface without modifying or duplicating frozen TDI research code.
+Scientific primitives, domain models, prospective decisions and observed outcomes remain separate. TDI is the initial finite-state foundation; adapters reuse pinned upstream contracts rather than copying scientific or runtime algorithms.
+
+## Implemented surfaces
+
+The workspace includes generic scenario evaluation (`prospect-core`, `prospect-scenario`), canonical evidence (`prospect-evidence`), versioned adapter metadata, metric/policy registries, reproducible bundles and typed dispatch (`prospect-adapter`, `prospect-registry`, `prospect-bundle`, `prospect-dispatch`).
+
+Domain bridges cover exact TDI finite-state signatures, ElasticXxx observations and transaction gating, FLAT Boolean routing, and KVLab logical/synthetic/observed KV contracts. Capability declarations do not establish model quality, physical effects or performance.
+
+The verification-first `prospect` CLI exposes:
+
+```text
+list-adapters
+preflight-scenario-bundle <bundle.json> <catalog.json>
+verify-scenario-bundle <bundle.json>
+verify-kv-campaign-spec <campaign.json>
+verify-kv-campaign <campaign-directory>
+verify-kv-campaign-suite <suite-directory>
+```
+
+The typed execution API resolves software contracts before invoking a registered engine. The CLI does not dynamically load arbitrary plugins or execute shell commands from untyped scenario data. See [CLI contracts](docs/CLI.md) and [roadmap](docs/ROADMAP.md).
 
 ## Architecture
 
 ```text
-Domain observations
-   |
-   v
-Domain adapter
-   |
-   v
-Candidate interventions
-   |
-   v
-+-------------------+
-| ProspectEngine    |
-| scenario engine   |
-+---------+---------+
-          |
-          v
-+-------------------+
-| Prospective model |
-| / TDI adapter     |
-+---------+---------+
-          |
-          v
-Signatures -> metrics -> domain policy -> decision evidence
+Domain observations -> adapter -> admissible candidate interventions
+                                      |
+                                      v
+                           pluggable prospective model
+                                      |
+                                      v
+                       signatures -> metrics -> domain policy
+                                      |
+                                      v
+                          prospective decision evidence
+
+Observed execution outcomes are recorded and verified separately.
 ```
 
-Current workspace:
-
-- `prospect-core`: generic scenario, engine, metric and decision-policy contracts;
-- `prospect-scenario`: baseline/candidate batch evaluation and ranking;
-- `prospect-evidence`: canonical run/source/candidate/selection evidence records;
-- `prospect-tdi`: thin adapter over the exact `tdi-core` finite-state primitives;
-- `prospect-elastic`: bridge from real ElasticXxx runtime observations to pluggable prospective models.
-
-The TDI and ElasticXxx dependencies are pinned to reviewed commits. ProspectEngine does not copy their scientific or runtime algorithms.
+TDI, ElasticXxx and FLAT-ATTENTION dependencies are pinned to reviewed revisions. The workspace tracks `Cargo.lock` for reproducible CLI dependency resolution.
 
 ## ElasticXxx bridge
 
-The first operational bridge consumes `elastic-runtime::ObservationSnapshot` directly. Valid observations are converted into deterministic source/signal keys. Unsupported telemetry remains explicit and is never converted to zero. Duplicate observations and non-finite values fail closed.
+Valid `elastic-runtime::ObservationSnapshot` values become deterministic source/signal keys. Unsupported telemetry stays explicit; duplicate signals and non-finite values fail closed.
 
-This bridge does **not** execute ElasticXxx actuation yet and does not invent a universal forecast model. A concrete `ElasticProspectiveModel` must provide the prospective behavior and be validated for its domain.
+A selected probe can pass through `execute_selected_probe` into the existing ElasticXxx `Runtime::cycle` transaction boundary. Action-time validation, actuation, verification, commit and rollback remain the responsibility of the supplied `TransactionalActuator`. A no-op does not touch the actuator. A declared rollback intention is not evidence of physical reversibility.
 
-## Intended adapters
+A concrete `ElasticProspectiveModel` must supply and validate the domain-specific prospective behavior. ProspectEngine does not invent a universal forecast model.
 
-The architecture is designed to support independent adapters for systems such as:
+## KVLab / NNIS campaign status
 
-- ElasticXxx resource/runtime control;
-- KVLab cache experiments;
-- FLAT-ATTENTION gating/masking experiments;
-- cyber-resilience fault injection;
-- manufacturing and digital twins;
-- power-system abstractions;
-- robotics and logistics.
+The fixed SmolLM2 R1 suite verifier binds all three campaign inputs to the exact preregistered SHA-256 values, independently verifies their evidence records, and checks common trace/baseline and matched policy budgets. Coherently rehashing substituted inputs does not make them the frozen experiment.
 
-These are targets, not validated capabilities. Continuous and hybrid systems require a separately validated abstraction or primitive.
+R1 remains frozen under its original pins. Its NNIS backend preserved BF16 weights before calling an F32-only decoder, and its pinned ProspectEngine revision had no committed dependency lockfile. Input-only preflight was therefore not end-to-end execution qualification.
 
-## Validate
+[KVLab R2 preregistrations](https://github.com/Memorithm/KVLab/tree/216b49ae4d62ed4c4c2edfd1e88f929d0a0fd9e5/experiments/prospect/smollm2-r2) use repaired NNIS revision `091aabbb3e132627cf64716720aae530442d2a32`, with explicit BF16-source/F32-execution separation. They preserve the 27-token prefix, eight-token evaluation trace, seed, controls and 7/27, 14/27 and 20/27 retained-row budgets. Each has seven scored teacher-forced targets.
+
+CI builds the locked release binary and checks those exact R2 inputs against their immutable digests and expected budgets. This is cross-repository input/build qualification, not a CUDA run. Generic per-campaign verification supports R2; the fixed whole-suite command remains R1-only. Representative model-quality, physical-memory, traffic, latency and throughput gates remain open.
+
+## Validate and build
 
 ```bash
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+cargo +1.89.0 fmt --all -- --check
+cargo +1.89.0 clippy --locked --workspace --all-targets -- -D warnings
+cargo +1.89.0 test --locked --workspace
+cargo +1.89.0 build --locked --release -p prospect-cli --bin prospect
 ```
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/ROADMAP.md`](docs/ROADMAP.md), and [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md).
+See [architecture](docs/ARCHITECTURE.md), [roadmap](docs/ROADMAP.md), and [next milestone](docs/NEXT_MILESTONE.md). Continuous/hybrid systems, cyber-resilience, manufacturing, power-system and robotics adapters remain research targets requiring separately validated abstractions.
 
 ## Status
 
-Early implementation. No production, safety, regulatory, financial-performance or universal-prediction claim is made at this stage.
+Research implementation. No production, safety, regulatory, financial-performance or universal-prediction claim is made.
 
 ## License
 
