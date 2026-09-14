@@ -131,11 +131,7 @@ mod tests {
 
     #[test]
     fn list_adapters_emits_deterministic_catalog() {
-        let output = run([
-            OsString::from("prospect"),
-            OsString::from("list-adapters"),
-        ])
-        .unwrap();
+        let output = run([OsString::from("prospect"), OsString::from("list-adapters")]).unwrap();
         let catalog: serde_json::Value = serde_json::from_str(&output).unwrap();
         let ids: Vec<_> = catalog
             .as_array()
