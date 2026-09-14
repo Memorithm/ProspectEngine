@@ -44,7 +44,59 @@ jobs:
           retention-days: 3
 
       - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets -- -D warnings
 
       - name: Tests
-        run: cargo test --workspace
+        run: cargo test --locked --workspace
+
+      - name: Reproducible CLI build
+        run: cargo build --locked --release -p prospect-cli --bin prospect
+
+      - name: Preflight immutable KVLab R2 inputs without model execution
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          import subprocess
+          import tempfile
+          import urllib.request
+
+          revision = "216b49ae4d62ed4c4c2edfd1e88f929d0a0fd9e5"
+          digests = {
+              7: "d826e0ca1869b6f3134e8b34bb65db14aa034d2518bf9559810ae80f19012346",
+              14: "01eeec54e02bf3f56bbd2e75175e2f04fc4593701875a21b90981b40cfa4eff5",
+              20: "e09b14c8479bac98b93625f3d98f667943d8318ff769dbbbf3db989959dcba07",
+          }
+          trace_sha = "3411f378fb3c7010eb94361128c019206fb47bda4271f721498d517eb07ca65f"
+          with tempfile.TemporaryDirectory() as temporary:
+              for count, expected_sha in digests.items():
+                  name = f"retain-{count:02d}-of-27.json"
+                  url = f"https://raw.githubusercontent.com/Memorithm/KVLab/{revision}/experiments/prospect/smollm2-r2/{name}"
+                  with urllib.request.urlopen(url, timeout=30) as response:
+                      payload = response.read(65537)
+                  if len(payload) > 65536 or hashlib.sha256(payload).hexdigest() != expected_sha:
+                      raise SystemExit(f"preregistration identity mismatch: {name}")
+                  path = Path(temporary) / name
+                  path.write_bytes(payload)
+                  result = subprocess.run(
+                      ["target/release/prospect", "verify-kv-campaign-spec", str(path)],
+                      check=True, capture_output=True, text=True, timeout=30,
+                  )
+                  summary = json.loads(result.stdout)
+                  spec = json.loads(payload)
+                  assert summary["campaign_spec_sha256"] == expected_sha
+                  assert summary["trace_sha256"] == trace_sha
+                  assert summary["runtime_revision"] == "091aabbb3e132627cf64716720aae530442d2a32"
+                  assert summary["model_input_tokens"] == 27
+                  assert summary["evaluation_tokens"] == 8
+                  assert summary["logical_input_bytes"] == 27 * 46080
+                  assert len(summary["policies"]) == 2
+                  for observed, declared in zip(summary["policies"], spec["selections"]):
+                      assert observed["policy"] == declared["policy"]
+                      assert observed["retained_positions"] == declared["retained_positions"]
+                      assert observed["retained_tokens"] == count
+                      assert observed["logical_retained_bytes"] == count * 46080
+                      assert observed["logical_evicted_bytes"] == (27 - count) * 46080
+                  print(f"{name}: exact input digest, trace and budgets verified; no model executed")
+          PY
