@@ -15,8 +15,7 @@ use crate::{
     ElasticProbeError, ElasticProbeSetV1, ElasticTransactionOutcome, ValidatedPlanIntentV1,
 };
 
-pub const ELASTIC_EXECUTION_EVIDENCE_SCHEMA_V1: &str =
-    "prospect.elastic-execution-evidence/v1";
+pub const ELASTIC_EXECUTION_EVIDENCE_SCHEMA_V1: &str = "prospect.elastic-execution-evidence/v1";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -167,10 +166,7 @@ impl ElasticExecutionEvidenceV1 {
             probe_schema: probe_schema.to_owned(),
             elastic_revision: ELASTICXXX_REVISION.to_owned(),
             resource_id: resource.resource_id().to_owned(),
-            resource_fingerprint: format!(
-                "eir-fp:{:016x}",
-                resource.resource_fingerprint()
-            ),
+            resource_fingerprint: format!("eir-fp:{:016x}", resource.resource_fingerprint()),
             scenario_id: scenario_id.as_str().to_owned(),
             disposition: ElasticExecutionDisposition::NoOp,
             action_time_plan_validated: None,
@@ -379,13 +375,9 @@ where
         return Err(ElasticExecutionEvidenceError::ChoiceUtilityDrift);
     }
 
-    let decision = DecisionEvidence::from_scores(
-        run_id.clone(),
-        sources,
-        scores,
-        Some(selected_id.clone()),
-    )
-    .map_err(ElasticExecutionEvidenceError::Evidence)?;
+    let decision =
+        DecisionEvidence::from_scores(run_id.clone(), sources, scores, Some(selected_id.clone()))
+            .map_err(ElasticExecutionEvidenceError::Evidence)?;
     let execution = ElasticExecutionEvidenceV1::capture(
         &run_id,
         &resource,
@@ -443,7 +435,9 @@ fn validate_fingerprint(value: &str) -> Result<(), ElasticExecutionEvidenceError
     }
 }
 
-fn validate_noop(evidence: &ElasticExecutionEvidenceV1) -> Result<(), ElasticExecutionEvidenceError> {
+fn validate_noop(
+    evidence: &ElasticExecutionEvidenceV1,
+) -> Result<(), ElasticExecutionEvidenceError> {
     if evidence.action_time_plan_validated.is_none()
         && !evidence.actuation_performed
         && evidence.verification == ElasticVerificationEvidence::NotPerformed
@@ -510,7 +504,10 @@ impl fmt::Display for ElasticExecutionEvidenceError {
             Self::Evidence(error) => write!(formatter, "invalid decision evidence: {error}"),
             Self::Probe(error) => write!(formatter, "invalid Elastic probe evidence: {error}"),
             Self::Json(error) => {
-                write!(formatter, "invalid Elastic execution evidence JSON: {error}")
+                write!(
+                    formatter,
+                    "invalid Elastic execution evidence JSON: {error}"
+                )
             }
             Self::UnsupportedSchema => {
                 formatter.write_str("unsupported Elastic execution evidence schema")
@@ -581,8 +578,7 @@ mod tests {
     use prospect_evidence::{EvidenceNature, EvidenceSource, RunId};
 
     use super::{
-        ElasticExecutionDisposition, ElasticExecutionEvidenceV1,
-        capture_elastic_execution_evidence,
+        ElasticExecutionDisposition, ElasticExecutionEvidenceV1, capture_elastic_execution_evidence,
     };
     use crate::{
         ElasticEngine, ElasticIntervention, ElasticObservationState, ElasticProbeSetV1,
