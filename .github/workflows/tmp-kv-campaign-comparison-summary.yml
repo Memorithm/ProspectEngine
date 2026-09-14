@@ -26,186 +26,180 @@ jobs:
           p = Path("crates/prospect-cli/src/lib.rs")
           s = p.read_text()
           if "CampaignPolicyObservationSummary" not in s:
-              old = '''#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-          pub struct CampaignVerificationSummary {
-              campaign_spec_sha256: String,
-              trace_sha256: String,
-              policies: Vec<String>,
-              record_count: usize,
-          }
-          '''
-              new = '''#[derive(Clone, Debug, PartialEq, Serialize)]
-          pub struct CampaignVerificationSummary {
-              campaign_spec_sha256: String,
-              trace_sha256: String,
-              policies: Vec<String>,
-              observations: Vec<CampaignPolicyObservationSummary>,
-              record_count: usize,
-          }
+              old = """#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct CampaignVerificationSummary {
+    campaign_spec_sha256: String,
+    trace_sha256: String,
+    policies: Vec<String>,
+    record_count: usize,
+}
+"""
+              new = """#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct CampaignVerificationSummary {
+    campaign_spec_sha256: String,
+    trace_sha256: String,
+    policies: Vec<String>,
+    observations: Vec<CampaignPolicyObservationSummary>,
+    record_count: usize,
+}
 
-          #[derive(Clone, Debug, PartialEq, Serialize)]
-          pub struct CampaignMetricObservationSummary {
-              name: String,
-              kind: String,
-              unit: String,
-              preference: String,
-              baseline_value: f64,
-              candidate_value: f64,
-              delta: f64,
-          }
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct CampaignMetricObservationSummary {
+    name: String,
+    kind: String,
+    unit: String,
+    preference: String,
+    baseline_value: f64,
+    candidate_value: f64,
+    delta: f64,
+}
 
-          #[derive(Clone, Debug, PartialEq, Serialize)]
-          pub struct CampaignPolicyObservationSummary {
-              policy: String,
-              retained_positions: Vec<usize>,
-              logical_retained_bytes: u64,
-              logical_evicted_bytes: u64,
-              metrics: Vec<CampaignMetricObservationSummary>,
-          }
-          '''
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct CampaignPolicyObservationSummary {
+    policy: String,
+    retained_positions: Vec<usize>,
+    logical_retained_bytes: u64,
+    logical_evicted_bytes: u64,
+    metrics: Vec<CampaignMetricObservationSummary>,
+}
+"""
               assert old in s
               s = s.replace(old, new, 1)
 
-              accessor_marker = '''    #[must_use]
-              pub const fn record_count(&self) -> usize {
-                  self.record_count
-              }
-          }
-          '''
-              accessor_replacement = '''    #[must_use]
-              pub fn observations(&self) -> &[CampaignPolicyObservationSummary] {
-                  &self.observations
-              }
+              accessor_marker = """    #[must_use]
+    pub const fn record_count(&self) -> usize {
+        self.record_count
+    }
+}
+"""
+              accessor_replacement = """    #[must_use]
+    pub fn observations(&self) -> &[CampaignPolicyObservationSummary] {
+        &self.observations
+    }
 
-              #[must_use]
-              pub const fn record_count(&self) -> usize {
-                  self.record_count
-              }
-          }
+    #[must_use]
+    pub const fn record_count(&self) -> usize {
+        self.record_count
+    }
+}
 
-          impl CampaignPolicyObservationSummary {
-              #[must_use]
-              pub fn policy(&self) -> &str {
-                  &self.policy
-              }
+impl CampaignPolicyObservationSummary {
+    #[must_use]
+    pub fn policy(&self) -> &str {
+        &self.policy
+    }
 
-              #[must_use]
-              pub fn retained_positions(&self) -> &[usize] {
-                  &self.retained_positions
-              }
+    #[must_use]
+    pub fn retained_positions(&self) -> &[usize] {
+        &self.retained_positions
+    }
 
-              #[must_use]
-              pub const fn logical_retained_bytes(&self) -> u64 {
-                  self.logical_retained_bytes
-              }
+    #[must_use]
+    pub const fn logical_retained_bytes(&self) -> u64 {
+        self.logical_retained_bytes
+    }
 
-              #[must_use]
-              pub const fn logical_evicted_bytes(&self) -> u64 {
-                  self.logical_evicted_bytes
-              }
+    #[must_use]
+    pub const fn logical_evicted_bytes(&self) -> u64 {
+        self.logical_evicted_bytes
+    }
 
-              #[must_use]
-              pub fn metrics(&self) -> &[CampaignMetricObservationSummary] {
-                  &self.metrics
-              }
-          }
+    #[must_use]
+    pub fn metrics(&self) -> &[CampaignMetricObservationSummary] {
+        &self.metrics
+    }
+}
 
-          impl CampaignMetricObservationSummary {
-              #[must_use]
-              pub fn name(&self) -> &str {
-                  &self.name
-              }
+impl CampaignMetricObservationSummary {
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 
-              #[must_use]
-              pub fn kind(&self) -> &str {
-                  &self.kind
-              }
+    #[must_use]
+    pub fn kind(&self) -> &str {
+        &self.kind
+    }
 
-              #[must_use]
-              pub fn unit(&self) -> &str {
-                  &self.unit
-              }
+    #[must_use]
+    pub fn unit(&self) -> &str {
+        &self.unit
+    }
 
-              #[must_use]
-              pub fn preference(&self) -> &str {
-                  &self.preference
-              }
+    #[must_use]
+    pub fn preference(&self) -> &str {
+        &self.preference
+    }
 
-              #[must_use]
-              pub const fn baseline_value(&self) -> f64 {
-                  self.baseline_value
-              }
+    #[must_use]
+    pub const fn baseline_value(&self) -> f64 {
+        self.baseline_value
+    }
 
-              #[must_use]
-              pub const fn candidate_value(&self) -> f64 {
-                  self.candidate_value
-              }
+    #[must_use]
+    pub const fn candidate_value(&self) -> f64 {
+        self.candidate_value
+    }
 
-              #[must_use]
-              pub const fn delta(&self) -> f64 {
-                  self.delta
-              }
-          }
-          '''
+    #[must_use]
+    pub const fn delta(&self) -> f64 {
+        self.delta
+    }
+}
+"""
               assert accessor_marker in s
               s = s.replace(accessor_marker, accessor_replacement, 1)
 
-              construct_marker = '''        policies: verified.policies().to_vec(),
-              record_count: verified.records().len(),
-          '''
-              construct_replacement = '''        policies: verified.policies().to_vec(),
-              observations: verified
-                  .records()
-                  .iter()
-                  .map(|record| {
-                      let outcome = record.selection().outcome();
-                      CampaignPolicyObservationSummary {
-                          policy: outcome.policy().to_owned(),
-                          retained_positions: outcome.retained_positions().to_vec(),
-                          logical_retained_bytes: outcome.logical_retained_bytes(),
-                          logical_evicted_bytes: outcome.logical_evicted_bytes(),
-                          metrics: record
-                              .metrics()
-                              .iter()
-                              .map(|metric| CampaignMetricObservationSummary {
-                                  name: metric.name().to_owned(),
-                                  kind: metric.kind().as_str().to_owned(),
-                                  unit: metric.unit().to_owned(),
-                                  preference: metric.preference().as_str().to_owned(),
-                                  baseline_value: metric.baseline_value(),
-                                  candidate_value: metric.candidate_value(),
-                                  delta: metric.delta(),
-                              })
-                              .collect(),
-                      }
-                  })
-                  .collect(),
-              record_count: verified.records().len(),
-          '''
+              construct_marker = "        policies: verified.policies().to_vec(),\n        record_count: verified.records().len(),"
+              construct_replacement = """        policies: verified.policies().to_vec(),
+        observations: verified
+            .records()
+            .iter()
+            .map(|record| {
+                let outcome = record.selection().outcome();
+                CampaignPolicyObservationSummary {
+                    policy: outcome.policy().to_owned(),
+                    retained_positions: outcome.retained_positions().to_vec(),
+                    logical_retained_bytes: outcome.logical_retained_bytes(),
+                    logical_evicted_bytes: outcome.logical_evicted_bytes(),
+                    metrics: record
+                        .metrics()
+                        .iter()
+                        .map(|metric| CampaignMetricObservationSummary {
+                            name: metric.name().to_owned(),
+                            kind: metric.kind().as_str().to_owned(),
+                            unit: metric.unit().to_owned(),
+                            preference: metric.preference().as_str().to_owned(),
+                            baseline_value: metric.baseline_value(),
+                            candidate_value: metric.candidate_value(),
+                            delta: metric.delta(),
+                        })
+                        .collect(),
+                }
+            })
+            .collect(),
+        record_count: verified.records().len(),"""
               assert construct_marker in s
               s = s.replace(construct_marker, construct_replacement, 1)
 
-              test_marker = '''        assert_eq!(summary.record_count(), 1);
-              assert_eq!(summary.campaign_spec_sha256().len(), 64);
-          '''
-              test_replacement = '''        assert_eq!(summary.record_count(), 1);
-              assert_eq!(summary.observations().len(), 1);
-              let observation = &summary.observations()[0];
-              assert_eq!(observation.policy(), "lru");
-              assert_eq!(observation.retained_positions(), &[0, 2, 4]);
-              assert_eq!(observation.logical_retained_bytes(), 192);
-              assert_eq!(observation.logical_evicted_bytes(), 128);
-              assert_eq!(observation.metrics().len(), 1);
-              let metric = &observation.metrics()[0];
-              assert_eq!(metric.name(), "mean_nll");
-              assert_eq!(metric.kind(), "quality");
-              assert_eq!(metric.unit(), "nat_per_token");
-              assert_eq!(metric.preference(), "lower_is_better");
-              assert_eq!(metric.baseline_value(), 1.0);
-              assert_eq!(metric.candidate_value(), 1.25);
-              assert_eq!(metric.delta(), 0.25);
-              assert_eq!(summary.campaign_spec_sha256().len(), 64);
-          '''
+              test_marker = "        assert_eq!(summary.record_count(), 1);\n        assert_eq!(summary.campaign_spec_sha256().len(), 64);"
+              test_replacement = """        assert_eq!(summary.record_count(), 1);
+        assert_eq!(summary.observations().len(), 1);
+        let observation = &summary.observations()[0];
+        assert_eq!(observation.policy(), "lru");
+        assert_eq!(observation.retained_positions(), &[0, 2, 4]);
+        assert_eq!(observation.logical_retained_bytes(), 192);
+        assert_eq!(observation.logical_evicted_bytes(), 128);
+        assert_eq!(observation.metrics().len(), 1);
+        let metric = &observation.metrics()[0];
+        assert_eq!(metric.name(), "mean_nll");
+        assert_eq!(metric.kind(), "quality");
+        assert_eq!(metric.unit(), "nat_per_token");
+        assert_eq!(metric.preference(), "lower_is_better");
+        assert_eq!(metric.baseline_value(), 1.0);
+        assert_eq!(metric.candidate_value(), 1.25);
+        assert_eq!(metric.delta(), 0.25);
+        assert_eq!(summary.campaign_spec_sha256().len(), 64);"""
               assert test_marker in s
               s = s.replace(test_marker, test_replacement, 1)
               p.write_text(s)
@@ -214,23 +208,27 @@ jobs:
           s = p.read_text()
           old_revision = 'pub const KVLAB_KV_POSITION_CAMPAIGN_REVISION: &str = "9fb6cae9f644daee7904fd14b50c3995c898fa6d";'
           new_revision = 'pub const KVLAB_KV_POSITION_CAMPAIGN_REVISION: &str = "ffc406abedcaf2b69cd89d804b52c3ebf7cd93ee";'
-          assert old_revision in s
-          p.write_text(s.replace(old_revision, new_revision, 1))
+          if old_revision in s:
+              p.write_text(s.replace(old_revision, new_revision, 1))
+          else:
+              assert new_revision in s
 
           p = Path("docs/CLI.md")
           s = p.read_text()
           old = "A successful verification writes one compact JSON object to stdout containing the campaign-spec SHA-256, reconstructed trace SHA-256, verified policy names, and record count."
           new = "A successful verification writes one compact JSON object to stdout containing the campaign-spec SHA-256, reconstructed trace SHA-256, verified policy names, record count, and one observed summary per policy. Each policy summary contains exact retained positions, logical KV bytes retained/evicted, and every verified metric with its declared kind, unit, preference, baseline value, candidate value, and delta. ProspectEngine does not infer a winner from these values."
-          assert old in s
-          p.write_text(s.replace(old, new, 1))
+          if old in s:
+              p.write_text(s.replace(old, new, 1))
+          else:
+              assert new in s
 
           p = Path("docs/ROADMAP.md")
           s = p.read_text()
           marker = "Observed real-model eviction evidence uses KVLab schema"
           note = "KVLab position-native campaign directories are now self-contained at merged KVLab revision `ffc406abedcaf2b69cd89d804b52c3ebf7cd93ee`: the canonical campaign specification is persisted atomically with the manifest and observed records. ProspectEngine pins this campaign contract revision and exposes verified per-policy logical byte accounting plus observed metric baseline/candidate/delta values without deriving an automatic scientific ranking. Representative-model and benchmark gates remain open until qualifying executions exist.\n\n"
-          assert marker in s
-          s = s.replace(marker, note + marker, 1)
-          p.write_text(s)
+          if note not in s:
+              assert marker in s
+              p.write_text(s.replace(marker, note + marker, 1))
       - name: Format
         run: |
           rustup default 1.89.0
