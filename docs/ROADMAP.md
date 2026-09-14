@@ -1,6 +1,6 @@
 # ProspectEngine Roadmap
 
-## Bootstrap — current PR
+## Bootstrap — complete
 
 Goal: prove the architecture with the smallest reusable executable core.
 
@@ -16,22 +16,23 @@ Goal: prove the architecture with the smallest reusable executable core.
 
 ## Milestone 0.2 — evidence model
 
-- canonical scenario/evidence record;
-- deterministic serialization format;
-- model/adapter/dependency hashes;
-- replay contract;
-- explicit distinction between observed, simulated and inferred values;
-- no domain-specific safety claims.
+- [x] canonical scenario/evidence record;
+- [x] deterministic serialization format;
+- [x] model/adapter/dependency revision and optional content-hash fields;
+- [x] replay contract;
+- [x] explicit distinction between observed, simulated and inferred values;
+- [x] no domain-specific safety claims.
 
 ## Milestone 0.3 — first operational adapter
 
 Target: ElasticXxx.
 
-- map observable runtime state to a versioned adapter state;
-- define reversible probe/intervention candidates;
-- compare resource actions before commit;
-- connect to PLAN -> VALIDATE -> ACT -> VERIFY -> COMMIT/ROLLBACK;
-- preserve a no-op baseline and rollback path.
+- [x] consume real ElasticXxx runtime observations through a pinned dependency;
+- [x] preserve unsupported telemetry without fabricated values;
+- [ ] define versioned reversible probe/intervention candidates;
+- [ ] compare resource actions before commit;
+- [ ] connect to PLAN -> VALIDATE -> ACT -> VERIFY -> COMMIT/ROLLBACK;
+- [ ] preserve an explicit no-op baseline and rollback path.
 
 Proposed control loop:
 
