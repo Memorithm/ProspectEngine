@@ -40,7 +40,8 @@ where
 
     match command.to_str() {
         Some("verify-kv-campaign") => {
-            let directory = exactly_one_argument(&mut arguments, "verify-kv-campaign", "campaign directory")?;
+            let directory =
+                exactly_one_argument(&mut arguments, "verify-kv-campaign", "campaign directory")?;
             let summary = verify_kv_campaign_directory(directory)
                 .map_err(|error| CliError::Verification(error.to_string()))?;
             serde_json::to_string(&summary).map_err(|error| {
@@ -48,7 +49,8 @@ where
             })
         }
         Some("verify-scenario-bundle") => {
-            let path = exactly_one_argument(&mut arguments, "verify-scenario-bundle", "bundle file")?;
+            let path =
+                exactly_one_argument(&mut arguments, "verify-scenario-bundle", "bundle file")?;
             let summary = verify_scenario_bundle_file(path)
                 .map_err(|error| CliError::Verification(error.to_string()))?;
             serde_json::to_string(&summary).map_err(|error| {
