@@ -16,6 +16,7 @@ members = [
     "crates/prospect-kv-position-campaign",
     "crates/prospect-cli",
     "crates/prospect-adapter",
+    "crates/prospect-registry",
 ]
 
 [workspace.package]
