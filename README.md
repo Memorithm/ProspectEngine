@@ -8,10 +8,13 @@ The project is intended to answer a narrow operational question:
 
 ProspectEngine separates scientific primitives from domain models. TDI is the initial scientific foundation; adapters translate concrete systems into the generic scenario interface without modifying or duplicating frozen TDI research code.
 
-## Bootstrap architecture
+## Architecture
 
 ```text
-Domain state
+Domain observations
+   |
+   v
+Domain adapter
    |
    v
 Candidate interventions
@@ -24,21 +27,29 @@ Candidate interventions
           |
           v
 +-------------------+
-| Prospective core  |
+| Prospective model |
 | / TDI adapter     |
 +---------+---------+
           |
           v
-Signatures -> metrics -> domain policy -> ranked evidence
+Signatures -> metrics -> domain policy -> decision evidence
 ```
 
 Current workspace:
 
 - `prospect-core`: generic scenario, engine, metric and decision-policy contracts;
 - `prospect-scenario`: baseline/candidate batch evaluation and ranking;
-- `prospect-tdi`: thin adapter over the exact `tdi-core` finite-state primitives.
+- `prospect-evidence`: canonical run/source/candidate/selection evidence records;
+- `prospect-tdi`: thin adapter over the exact `tdi-core` finite-state primitives;
+- `prospect-elastic`: bridge from real ElasticXxx runtime observations to pluggable prospective models.
 
-The TDI dependency is pinned to a reviewed commit. ProspectEngine does not copy the TDI exploration or signature algorithms.
+The TDI and ElasticXxx dependencies are pinned to reviewed commits. ProspectEngine does not copy their scientific or runtime algorithms.
+
+## ElasticXxx bridge
+
+The first operational bridge consumes `elastic-runtime::ObservationSnapshot` directly. Valid observations are converted into deterministic source/signal keys. Unsupported telemetry remains explicit and is never converted to zero. Duplicate observations and non-finite values fail closed.
+
+This bridge does **not** execute ElasticXxx actuation yet and does not invent a universal forecast model. A concrete `ElasticProspectiveModel` must provide the prospective behavior and be validated for its domain.
 
 ## Intended adapters
 
@@ -54,7 +65,7 @@ The architecture is designed to support independent adapters for systems such as
 
 These are targets, not validated capabilities. Continuous and hybrid systems require a separately validated abstraction or primitive.
 
-## Validate the bootstrap
+## Validate
 
 ```bash
 cargo fmt --all -- --check
@@ -62,11 +73,11 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/ROADMAP.md`](docs/ROADMAP.md).
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/ROADMAP.md`](docs/ROADMAP.md), and [`docs/NEXT_MILESTONE.md`](docs/NEXT_MILESTONE.md).
 
 ## Status
 
-Early bootstrap. No production, safety, regulatory, financial-performance or universal-prediction claim is made at this stage.
+Early implementation. No production, safety, regulatory, financial-performance or universal-prediction claim is made at this stage.
 
 ## License
 

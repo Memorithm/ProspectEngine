@@ -1,0 +1,17 @@
+[package]
+name = "prospect-elastic"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "ProspectEngine bridge for ElasticXxx runtime observations"
+
+[lints]
+workspace = true
+
+[dependencies]
+prospect-core = { path = "../prospect-core" }
+elastic-core = { git = "https://github.com/Memorithm/ElasticXxx", rev = "50bb85ea84191c01d95e5b4e5e3c81af10e95ebd", package = "elastic-core" }
+elastic-runtime = { git = "https://github.com/Memorithm/ElasticXxx", rev = "50bb85ea84191c01d95e5b4e5e3c81af10e95ebd", package = "elastic-runtime" }

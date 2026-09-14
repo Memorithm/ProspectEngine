@@ -1,0 +1,16 @@
+[package]
+name = "prospect-evidence"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Canonical provenance and decision-evidence records for ProspectEngine"
+
+[lints]
+workspace = true
+
+[dependencies]
+prospect-core = { path = "../prospect-core" }
+prospect-scenario = { path = "../prospect-scenario" }
