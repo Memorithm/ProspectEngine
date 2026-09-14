@@ -7,8 +7,7 @@ use prospect_core::{InvalidScenarioId, ProspectiveEngine, Scenario, ScenarioId};
 use serde::Deserialize;
 
 pub const KVLAB_KV_EVICTION_HANDOFF_SCHEMA_V1: &str = "kvlab.prospect-kv-eviction/v1";
-pub const KVLAB_KV_EVICTION_HANDOFF_REVISION: &str =
-    "e53a09e9b5923bb95527036d5148735f973eefc9";
+pub const KVLAB_KV_EVICTION_HANDOFF_REVISION: &str = "e53a09e9b5923bb95527036d5148735f973eefc9";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KvEvictionState {
@@ -272,8 +271,8 @@ where
         state: &KvEvictionState,
         intervention: &KvEvictionIntervention,
     ) -> Result<Self::Signature, Self::Error> {
-        let outcome = apply_oldest_first(state, *intervention)
-            .map_err(KvEvictionEngineError::Contract)?;
+        let outcome =
+            apply_oldest_first(state, *intervention).map_err(KvEvictionEngineError::Contract)?;
         self.model
             .evaluate_eviction(state, &outcome)
             .map_err(KvEvictionEngineError::Model)
@@ -308,7 +307,9 @@ pub fn retention_scenarios(
     Ok(scenarios)
 }
 
-fn no_eviction_outcome(state: &KvEvictionState) -> Result<KvEvictionOutcome, KvEvictionContractError> {
+fn no_eviction_outcome(
+    state: &KvEvictionState,
+) -> Result<KvEvictionOutcome, KvEvictionContractError> {
     logical_outcome(state, 0)
 }
 
@@ -316,7 +317,9 @@ fn apply_oldest_first(
     state: &KvEvictionState,
     intervention: KvEvictionIntervention,
 ) -> Result<KvEvictionOutcome, KvEvictionContractError> {
-    let evict_count = state.token_count().saturating_sub(intervention.max_tokens());
+    let evict_count = state
+        .token_count()
+        .saturating_sub(intervention.max_tokens());
     logical_outcome(state, evict_count)
 }
 
@@ -367,10 +370,16 @@ impl fmt::Display for KvEvictionContractError {
             Self::ZeroMaxTokens => formatter.write_str("KV max_tokens must be positive"),
             Self::LogicalByteOverflow => formatter.write_str("KV logical byte accounting overflow"),
             Self::Json(error) => write!(formatter, "invalid KV eviction handoff JSON: {error}"),
-            Self::NonCanonicalJson => formatter.write_str("KV eviction handoff JSON is not canonical"),
-            Self::UnsupportedSchema => formatter.write_str("unsupported KV eviction handoff schema"),
+            Self::NonCanonicalJson => {
+                formatter.write_str("KV eviction handoff JSON is not canonical")
+            }
+            Self::UnsupportedSchema => {
+                formatter.write_str("unsupported KV eviction handoff schema")
+            }
             Self::UnsupportedOrder => formatter.write_str("unsupported KV eviction order"),
-            Self::ReplayMismatch => formatter.write_str("KV eviction handoff does not match replayed semantics"),
+            Self::ReplayMismatch => {
+                formatter.write_str("KV eviction handoff does not match replayed semantics")
+            }
             Self::InvalidScenarioId(error) => write!(formatter, "invalid KV scenario id: {error}"),
             Self::DuplicateScenarioLimit { max_tokens } => {
                 write!(formatter, "duplicate KV retention limit {max_tokens}")
@@ -424,8 +433,8 @@ mod tests {
     use prospect_core::ProspectiveEngine;
 
     use super::{
-        retention_scenarios, KvEvictionEngine, KvEvictionIntervention,
-        KvEvictionProspectiveModel, KvEvictionState, KvlabKvEvictionHandoffV1,
+        KvEvictionEngine, KvEvictionIntervention, KvEvictionProspectiveModel, KvEvictionState,
+        KvlabKvEvictionHandoffV1, retention_scenarios,
     };
 
     struct ExplicitRetainedIdModel;
@@ -457,7 +466,10 @@ mod tests {
         );
         assert_eq!(
             engine
-                .evaluate(&state, &KvEvictionIntervention::new(3).expect("intervention"))
+                .evaluate(
+                    &state,
+                    &KvEvictionIntervention::new(3).expect("intervention")
+                )
                 .expect("candidate"),
             (vec![12, 13, 14], 4096)
         );
