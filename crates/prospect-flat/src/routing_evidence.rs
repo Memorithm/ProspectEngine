@@ -86,11 +86,9 @@ impl FlatBooleanRoutingEvidenceV1 {
             mode,
             mask_words: mask.words().to_vec(),
             admitted_blocks: mask.admitted_blocks(),
-            mask_physical_bytes: mask
-                .physical_bytes()
-                .map_err(|error| FlatBooleanRoutingEvidenceError::Contract(
-                    FlatBooleanContractError::Mask(error),
-                ))?,
+            mask_physical_bytes: mask.physical_bytes().map_err(|error| {
+                FlatBooleanRoutingEvidenceError::Contract(FlatBooleanContractError::Mask(error))
+            })?,
         };
         evidence.validate_contract()?;
         Ok(evidence)
@@ -127,9 +125,9 @@ impl FlatBooleanRoutingEvidenceV1 {
             .iter()
             .map(|words| {
                 BooleanAttentionSignature::new(self.query_bits, words.clone()).map_err(|error| {
-                    FlatBooleanRoutingEvidenceError::Contract(
-                        FlatBooleanContractError::Signature(error),
-                    )
+                    FlatBooleanRoutingEvidenceError::Contract(FlatBooleanContractError::Signature(
+                        error,
+                    ))
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -149,10 +147,7 @@ impl FlatBooleanRoutingEvidenceV1 {
         Ok(())
     }
 
-    pub fn verify_replay(
-        &self,
-        replayed: &Self,
-    ) -> Result<(), FlatBooleanRoutingEvidenceError> {
+    pub fn verify_replay(&self, replayed: &Self) -> Result<(), FlatBooleanRoutingEvidenceError> {
         if self == replayed {
             Ok(())
         } else {
@@ -189,8 +184,10 @@ impl FlatBooleanRoutingEvidenceV1 {
 fn derive_mask(
     state: &FlatBooleanAttentionState,
     mode: FlatBooleanRoutingMode,
-) -> Result<flat_attention::api::boolean_attention_mask::BooleanAttentionMask, FlatBooleanRoutingEvidenceError>
-{
+) -> Result<
+    flat_attention::api::boolean_attention_mask::BooleanAttentionMask,
+    FlatBooleanRoutingEvidenceError,
+> {
     match mode {
         FlatBooleanRoutingMode::Dense => state.dense_mask(),
         FlatBooleanRoutingMode::Hamming { max_distance } => state.hamming_mask(max_distance),
@@ -210,9 +207,8 @@ impl fmt::Display for FlatBooleanRoutingEvidenceError {
             Self::FlatRevisionMismatch => {
                 formatter.write_str("FLAT routing evidence revision does not match pinned FLAT")
             }
-            Self::DerivedMaskMismatch => formatter.write_str(
-                "recorded FLAT Boolean mask does not match signatures and routing mode",
-            ),
+            Self::DerivedMaskMismatch => formatter
+                .write_str("recorded FLAT Boolean mask does not match signatures and routing mode"),
             Self::ReplayMismatch => {
                 formatter.write_str("replayed FLAT Boolean routing evidence differs")
             }
@@ -282,8 +278,8 @@ mod tests {
     #[test]
     fn dense_evidence_preserves_explicit_all_admitted_baseline() {
         let run_id = RunId::new("flat-dense-1").expect("run id");
-        let evidence = FlatBooleanRoutingEvidenceV1::capture_dense(&run_id, &state())
-            .expect("dense evidence");
+        let evidence =
+            FlatBooleanRoutingEvidenceV1::capture_dense(&run_id, &state()).expect("dense evidence");
 
         assert_eq!(evidence.mode(), FlatBooleanRoutingMode::Dense);
         assert_eq!(evidence.admitted_blocks(), &[0, 1, 2]);
