@@ -50,7 +50,8 @@ Targets: KVLab and FLAT-ATTENTION.
 - [x] bounded Boolean KV/attention page-selection intervention scenarios through deterministic Hamming-threshold sweeps;
 - [x] exact post-materialization logical KV eviction adapter and replayable KVLab handoff;
 - [x] explicit downstream-model boundary so logical eviction never implies numerical, physical-memory or performance effects by itself;
-- [ ] executed numerical/quality evaluation of post-selection KV eviction scenarios;
+- [x] replayable synthetic numerical evaluation of post-materialization KV eviction through KVLab's additive oracle;
+- [ ] executed real-model numerical/quality evaluation of post-materialization KV eviction scenarios;
 - [x] first public FLAT Boolean attention masking/gating adapter using exact Hamming admission and an explicit dense baseline;
 - [x] FLAT dependency pinned to reviewed commit `a5b6598ffe475c74c938f45feb86b009d0e4ad0a`;
 - [x] prospective-model boundary that assigns no performance or quality meaning to sparsity by itself;
@@ -58,7 +59,8 @@ Targets: KVLab and FLAT-ATTENTION.
 - [x] canonical KVLab BKV handoff consumed and independently revalidated against FLAT routing, bound to KVLab handoff revision `0fb5adc5babfaea9077342db881ce775eacc4442`;
 - [x] FLAT BKV-K6.3 executed evidence envelope ingestion with checksum, provenance, accounting, gate and promotion-decision revalidation;
 - [x] comparable multi-threshold BIKV observed sweeps with exact paired-dense normalization and no interpolation;
-- [ ] prospective signatures backed by executed FLAT/KV experiments;
+- [x] synthetic KV prospective signatures backed only by replayed KVLab eviction-effect records;
+- [ ] representative real-model prospective signatures and quality evidence;
 - [ ] evidence-backed comparisons against additional existing heuristics;
 - [ ] representative benchmark gates for any speedup, traffic, TTFT/TPOT or quality claim.
 
@@ -66,7 +68,9 @@ The first adapter intentionally consumes only FLAT's public backend-neutral Bool
 
 The bounded routing-scenario generator sorts and validates a caller-provided threshold set, emits stable scenario IDs, and keeps the dense all-admitted path as the explicit engine baseline. These scenarios represent Boolean page-selection interventions; they are not equivalent to physical KV eviction after numerical state has been materialized.
 
-Post-materialization logical eviction is now a separate `prospect-kv` adapter. It consumes KVLab schema `kvlab.prospect-kv-eviction/v1`, bound to merged KVLab revision `e53a09e9b5923bb95527036d5148735f973eefc9`, and independently replays `oldest_first` retention, exact token identities and logical byte accounting. The engine keeps a no-eviction baseline and emits deterministic `kv-retain-N` interventions. A pluggable `KvEvictionProspectiveModel` must supply any downstream numerical, quality, latency or physical-memory interpretation; `logical_evicted_bytes` is never treated as freed HBM, avoided physical traffic or preserved model quality.
+Post-materialization logical eviction is a separate `prospect-kv` adapter. It consumes KVLab schema `kvlab.prospect-kv-eviction/v1`, bound to merged KVLab revision `e53a09e9b5923bb95527036d5148735f973eefc9`, and independently replays `oldest_first` retention, exact token identities and logical byte accounting. The engine keeps a no-eviction baseline and emits deterministic `kv-retain-N` interventions. A pluggable `KvEvictionProspectiveModel` must supply any downstream numerical, quality, latency or physical-memory interpretation; `logical_evicted_bytes` is never treated as freed HBM, avoided physical traffic or preserved model quality.
+
+KVLab now also provides schema `kvlab.prospect-kv-eviction-effect/v1` at merged revision `e9c10e38a57657e8910b42f42e3625ca0e4f1bbc`. The envelope binds an exact logical eviction to a one-to-one token/region mapping and the existing additive synthetic oracle, then records full-cache output, retained output and replayed L2 delta. ProspectEngine revalidates the embedded eviction, region order/storage, contribution geometry, numerical outputs and L2 delta before exposing a `Simulated` evidence source. `SyntheticKvEvictionEvidenceModel` fails closed when no exact measured outcome exists, so logical evicted bytes are never converted into a fabricated numerical effect. This is synthetic numerical evidence only, not real-model quality evidence.
 
 Routing and KVLab handoff evidence are structural and pre-execution: they prove which Boolean inputs and threshold produced a specific canonical mask. They do not by themselves prove numerical correctness, runtime speed, physical traffic reduction, or model-quality preservation.
 

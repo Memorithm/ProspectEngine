@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+pub mod synthetic_effect;
+
 use core::fmt;
 use std::collections::BTreeSet;
 
