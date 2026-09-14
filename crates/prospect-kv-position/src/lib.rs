@@ -7,8 +7,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 pub const KVLAB_KV_POSITION_HANDOFF_SCHEMA_V2: &str = "kvlab.prospect-kv-selection/v2";
-pub const KVLAB_KV_POSITION_HANDOFF_REVISION: &str =
-    "782dde3304f2da984f6544cc0a49bab7f5977ea9";
+pub const KVLAB_KV_POSITION_HANDOFF_REVISION: &str = "782dde3304f2da984f6544cc0a49bab7f5977ea9";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KvPositionSelectionState {
@@ -343,8 +342,9 @@ impl fmt::Display for KvPositionContractError {
                 "evicted_positions is not the canonical complement of retained_positions",
             ),
             Self::LogicalByteOverflow => formatter.write_str("KV logical byte accounting overflow"),
-            Self::LogicalAccountingMismatch => formatter
-                .write_str("KV position-selection logical byte accounting does not replay"),
+            Self::LogicalAccountingMismatch => {
+                formatter.write_str("KV position-selection logical byte accounting does not replay")
+            }
         }
     }
 }
