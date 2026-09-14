@@ -217,9 +217,9 @@ mod tests {
 
     use elastic_eir::{FirstGroundedPlanner, PlanningContext};
     use elastic_runtime::{
-        Actuation, CommitRecord, InvariantCheck, ObservationSnapshot, Plan, RollbackRecord, Runtime,
-        RuntimeConfig, RuntimeMode, TransactionalActuator, ValidatedPlan, VerificationResult,
-        plan::plan_with_context, plan::validate_with_checks,
+        Actuation, CommitRecord, InvariantCheck, ObservationSnapshot, Plan, RollbackRecord,
+        Runtime, RuntimeConfig, RuntimeMode, TransactionalActuator, ValidatedPlan,
+        VerificationResult, plan::plan_with_context, plan::validate_with_checks,
     };
     use prospect_core::{DecisionPolicy, ScenarioId, SignatureMetric};
 
