@@ -28,6 +28,15 @@ pub struct ElasticPrecommitComparison<Signature, MetricScore, PolicyScore> {
     choice: ElasticPrecommitChoice<PolicyScore>,
 }
 
+type ElasticComparisonResult<M, MetricScore, PolicyScore> = Result<
+    ElasticPrecommitComparison<
+        <M as ElasticProspectiveModel>::Signature,
+        MetricScore,
+        PolicyScore,
+    >,
+    <M as ElasticProspectiveModel>::Error,
+>;
+
 impl<PolicyScore> ElasticPrecommitChoice<PolicyScore> {
     #[must_use]
     pub const fn scenario_id(&self) -> &ScenarioId {
@@ -88,7 +97,7 @@ pub fn compare_before_commit<M, Metric, Policy>(
     probes: &ElasticProbeSetV1,
     metric: &Metric,
     policy: &Policy,
-) -> Result<ElasticPrecommitComparison<M::Signature, Metric::Score, Policy::Score>, M::Error>
+) -> ElasticComparisonResult<M, Metric::Score, Policy::Score>
 where
     M: ElasticProspectiveModel,
     Metric: SignatureMetric<M::Signature>,
