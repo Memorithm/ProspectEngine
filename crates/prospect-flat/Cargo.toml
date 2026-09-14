@@ -1,0 +1,16 @@
+[package]
+name = "prospect-flat"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "ProspectEngine adapter for FLAT-ATTENTION public Boolean routing contracts"
+
+[lints]
+workspace = true
+
+[dependencies]
+prospect-core = { path = "../prospect-core" }
+flat-attention = { git = "https://github.com/Memorithm/FLAT-ATTENTION", rev = "a5b6598ffe475c74c938f45feb86b009d0e4ad0a", package = "flat-attention" }

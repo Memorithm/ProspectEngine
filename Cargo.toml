@@ -6,6 +6,7 @@ members = [
     "crates/prospect-evidence",
     "crates/prospect-tdi",
     "crates/prospect-elastic",
+    "crates/prospect-flat",
 ]
 
 [workspace.package]
