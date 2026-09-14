@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod routing_evidence;
+
 use core::fmt;
 
 use flat_attention::api::boolean_attention_mask::{
@@ -9,6 +11,11 @@ use flat_attention::api::boolean_attention_signature::{
     BooleanAttentionSignature, BooleanAttentionSignatureError, HammingAdmissionRule,
 };
 use prospect_core::ProspectiveEngine;
+
+pub use routing_evidence::{
+    FLAT_BOOLEAN_ROUTING_EVIDENCE_SCHEMA_V1, FlatBooleanRoutingEvidenceError,
+    FlatBooleanRoutingEvidenceV1, FlatBooleanRoutingMode,
+};
 
 pub const FLAT_ATTENTION_REVISION: &str = "a5b6598ffe475c74c938f45feb86b009d0e4ad0a";
 

@@ -51,11 +51,14 @@ Targets: KVLab and FLAT-ATTENTION.
 - [x] first public FLAT Boolean attention masking/gating adapter using exact Hamming admission and an explicit dense baseline;
 - [x] FLAT dependency pinned to reviewed commit `a5b6598ffe475c74c938f45feb86b009d0e4ad0a`;
 - [x] prospective-model boundary that assigns no performance or quality meaning to sparsity by itself;
+- [x] canonical replayable routing evidence binding exact Q/K Boolean signatures, routing mode, derived mask and mask-storage bytes;
 - [ ] prospective signatures backed by executed FLAT/KV experiments;
 - [ ] evidence-backed comparisons against existing heuristics;
 - [ ] representative benchmark gates for any speedup, traffic, TTFT/TPOT or quality claim.
 
 The first adapter intentionally consumes only FLAT's public backend-neutral Boolean contracts (`BooleanAttentionSignature`, `HammingAdmissionRule`, and `BooleanAttentionMask`). Internal BIKV paged-selection implementation details are not treated as a stable cross-repository API. A separate public contract or evidence handoff is required before ProspectEngine depends on that path.
+
+Routing evidence is structural and pre-execution: it proves which Boolean inputs and threshold produced a specific canonical mask. It does not by itself prove numerical correctness, runtime speed, physical traffic reduction, or model-quality preservation.
 
 ## Milestone 0.5 — plugin boundary
 
