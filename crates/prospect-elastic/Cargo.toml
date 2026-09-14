@@ -13,7 +13,10 @@ workspace = true
 
 [dependencies]
 prospect-core = { path = "../prospect-core" }
+prospect-evidence = { path = "../prospect-evidence" }
 prospect-scenario = { path = "../prospect-scenario" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 elastic-core = { git = "https://github.com/Memorithm/ElasticXxx", rev = "50bb85ea84191c01d95e5b4e5e3c81af10e95ebd", package = "elastic-core" }
 elastic-eir = { git = "https://github.com/Memorithm/ElasticXxx", rev = "50bb85ea84191c01d95e5b4e5e3c81af10e95ebd", package = "elastic-eir" }
 elastic-runtime = { git = "https://github.com/Memorithm/ElasticXxx", rev = "50bb85ea84191c01d95e5b4e5e3c81af10e95ebd", package = "elastic-runtime" }

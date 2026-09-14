@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod comparison;
+mod execution_evidence;
 mod probe;
 mod transaction_gate;
 
@@ -11,6 +12,12 @@ use elastic_runtime::ObservationSnapshot;
 use prospect_core::ProspectiveEngine;
 
 pub use comparison::{ElasticPrecommitChoice, ElasticPrecommitComparison, compare_before_commit};
+pub use execution_evidence::{
+    ELASTIC_EXECUTION_EVIDENCE_SCHEMA_V1, ElasticCommitEvidence, ElasticExecutionDisposition,
+    ElasticExecutionEvidenceBundle, ElasticExecutionEvidenceError, ElasticExecutionEvidenceV1,
+    ElasticInterventionEvidence, ElasticRollbackEvidence, ElasticVerificationEvidence,
+    capture_elastic_execution_evidence,
+};
 pub use probe::{
     ELASTIC_PROBE_SCHEMA_V1, ElasticProbeError, ElasticProbeSetV1, ElasticProbeV1,
     ValidatedPlanIntentV1,
