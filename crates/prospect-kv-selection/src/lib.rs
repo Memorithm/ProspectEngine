@@ -278,8 +278,7 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        KVLAB_KV_SELECTION_HANDOFF_REVISION, KvSelectionContractError,
-        KvlabKvSelectionHandoffV1,
+        KVLAB_KV_SELECTION_HANDOFF_REVISION, KvSelectionContractError, KvlabKvSelectionHandoffV1,
     };
 
     const LRU: &str = concat!(
