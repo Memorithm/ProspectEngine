@@ -29,11 +29,7 @@ pub struct ElasticPrecommitComparison<Signature, MetricScore, PolicyScore> {
 }
 
 type ElasticComparisonResult<M, MetricScore, PolicyScore> = Result<
-    ElasticPrecommitComparison<
-        <M as ElasticProspectiveModel>::Signature,
-        MetricScore,
-        PolicyScore,
-    >,
+    ElasticPrecommitComparison<<M as ElasticProspectiveModel>::Signature, MetricScore, PolicyScore>,
     <M as ElasticProspectiveModel>::Error,
 >;
 
