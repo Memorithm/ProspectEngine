@@ -29,7 +29,7 @@ pub enum ElasticTransactionOutcome {
     Cycle {
         scenario_id: ScenarioId,
         declared_rollback: ElasticIntervention,
-        cycle: CycleResult,
+        cycle: Box<CycleResult>,
     },
 }
 
@@ -71,10 +71,10 @@ impl ElasticTransactionOutcome {
     }
 
     #[must_use]
-    pub const fn cycle(&self) -> Option<&CycleResult> {
+    pub fn cycle(&self) -> Option<&CycleResult> {
         match self {
             Self::NoOp { .. } => None,
-            Self::Cycle { cycle, .. } => Some(cycle),
+            Self::Cycle { cycle, .. } => Some(cycle.as_ref()),
         }
     }
 
@@ -161,7 +161,7 @@ where
             Ok(ElasticTransactionOutcome::Cycle {
                 scenario_id: scenario_id.clone(),
                 declared_rollback: rollback.clone(),
-                cycle,
+                cycle: Box::new(cycle),
             })
         }
     }
