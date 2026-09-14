@@ -90,10 +90,10 @@ Measured multi-threshold sweeps remain empirical. Records are comparable only wh
 - [x] capability metadata;
 - [x] metric registry;
 - [x] decision-policy registry;
-- [ ] CLI/API surface;
+- [x] CLI/API surface;
 - [x] reproducible scenario bundles.
 
-`prospect-adapter` defines adapter contract `1.0`, strict machine-stable namespaced identifiers, explicit upstream revisions, versioned capabilities and compatibility checks. The first built-in metadata implementations cover TDI, ElasticXxx, FLAT Boolean attention and logical KV eviction without treating capability declarations as evidence of performance, safety or physical effects. `prospect-registry` provides versioned metric and decision-policy registries, and `prospect-bundle` provides canonical reproducible scenario bundles. The CLI now verifies persisted KV campaigns and generic scenario bundles and exposes a deterministic `list-adapters` discovery surface. The broader CLI/API milestone remains open until registry and bundle-driven execution/dispatch surfaces are exposed without weakening evidence boundaries.
+`prospect-adapter` defines adapter contract `1.0`, strict machine-stable namespaced identifiers, explicit upstream revisions, versioned capabilities and compatibility checks. The first built-in metadata implementations cover TDI, ElasticXxx, FLAT Boolean attention and logical KV eviction without treating capability declarations as evidence of performance, safety or physical effects. `prospect-registry` provides versioned metric and decision-policy registries, and `prospect-bundle` provides canonical reproducible scenario bundles. The CLI verifies persisted KV campaigns and generic scenario bundles, exposes deterministic adapter discovery, and performs fail-closed bundle/catalog preflight without executing untyped data. `prospect-dispatch::execution` closes the API boundary with a typed executable-adapter registry: adapter metadata are derived from the registered engine, bundle requirements are resolved before any engine call, and optional metric scoring/policy selection reuse the existing registries and batch engine. Dynamic library loading, arbitrary JSON domain decoding and generic shell execution remain intentionally outside this milestone.
 
 ## Later research
 
