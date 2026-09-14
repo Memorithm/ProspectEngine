@@ -29,16 +29,18 @@ Target: ElasticXxx.
 
 - [x] consume real ElasticXxx runtime observations through a pinned dependency;
 - [x] preserve unsupported telemetry without fabricated values;
-- [ ] define versioned reversible probe/intervention candidates;
+- [x] define a versioned probe contract requiring a validated, resource-declared plan and an explicit paired rollback intent;
 - [ ] compare resource actions before commit;
-- [ ] connect to PLAN -> VALIDATE -> ACT -> VERIFY -> COMMIT/ROLLBACK;
-- [ ] preserve an explicit no-op baseline and rollback path.
+- [ ] connect selected ProspectEngine decisions to PLAN -> VALIDATE -> ACT -> VERIFY -> COMMIT/ROLLBACK;
+- [x] preserve an explicit no-op baseline and rollback intent without claiming physical reversibility.
 
 Proposed control loop:
 
 ```text
 OBSERVE -> PROBE -> PROSPECT -> PLAN -> VALIDATE -> ACT -> VERIFY -> COMMIT/ROLLBACK
 ```
+
+The trusted ElasticXxx `TransactionalActuator` remains authoritative for physical feasibility, verification, commit, and rollback. ProspectEngine does not infer reversibility from a transition declaration.
 
 ## Milestone 0.4 — AI-memory experiments
 
