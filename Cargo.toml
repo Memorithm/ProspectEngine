@@ -8,6 +8,7 @@ members = [
     "crates/prospect-elastic",
     "crates/prospect-flat",
     "crates/prospect-kv",
+    "crates/prospect-kv-observed",
 ]
 
 [workspace.package]
