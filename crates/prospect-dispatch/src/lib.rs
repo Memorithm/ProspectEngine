@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod catalog;
+pub mod execution;
 
 use core::fmt;
 
