@@ -101,7 +101,11 @@ where
     let choice = if let Some((best, candidate_utility)) = best_by_policy(&batch, policy) {
         if candidate_utility > baseline_utility {
             let selected_id = best.scenario().id();
-            if let Some(probe) = probes.probes().iter().find(|probe| probe.id() == selected_id) {
+            if let Some(probe) = probes
+                .probes()
+                .iter()
+                .find(|probe| probe.id() == selected_id)
+            {
                 ElasticPrecommitChoice::Probe {
                     scenario_id: selected_id.clone(),
                     utility: candidate_utility,
@@ -169,7 +173,11 @@ mod tests {
             _state: &ElasticObservationState,
             intervention: &ElasticIntervention,
         ) -> Result<Self::Signature, Self::Error> {
-            let delta = intervention.parameters().get("delta").copied().unwrap_or(0.0);
+            let delta = intervention
+                .parameters()
+                .get("delta")
+                .copied()
+                .unwrap_or(0.0);
             Ok(10 + delta as i32)
         }
     }
