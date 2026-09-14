@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+pub mod catalog;
+
 use core::fmt;
 
 use prospect_adapter::{AdapterMetadata, ContractVersion};
