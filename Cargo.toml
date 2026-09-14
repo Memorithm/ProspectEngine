@@ -17,6 +17,7 @@ members = [
     "crates/prospect-cli",
     "crates/prospect-adapter",
     "crates/prospect-registry",
+    "crates/prospect-bundle",
 ]
 
 [workspace.package]
