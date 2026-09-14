@@ -30,6 +30,7 @@ jobs:
           status=$?
           cargo fmt --all
           git diff --binary -- . > "$RUNNER_TEMP/rustfmt.patch"
+          cp crates/prospect-flat/src/bikv_executed_evidence.rs "$RUNNER_TEMP/bikv_executed_evidence.formatted.rs"
           exit "$status"
 
       - name: Upload rustfmt diagnostic
@@ -40,6 +41,7 @@ jobs:
           path: |
             ${{ runner.temp }}/rustfmt-check.log
             ${{ runner.temp }}/rustfmt.patch
+            ${{ runner.temp }}/bikv_executed_evidence.formatted.rs
           if-no-files-found: ignore
           retention-days: 3
 
