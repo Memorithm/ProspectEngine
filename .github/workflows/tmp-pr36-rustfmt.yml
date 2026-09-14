@@ -1,0 +1,31 @@
+name: Temporary PR36 rustfmt
+
+on:
+  push:
+    branches:
+      - feature/kv-campaign-suite-verification
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/kv-campaign-suite-verification
+      - name: Install Rust 1.89
+        run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt
+      - name: Format and commit
+        run: |
+          rustup default 1.89.0
+          cargo fmt --all
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "MEMOPERF"
+          git config user.email "contact@checkupauto.fr"
+          git add crates/prospect-cli/src/main.rs crates/prospect-cli/src/kv_campaign_suite.rs
+          git commit -m "style(cli): apply rustfmt to KV suite verifier"
+          git push origin HEAD:feature/kv-campaign-suite-verification
