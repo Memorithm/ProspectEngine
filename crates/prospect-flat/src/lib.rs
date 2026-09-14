@@ -2,6 +2,7 @@
 
 mod kvlab_handoff;
 mod routing_evidence;
+pub mod scenarios;
 
 use core::fmt;
 
