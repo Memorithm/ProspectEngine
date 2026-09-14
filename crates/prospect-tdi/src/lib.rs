@@ -6,6 +6,8 @@ use tdi_core::{
     explore,
 };
 
+pub const TDI_REVISION: &str = "58df6877b87a062726adfc3ca2a7ffe937083506";
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EmptySchedule;
 
@@ -81,7 +83,12 @@ mod tests {
     use prospect_core::ProspectiveEngine;
     use tdi_core::{Action, State, TableSystem};
 
-    use super::{EmptySchedule, TdiEngine};
+    use super::{EmptySchedule, TDI_REVISION, TdiEngine};
+
+    #[test]
+    fn exposes_the_reviewed_tdi_revision() {
+        assert_eq!(TDI_REVISION, "58df6877b87a062726adfc3ca2a7ffe937083506");
+    }
 
     #[test]
     fn rejects_an_empty_prospective_schedule() {
