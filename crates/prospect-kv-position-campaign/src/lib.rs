@@ -18,7 +18,7 @@ pub const KVLAB_KV_REAL_MODEL_POSITION_TRACE_SCHEMA_V1: &str =
     "kvlab.prospect-kv-real-model-position-trace/v1";
 pub const KVLAB_KV_REAL_MODEL_POSITION_EVIDENCE_SCHEMA_V2: &str =
     "kvlab.prospect-kv-real-model-selection/v2";
-pub const KVLAB_KV_POSITION_CAMPAIGN_REVISION: &str = "9fb6cae9f644daee7904fd14b50c3995c898fa6d";
+pub const KVLAB_KV_POSITION_CAMPAIGN_REVISION: &str = "ffc406abedcaf2b69cd89d804b52c3ebf7cd93ee";
 
 #[derive(Clone, Copy, Debug)]
 pub struct CampaignFilePayload<'a> {
