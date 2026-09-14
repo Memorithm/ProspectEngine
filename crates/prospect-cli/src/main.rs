@@ -1,16 +1,18 @@
 #![forbid(unsafe_code)]
 
+mod dispatch_preflight;
 mod scenario_bundle;
 
 use std::env;
 use std::ffi::OsString;
 use std::process::ExitCode;
 
+use dispatch_preflight::preflight_scenario_bundle_files;
 use prospect_adapter::built_in_adapter_catalog;
 use prospect_cli::verify_kv_campaign_directory;
 use scenario_bundle::verify_scenario_bundle_file;
 
-const USAGE: &str = "Usage:\n  prospect list-adapters\n  prospect verify-kv-campaign <campaign-directory>\n  prospect verify-scenario-bundle <bundle.json>";
+const USAGE: &str = "Usage:\n  prospect list-adapters\n  prospect preflight-scenario-bundle <bundle.json> <catalog.json>\n  prospect verify-kv-campaign <campaign-directory>\n  prospect verify-scenario-bundle <bundle.json>";
 
 fn main() -> ExitCode {
     match run(env::args_os()) {
@@ -46,6 +48,19 @@ where
                 .map_err(|error| CliError::Verification(error.to_string()))?;
             serde_json::to_string(&catalog).map_err(|error| {
                 CliError::Verification(format!("failed to encode adapter catalog: {error}"))
+            })
+        }
+        Some("preflight-scenario-bundle") => {
+            let (bundle_path, catalog_path) = exactly_two_arguments(
+                &mut arguments,
+                "preflight-scenario-bundle",
+                "bundle file",
+                "dispatch catalog file",
+            )?;
+            let summary = preflight_scenario_bundle_files(bundle_path, catalog_path)
+                .map_err(|error| CliError::Verification(error.to_string()))?;
+            serde_json::to_string(&summary).map_err(|error| {
+                CliError::Verification(format!("failed to encode dispatch preflight summary: {error}"))
             })
         }
         Some("verify-kv-campaign") => {
@@ -106,6 +121,33 @@ where
     Ok(value)
 }
 
+fn exactly_two_arguments<I>(
+    arguments: &mut I,
+    command: &str,
+    first_name: &str,
+    second_name: &str,
+) -> Result<(OsString, OsString), CliError>
+where
+    I: Iterator<Item = OsString>,
+{
+    let Some(first) = arguments.next() else {
+        return Err(CliError::Usage(format!(
+            "{command} requires a {first_name} and a {second_name}"
+        )));
+    };
+    let Some(second) = arguments.next() else {
+        return Err(CliError::Usage(format!(
+            "{command} requires a {first_name} and a {second_name}"
+        )));
+    };
+    if arguments.next().is_some() {
+        return Err(CliError::Usage(format!(
+            "{command} accepts exactly a {first_name} and a {second_name}"
+        )));
+    }
+    Ok((first, second))
+}
+
 #[derive(Debug, PartialEq, Eq)]
 enum CliError {
     Usage(String),
@@ -160,6 +202,26 @@ mod tests {
             ]),
             Err(CliError::Usage(_))
         ));
+    }
+
+    #[test]
+    fn dispatch_preflight_requires_exactly_two_files() {
+        for arguments in [
+            vec!["prospect", "preflight-scenario-bundle"],
+            vec!["prospect", "preflight-scenario-bundle", "bundle.json"],
+            vec![
+                "prospect",
+                "preflight-scenario-bundle",
+                "bundle.json",
+                "catalog.json",
+                "extra.json",
+            ],
+        ] {
+            assert!(matches!(
+                run(arguments.into_iter().map(OsString::from)),
+                Err(CliError::Usage(_))
+            ));
+        }
     }
 
     #[test]
