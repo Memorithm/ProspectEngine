@@ -288,7 +288,7 @@ mod tests {
         assert_eq!(probes.baseline_id().as_str(), "noop");
         assert_eq!(probes.probes().len(), 1);
         assert_eq!(probes.probes()[0].rollback().kind(), "restore-concurrency");
-        assert_eq!(probes.scenarios()[0].id.as_str(), "reduce-concurrency");
+        assert_eq!(probes.scenarios()[0].id().as_str(), "reduce-concurrency");
     }
 
     #[test]
