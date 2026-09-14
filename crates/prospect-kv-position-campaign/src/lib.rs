@@ -18,8 +18,7 @@ pub const KVLAB_KV_REAL_MODEL_POSITION_TRACE_SCHEMA_V1: &str =
     "kvlab.prospect-kv-real-model-position-trace/v1";
 pub const KVLAB_KV_REAL_MODEL_POSITION_EVIDENCE_SCHEMA_V2: &str =
     "kvlab.prospect-kv-real-model-selection/v2";
-pub const KVLAB_KV_POSITION_CAMPAIGN_REVISION: &str =
-    "9fb6cae9f644daee7904fd14b50c3995c898fa6d";
+pub const KVLAB_KV_POSITION_CAMPAIGN_REVISION: &str = "9fb6cae9f644daee7904fd14b50c3995c898fa6d";
 
 #[derive(Clone, Copy, Debug)]
 pub struct CampaignFilePayload<'a> {
@@ -47,8 +46,14 @@ pub enum PositionCampaignVerificationError {
     CampaignDigestMismatch,
     TraceDigestMismatch,
     EmptyRecords,
-    RecordIndexMismatch { expected: usize, actual: usize },
-    RecordFilenameMismatch { index: usize, filename: String },
+    RecordIndexMismatch {
+        expected: usize,
+        actual: usize,
+    },
+    RecordFilenameMismatch {
+        index: usize,
+        filename: String,
+    },
     DuplicatePolicy(String),
     DuplicateFilename(String),
     MissingFile(String),
@@ -57,7 +62,10 @@ pub enum PositionCampaignVerificationError {
     Evidence(KvlabKvRealModelPositionError),
     EvidenceSchemaMismatch(String),
     EvidenceTraceMismatch(String),
-    EvidenceContextMismatch { filename: String, field: &'static str },
+    EvidenceContextMismatch {
+        filename: String,
+        field: &'static str,
+    },
     EvidencePolicyMismatch(String),
     EvidenceSelectionMismatch(String),
     CampaignRecordCountMismatch,
@@ -249,9 +257,11 @@ impl VerifiedPositionCampaign {
             if record.selection().outcome().retained_positions()
                 != selection.retained_positions.as_slice()
             {
-                return Err(PositionCampaignVerificationError::EvidenceSelectionMismatch(
-                    descriptor.filename.clone(),
-                ));
+                return Err(
+                    PositionCampaignVerificationError::EvidenceSelectionMismatch(
+                        descriptor.filename.clone(),
+                    ),
+                );
             }
             policies.push(descriptor.policy.clone());
             records.push(record);
@@ -315,16 +325,17 @@ fn verify_raw_record(
             descriptor.filename.clone(),
         ));
     }
-    if object.get("trace_sha256")
-        != Some(&Value::String(expected_trace_sha256.to_owned()))
-    {
+    if object.get("trace_sha256") != Some(&Value::String(expected_trace_sha256.to_owned())) {
         return Err(PositionCampaignVerificationError::EvidenceTraceMismatch(
             descriptor.filename.clone(),
         ));
     }
 
     let expected_context = [
-        ("experiment_id", Value::String(campaign.experiment_id.clone())),
+        (
+            "experiment_id",
+            Value::String(campaign.experiment_id.clone()),
+        ),
         (
             "run_repository_revision",
             Value::String(campaign.run_repository_revision.clone()),
@@ -362,19 +373,22 @@ fn verify_raw_record(
     }
 
     let Some(selection_object) = object.get("selection").and_then(Value::as_object) else {
-        return Err(PositionCampaignVerificationError::EvidenceSelectionMismatch(
-            descriptor.filename.clone(),
-        ));
+        return Err(
+            PositionCampaignVerificationError::EvidenceSelectionMismatch(
+                descriptor.filename.clone(),
+            ),
+        );
     };
     if selection_object.get("policy") != Some(&Value::String(selection.policy.clone()))
-        || selection_object.get("retained_positions")
-            != Some(&json!(selection.retained_positions))
+        || selection_object.get("retained_positions") != Some(&json!(selection.retained_positions))
         || selection_object.get("bytes_per_token") != Some(&Value::from(campaign.bytes_per_token))
         || selection_object.get("input_token_ids") != Some(&json!(campaign.model_input_token_ids))
     {
-        return Err(PositionCampaignVerificationError::EvidenceSelectionMismatch(
-            descriptor.filename.clone(),
-        ));
+        return Err(
+            PositionCampaignVerificationError::EvidenceSelectionMismatch(
+                descriptor.filename.clone(),
+            ),
+        );
     }
     Ok(())
 }
@@ -439,28 +453,73 @@ impl fmt::Display for PositionCampaignVerificationError {
         match self {
             Self::Json(error) => write!(formatter, "invalid campaign JSON: {error}"),
             Self::NonCanonicalManifest => formatter.write_str("campaign manifest is not canonical"),
-            Self::NonCanonicalCampaign => formatter.write_str("campaign specification is not canonical"),
-            Self::UnsupportedManifestSchema => formatter.write_str("unsupported campaign manifest schema"),
-            Self::UnsupportedCampaignSchema => formatter.write_str("unsupported campaign specification schema"),
-            Self::UnsupportedEvidenceSchema => formatter.write_str("unsupported campaign evidence schema"),
-            Self::InvalidSha256(field) => write!(formatter, "{field} must be a lowercase SHA-256 digest"),
-            Self::CampaignDigestMismatch => formatter.write_str("campaign specification SHA-256 mismatch"),
+            Self::NonCanonicalCampaign => {
+                formatter.write_str("campaign specification is not canonical")
+            }
+            Self::UnsupportedManifestSchema => {
+                formatter.write_str("unsupported campaign manifest schema")
+            }
+            Self::UnsupportedCampaignSchema => {
+                formatter.write_str("unsupported campaign specification schema")
+            }
+            Self::UnsupportedEvidenceSchema => {
+                formatter.write_str("unsupported campaign evidence schema")
+            }
+            Self::InvalidSha256(field) => {
+                write!(formatter, "{field} must be a lowercase SHA-256 digest")
+            }
+            Self::CampaignDigestMismatch => {
+                formatter.write_str("campaign specification SHA-256 mismatch")
+            }
             Self::TraceDigestMismatch => formatter.write_str("campaign trace SHA-256 mismatch"),
             Self::EmptyRecords => formatter.write_str("campaign manifest must contain records"),
-            Self::RecordIndexMismatch { expected, actual } => write!(formatter, "campaign record index mismatch: expected {expected}, got {actual}"),
-            Self::RecordFilenameMismatch { index, filename } => write!(formatter, "campaign record {index} has non-canonical filename {filename}"),
-            Self::DuplicatePolicy(policy) => write!(formatter, "duplicate campaign policy {policy}"),
-            Self::DuplicateFilename(filename) => write!(formatter, "duplicate campaign filename {filename}"),
-            Self::MissingFile(filename) => write!(formatter, "missing campaign evidence file {filename}"),
-            Self::UnexpectedFile(filename) => write!(formatter, "unexpected campaign evidence file {filename}"),
-            Self::RecordDigestMismatch(filename) => write!(formatter, "campaign evidence SHA-256 mismatch for {filename}"),
+            Self::RecordIndexMismatch { expected, actual } => write!(
+                formatter,
+                "campaign record index mismatch: expected {expected}, got {actual}"
+            ),
+            Self::RecordFilenameMismatch { index, filename } => write!(
+                formatter,
+                "campaign record {index} has non-canonical filename {filename}"
+            ),
+            Self::DuplicatePolicy(policy) => {
+                write!(formatter, "duplicate campaign policy {policy}")
+            }
+            Self::DuplicateFilename(filename) => {
+                write!(formatter, "duplicate campaign filename {filename}")
+            }
+            Self::MissingFile(filename) => {
+                write!(formatter, "missing campaign evidence file {filename}")
+            }
+            Self::UnexpectedFile(filename) => {
+                write!(formatter, "unexpected campaign evidence file {filename}")
+            }
+            Self::RecordDigestMismatch(filename) => write!(
+                formatter,
+                "campaign evidence SHA-256 mismatch for {filename}"
+            ),
             Self::Evidence(error) => write!(formatter, "invalid campaign evidence: {error}"),
-            Self::EvidenceSchemaMismatch(filename) => write!(formatter, "campaign evidence schema mismatch for {filename}"),
-            Self::EvidenceTraceMismatch(filename) => write!(formatter, "campaign evidence trace mismatch for {filename}"),
-            Self::EvidenceContextMismatch { filename, field } => write!(formatter, "campaign evidence context mismatch for {filename}: {field}"),
-            Self::EvidencePolicyMismatch(filename) => write!(formatter, "campaign evidence policy mismatch for {filename}"),
-            Self::EvidenceSelectionMismatch(filename) => write!(formatter, "campaign evidence selection mismatch for {filename}"),
-            Self::CampaignRecordCountMismatch => formatter.write_str("campaign selection/record count mismatch"),
+            Self::EvidenceSchemaMismatch(filename) => write!(
+                formatter,
+                "campaign evidence schema mismatch for {filename}"
+            ),
+            Self::EvidenceTraceMismatch(filename) => {
+                write!(formatter, "campaign evidence trace mismatch for {filename}")
+            }
+            Self::EvidenceContextMismatch { filename, field } => write!(
+                formatter,
+                "campaign evidence context mismatch for {filename}: {field}"
+            ),
+            Self::EvidencePolicyMismatch(filename) => write!(
+                formatter,
+                "campaign evidence policy mismatch for {filename}"
+            ),
+            Self::EvidenceSelectionMismatch(filename) => write!(
+                formatter,
+                "campaign evidence selection mismatch for {filename}"
+            ),
+            Self::CampaignRecordCountMismatch => {
+                formatter.write_str("campaign selection/record count mismatch")
+            }
         }
     }
 }
@@ -596,7 +655,10 @@ mod tests {
         assert_eq!(verified.policies(), &["lru", "magnitude"]);
         assert_eq!(verified.records().len(), 2);
         assert_eq!(
-            verified.records()[0].selection().outcome().retained_token_ids(),
+            verified.records()[0]
+                .selection()
+                .outcome()
+                .retained_token_ids(),
             &[7, 7, 19]
         );
     }
@@ -719,22 +781,14 @@ mod tests {
         let mut value: Value = serde_json::from_str(&manifest).unwrap();
         value["trace_sha256"] = json!("0".repeat(64));
         assert!(matches!(
-            VerifiedPositionCampaign::verify(
-                &canonical_json(&value).unwrap(),
-                &campaign,
-                &files,
-            ),
+            VerifiedPositionCampaign::verify(&canonical_json(&value).unwrap(), &campaign, &files,),
             Err(PositionCampaignVerificationError::TraceDigestMismatch)
         ));
 
         let mut value: Value = serde_json::from_str(&manifest).unwrap();
         value["campaign_spec_sha256"] = json!("0".repeat(64));
         assert!(matches!(
-            VerifiedPositionCampaign::verify(
-                &canonical_json(&value).unwrap(),
-                &campaign,
-                &files,
-            ),
+            VerifiedPositionCampaign::verify(&canonical_json(&value).unwrap(), &campaign, &files,),
             Err(PositionCampaignVerificationError::CampaignDigestMismatch)
         ));
     }
