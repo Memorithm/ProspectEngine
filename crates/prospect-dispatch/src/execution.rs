@@ -11,10 +11,9 @@ use prospect_scenario::{
 
 use crate::{BundleDispatchError, resolve_bundle_requirements};
 
-type EngineObject<State, Intervention, Signature, EngineError> =
-    dyn ProspectiveEngine<State, Intervention, Signature = Signature, Error = EngineError>
-        + Send
-        + Sync;
+type EngineObject<State, Intervention, Signature, EngineError> = dyn ProspectiveEngine<State, Intervention, Signature = Signature, Error = EngineError>
+    + Send
+    + Sync;
 
 struct ExecutableAdapterEntry<State, Intervention, Signature, EngineError> {
     metadata: AdapterMetadata,
@@ -29,10 +28,8 @@ struct ExecutableAdapterEntry<State, Intervention, Signature, EngineError> {
 /// contract. Registration derives metadata from `VersionedAdapter`, so the
 /// executable implementation cannot be paired with caller-invented metadata.
 pub struct ExecutableAdapterRegistry<State, Intervention, Signature, EngineError> {
-    entries: BTreeMap<
-        NamespacedId,
-        ExecutableAdapterEntry<State, Intervention, Signature, EngineError>,
-    >,
+    entries:
+        BTreeMap<NamespacedId, ExecutableAdapterEntry<State, Intervention, Signature, EngineError>>,
 }
 
 #[derive(Debug)]
@@ -84,12 +81,8 @@ impl<State, Intervention, Signature, EngineError>
 
     pub fn register<E>(&mut self, engine: E) -> Result<(), ExecutableAdapterRegistrationError>
     where
-        E: ProspectiveEngine<
-                State,
-                Intervention,
-                Signature = Signature,
-                Error = EngineError,
-            > + VersionedAdapter
+        E: ProspectiveEngine<State, Intervention, Signature = Signature, Error = EngineError>
+            + VersionedAdapter
             + Send
             + Sync
             + 'static,
@@ -186,15 +179,10 @@ where
     let scenarios = bundle
         .scenarios()
         .iter()
-        .map(|scenario| {
-            Scenario::new(
-                scenario.id().clone(),
-                scenario.intervention().clone(),
-            )
-        })
+        .map(|scenario| Scenario::new(scenario.id().clone(), scenario.intervention().clone()))
         .collect();
-    let batch = evaluate_batch(engine, bundle.state(), scenarios)
-        .map_err(BundleExecutionError::Engine)?;
+    let batch =
+        evaluate_batch(engine, bundle.state(), scenarios).map_err(BundleExecutionError::Engine)?;
     let metric_scores = resolved
         .metric()
         .map(|metric| score_against_baseline(&batch, metric));
@@ -264,7 +252,9 @@ impl<Intervention, Signature, MetricScore, PolicyScore>
 impl fmt::Display for ExecutableAdapterRegistrationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Metadata(error) => write!(formatter, "invalid executable adapter metadata: {error}"),
+            Self::Metadata(error) => {
+                write!(formatter, "invalid executable adapter metadata: {error}")
+            }
             Self::DuplicateId(id) => write!(formatter, "duplicate executable adapter {id}"),
         }
     }
@@ -529,7 +519,9 @@ mod tests {
                 &metrics,
                 &policies,
             ),
-            Err(BundleExecutionError::Dispatch(BundleDispatchError::Metric(_)))
+            Err(BundleExecutionError::Dispatch(BundleDispatchError::Metric(
+                _
+            )))
         ));
         assert_eq!(calls.load(Ordering::SeqCst), 0);
     }
