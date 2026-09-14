@@ -1,0 +1,48 @@
+name: R2 suite interoperability (synthetic only)
+
+on:
+  pull_request:
+    paths:
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'scripts/check_r2_suite_interop.py'
+      - '.github/workflows/r2-suite-interop.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'scripts/check_r2_suite_interop.py'
+      - '.github/workflows/r2-suite-interop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout current ProspectEngine consumer
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Checkout frozen KVLab producer with preregistration history
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: Memorithm/KVLab
+          ref: 404577ce939093767dc75d2d67de2fe3c16fa4dc
+          path: .interop-kvlab
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.89.0 --profile minimal
+      - name: Build actual locked release consumer
+        run: cargo +1.89.0 build --locked --release -p prospect-cli --bin prospect
+      - name: Test real producer serialization with synthetic backend outputs
+        run: |
+          python3 -E -s scripts/check_r2_suite_interop.py \
+            --producer .interop-kvlab --prospect target/release/prospect
