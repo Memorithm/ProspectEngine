@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod bikv_executed_evidence;
+pub mod bikv_sweep;
 mod kvlab_handoff;
 mod routing_evidence;
 pub mod scenarios;
