@@ -1,0 +1,21 @@
+[package]
+name = "prospect-kv-observed"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Observed real-model evidence backend for ProspectEngine KV eviction"
+
+[lints]
+workspace = true
+
+[dependencies]
+prospect-evidence = { path = "../prospect-evidence" }
+prospect-kv = { path = "../prospect-kv" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+prospect-core = { path = "../prospect-core" }
