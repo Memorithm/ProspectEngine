@@ -1,7 +1,10 @@
 #![forbid(unsafe_code)]
 
 use prospect_core::ProspectiveEngine;
-use tdi_core::{Action, ExploreError, SignatureError, State, StateError, TdiSignature, TransitionSystem, explore};
+use tdi_core::{
+    Action, ExploreError, SignatureError, State, StateError, TdiSignature, TransitionSystem,
+    explore,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EmptySchedule;
@@ -40,8 +43,12 @@ impl<S> TdiEngine<'_, S>
 where
     S: TransitionSystem,
 {
-    fn signature_from_state(&self, state: State) -> Result<TdiSignature, TdiProspectError<S::Error>> {
-        let report = explore(self.system, state, self.actions).map_err(TdiProspectError::Explore)?;
+    fn signature_from_state(
+        &self,
+        state: State,
+    ) -> Result<TdiSignature, TdiProspectError<S::Error>> {
+        let report =
+            explore(self.system, state, self.actions).map_err(TdiProspectError::Explore)?;
         TdiSignature::from_report(&report).map_err(TdiProspectError::Signature)
     }
 }
@@ -106,6 +113,9 @@ mod tests {
         assert_eq!(baseline.return_profile()[0].components_u128(), Some((1, 1)));
         assert_eq!(intervened.reachable_profile(), &[1]);
         assert_eq!(intervened.path_profile(), &[1]);
-        assert_eq!(intervened.return_profile()[0].components_u128(), Some((0, 1)));
+        assert_eq!(
+            intervened.return_profile()[0].components_u128(),
+            Some((0, 1))
+        );
     }
 }
