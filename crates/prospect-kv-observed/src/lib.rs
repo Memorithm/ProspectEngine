@@ -9,9 +9,12 @@ use prospect_kv::{
     KvlabKvEvictionHandoffV1,
 };
 use serde::Deserialize;
+use serde_json::Value;
 
-pub const KVLAB_KV_REAL_MODEL_EVIDENCE_SCHEMA_V1: &str = "kvlab.prospect-kv-real-model-eviction/v1";
-pub const KVLAB_KV_REAL_MODEL_EVIDENCE_REVISION: &str = "6c1ee30e016827de507e3428387f750931eab5fa";
+pub const KVLAB_KV_REAL_MODEL_EVIDENCE_SCHEMA_V1: &str =
+    "kvlab.prospect-kv-real-model-eviction/v1";
+pub const KVLAB_KV_REAL_MODEL_EVIDENCE_REVISION: &str =
+    "6c1ee30e016827de507e3428387f750931eab5fa";
 
 const FLOAT_ABS_TOLERANCE: f64 = 1.0e-12;
 const FLOAT_REL_TOLERANCE: f64 = 1.0e-12;
@@ -135,7 +138,7 @@ struct EvidenceWire {
     evaluation_id: String,
     trace_sha256: String,
     seed: u64,
-    eviction: serde_json::Value,
+    eviction: Value,
     baseline_output_sha256: String,
     candidate_output_sha256: String,
     baseline_logical_kv_bytes: u64,
@@ -350,9 +353,9 @@ impl ObservedKvEvictionSignature {
 
 impl KvlabKvRealModelEvictionEvidenceV1 {
     pub fn from_canonical_json(json: &str) -> Result<Self, KvlabKvRealModelEvidenceError> {
-        let value: serde_json::Value =
-            serde_json::from_str(json).map_err(KvlabKvRealModelEvidenceError::Json)?;
-        if serde_json::to_string(&value).map_err(KvlabKvRealModelEvidenceError::Json)? != json {
+        let value: Value = serde_json::from_str(json).map_err(KvlabKvRealModelEvidenceError::Json)?;
+        let canonical = canonical_json(&value).map_err(KvlabKvRealModelEvidenceError::Json)?;
+        if canonical != json {
             return Err(KvlabKvRealModelEvidenceError::NonCanonicalJson);
         }
 
@@ -393,7 +396,7 @@ impl KvlabKvRealModelEvictionEvidenceV1 {
         }
 
         let eviction_json =
-            serde_json::to_string(&wire.eviction).map_err(KvlabKvRealModelEvidenceError::Json)?;
+            canonical_json(&wire.eviction).map_err(KvlabKvRealModelEvidenceError::Json)?;
         let eviction = KvlabKvEvictionHandoffV1::from_canonical_json(&eviction_json)
             .map_err(KvlabKvRealModelEvidenceError::EmbeddedEviction)?;
         if wire.baseline_logical_kv_bytes != eviction.outcome().logical_input_bytes() {
@@ -700,6 +703,47 @@ fn metric_baselines_equal(left: &[ObservedMetricPair], right: &[ObservedMetricPa
         })
 }
 
+fn canonical_json(value: &Value) -> Result<String, serde_json::Error> {
+    fn write_value(value: &Value, output: &mut String) -> Result<(), serde_json::Error> {
+        match value {
+            Value::Object(map) => {
+                output.push('{');
+                let mut keys = map.keys().collect::<Vec<_>>();
+                keys.sort_unstable();
+                for (index, key) in keys.into_iter().enumerate() {
+                    if index > 0 {
+                        output.push(',');
+                    }
+                    output.push_str(&serde_json::to_string(key)?);
+                    output.push(':');
+                    write_value(&map[key], output)?;
+                }
+                output.push('}');
+                Ok(())
+            }
+            Value::Array(values) => {
+                output.push('[');
+                for (index, value) in values.iter().enumerate() {
+                    if index > 0 {
+                        output.push(',');
+                    }
+                    write_value(value, output)?;
+                }
+                output.push(']');
+                Ok(())
+            }
+            _ => {
+                output.push_str(&serde_json::to_string(value)?);
+                Ok(())
+            }
+        }
+    }
+
+    let mut output = String::new();
+    write_value(value, &mut output)?;
+    Ok(output)
+}
+
 fn require_text(field: &'static str, value: &str) -> Result<(), KvlabKvRealModelEvidenceError> {
     if value.trim().is_empty() {
         return Err(KvlabKvRealModelEvidenceError::EmptyText(field));
@@ -832,9 +876,9 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        KVLAB_KV_REAL_MODEL_EVIDENCE_REVISION, KvlabKvRealModelEvictionEvidenceV1,
-        MetricPreference, ObservedKvEvictionEvidenceModel, ObservedKvEvidenceModelError,
-        ObservedMetricKind,
+        canonical_json, KVLAB_KV_REAL_MODEL_EVIDENCE_REVISION,
+        KvlabKvRealModelEvictionEvidenceV1, MetricPreference, ObservedKvEvictionEvidenceModel,
+        ObservedKvEvidenceModelError, ObservedMetricKind,
     };
 
     fn record_json(max_tokens: usize, candidate_hash: char, candidate_accuracy: f64) -> String {
@@ -850,7 +894,7 @@ mod tests {
         };
         let retained_bytes = u64::try_from(retained.len()).unwrap() * 64;
         let evicted_bytes = 320 - retained_bytes;
-        serde_json::to_string(&json!({
+        let value = json!({
             "schema":"kvlab.prospect-kv-real-model-eviction/v1",
             "experiment_id":"real-model-c1",
             "run_repository_revision":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -898,9 +942,15 @@ mod tests {
                     "delta":0.125
                 }
             ]
-        }))
-        .unwrap()
+        });
+        canonical_json(&value).unwrap()
     }
+
+    fn recanonicalize(value: &Value) -> String {
+        canonical_json(value).unwrap()
+    }
+
+    use serde_json::Value;
 
     #[test]
     fn parses_observed_record_and_preserves_metric_semantics() {
@@ -922,16 +972,14 @@ mod tests {
 
     #[test]
     fn rejects_tampered_delta_and_logical_bytes() {
-        let mut value: serde_json::Value =
-            serde_json::from_str(&record_json(3, '3', 0.78)).unwrap();
+        let mut value: Value = serde_json::from_str(&record_json(3, '3', 0.78)).unwrap();
         value["metrics"][0]["delta"] = json!(0.5);
-        let tampered = serde_json::to_string(&value).unwrap();
+        let tampered = recanonicalize(&value);
         assert!(KvlabKvRealModelEvictionEvidenceV1::from_canonical_json(&tampered).is_err());
 
-        let mut value: serde_json::Value =
-            serde_json::from_str(&record_json(3, '3', 0.78)).unwrap();
+        let mut value: Value = serde_json::from_str(&record_json(3, '3', 0.78)).unwrap();
         value["candidate_logical_kv_bytes"] = json!(64);
-        let tampered = serde_json::to_string(&value).unwrap();
+        let tampered = recanonicalize(&value);
         assert!(KvlabKvRealModelEvictionEvidenceV1::from_canonical_json(&tampered).is_err());
     }
 
@@ -974,11 +1022,11 @@ mod tests {
             KvlabKvRealModelEvictionEvidenceV1::from_canonical_json(&record_json(3, '3', 0.78))
                 .unwrap();
 
-        let mut context_value: serde_json::Value =
+        let mut context_value: Value =
             serde_json::from_str(&record_json(2, '4', 0.74)).unwrap();
         context_value["model_revision"] = json!("model-r2");
         let context_record = KvlabKvRealModelEvictionEvidenceV1::from_canonical_json(
-            &serde_json::to_string(&context_value).unwrap(),
+            &recanonicalize(&context_value),
         )
         .unwrap();
         assert!(matches!(
@@ -986,11 +1034,11 @@ mod tests {
             Err(ObservedKvEvidenceModelError::ContextMismatch)
         ));
 
-        let mut baseline_value: serde_json::Value =
+        let mut baseline_value: Value =
             serde_json::from_str(&record_json(2, '4', 0.74)).unwrap();
         baseline_value["baseline_output_sha256"] = json!("5".repeat(64));
         let baseline_record = KvlabKvRealModelEvictionEvidenceV1::from_canonical_json(
-            &serde_json::to_string(&baseline_value).unwrap(),
+            &recanonicalize(&baseline_value),
         )
         .unwrap();
         assert!(matches!(
