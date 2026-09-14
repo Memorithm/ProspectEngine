@@ -99,8 +99,8 @@ pub fn verify_kv_campaign_spec(payload: &str) -> Result<CampaignSpecSummary, Cam
     let campaign_spec_sha256 = sha256_hex(payload.as_bytes());
     let trace = serde_json::json!({
         "schema": TRACE_SCHEMA_V1,
-        "model_input_token_ids": campaign.model_input_token_ids,
-        "evaluation_token_ids": campaign.evaluation_token_ids,
+        "model_input_token_ids": &campaign.model_input_token_ids,
+        "evaluation_token_ids": &campaign.evaluation_token_ids,
     });
     let trace_json = canonical_json(&trace).map_err(CampaignSpecError::Json)?;
     let trace_sha256 = sha256_hex(trace_json.as_bytes());
