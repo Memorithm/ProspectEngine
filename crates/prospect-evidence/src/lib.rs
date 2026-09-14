@@ -321,12 +321,9 @@ impl<Score> DecisionEvidence<Score> {
         let run_id = RunId::new(wire.run_id).map_err(EvidenceCodecError::Evidence)?;
         let mut sources = Vec::with_capacity(wire.sources.len());
         for source in wire.sources {
-            let mut converted = EvidenceSource::new_with_nature(
-                source.component,
-                source.revision,
-                source.nature,
-            )
-            .map_err(EvidenceCodecError::Evidence)?;
+            let mut converted =
+                EvidenceSource::new_with_nature(source.component, source.revision, source.nature)
+                    .map_err(EvidenceCodecError::Evidence)?;
             if let Some(content_hash) = source.content_hash {
                 converted = converted
                     .with_content_hash(content_hash)
@@ -512,9 +509,11 @@ mod tests {
     fn canonical_json_round_trips() {
         let evidence = DecisionEvidence::from_scores(
             RunId::new("run-roundtrip").expect("run id"),
-            vec![source("ElasticXxx", EvidenceNature::Observed)
-                .with_content_hash("sha256:abc")
-                .expect("hash")],
+            vec![
+                source("ElasticXxx", EvidenceNature::Observed)
+                    .with_content_hash("sha256:abc")
+                    .expect("hash"),
+            ],
             vec![ScenarioScore {
                 scenario_id: ScenarioId::new("candidate").expect("id"),
                 score: 42_i32,
