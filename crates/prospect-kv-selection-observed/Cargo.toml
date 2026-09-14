@@ -1,0 +1,18 @@
+[package]
+name = "prospect-kv-selection-observed"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Observed real-model evidence for policy-agnostic KV selections"
+
+[lints]
+workspace = true
+
+[dependencies]
+prospect-evidence = { path = "../prospect-evidence" }
+prospect-kv-selection = { path = "../prospect-kv-selection" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
