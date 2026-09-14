@@ -575,9 +575,7 @@ impl std::error::Error for CatalogPreflightError {}
 
 #[cfg(test)]
 mod tests {
-    use prospect_adapter::{
-        AdapterCapability, AdapterMetadata, AdapterUpstream, ContractVersion,
-    };
+    use prospect_adapter::{AdapterCapability, AdapterMetadata, AdapterUpstream, ContractVersion};
     use prospect_bundle::{
         AdapterBinding, BundleScenario, RegistryRequirement, ScenarioBundle, UpstreamBinding,
     };
