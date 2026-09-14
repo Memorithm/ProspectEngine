@@ -23,6 +23,7 @@ verify-scenario-bundle <bundle.json>
 verify-kv-campaign-spec <campaign.json>
 verify-kv-campaign <campaign-directory>
 verify-kv-campaign-suite <suite-directory>
+verify-kv-campaign-suite-r2 <suite-directory>
 ```
 
 The typed execution API resolves software contracts before invoking a registered engine. The CLI does not dynamically load arbitrary plugins or execute shell commands from untyped scenario data. See [CLI contracts](docs/CLI.md) and [roadmap](docs/ROADMAP.md).
@@ -62,9 +63,11 @@ R1 remains frozen under its original pins. Its NNIS backend preserved BF16 weigh
 
 [KVLab R2 preregistrations](https://github.com/Memorithm/KVLab/tree/216b49ae4d62ed4c4c2edfd1e88f929d0a0fd9e5/experiments/prospect/smollm2-r2) use repaired NNIS revision `091aabbb3e132627cf64716720aae530442d2a32`, with explicit BF16-source/F32-execution separation. They preserve the 27-token prefix, eight-token evaluation trace, seed, controls and 7/27, 14/27 and 20/27 retained-row budgets. Each has seven scored teacher-forced targets.
 
-CI builds the locked release binary and checks those exact R2 inputs against their immutable digests and expected budgets. This is cross-repository input/build qualification, not a CUDA run. Generic per-campaign verification supports R2; the fixed whole-suite command remains R1-only. Representative model-quality, physical-memory, traffic, latency and throughput gates remain open.
+CI builds the locked release binary and checks those exact R2 inputs against their immutable digests and expected budgets. This is cross-repository input/build qualification, not a CUDA run. Generic per-campaign verification supports R2; the original whole-suite command remains R1-only.
 
-The separate [R2 launcher readiness check](docs/R2-SUITE-READINESS.md) exercises the actual KVLab R2 `--preflight-only` launcher against the repaired NNIS runtime and the locked ProspectEngine verifier. It includes strict receipt-contract tests, real pinned builds and verification of the frozen source-weight digest. Its artifact is input-only readiness evidence, not an observed model result. A successful workflow run, rather than the presence of the workflow, is required to claim that this path has passed.
+The dedicated [R2 whole-suite verifier](docs/R2-SUITE-VERIFICATION.md), `verify-kv-campaign-suite-r2`, independently checks complete R2 result directories against their frozen inputs, exact baseline, published summaries and equal per-policy budgets. R1 and R2 share the verification implementation, not their identities. Their commands reject one another's schemas. A separate Python-producer/Rust-consumer integration test uses explicitly synthetic outputs and never executes a model.
+
+The [R2 launcher readiness check](docs/R2-SUITE-READINESS.md) exercises the actual KVLab R2 `--preflight-only` launcher against the repaired NNIS runtime and the locked ProspectEngine verifier. It includes strict receipt-contract tests, real pinned builds and verification of the frozen source-weight digest. Its artifact is input-only readiness evidence, not an observed model result. A successful workflow run, rather than the presence of the workflow, is required to claim that this path has passed. Representative model-quality, physical-memory, traffic, latency and throughput gates remain open.
 
 ## Validate and build
 
