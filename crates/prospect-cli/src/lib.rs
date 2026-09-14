@@ -120,10 +120,18 @@ impl fmt::Display for CampaignDirectoryError {
                 write!(formatter, "failed to read {}: {source}", path.display())
             }
             Self::NonUtf8EntryName(path) => {
-                write!(formatter, "campaign entry name is not UTF-8: {}", path.display())
+                write!(
+                    formatter,
+                    "campaign entry name is not UTF-8: {}",
+                    path.display()
+                )
             }
             Self::NonFileEntry(path) => {
-                write!(formatter, "campaign contains a non-file entry: {}", path.display())
+                write!(
+                    formatter,
+                    "campaign contains a non-file entry: {}",
+                    path.display()
+                )
             }
             Self::Verification(error) => write!(formatter, "campaign verification failed: {error}"),
         }
