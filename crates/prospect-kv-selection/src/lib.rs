@@ -7,8 +7,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 pub const KVLAB_KV_SELECTION_HANDOFF_SCHEMA_V1: &str = "kvlab.prospect-kv-selection/v1";
-pub const KVLAB_KV_SELECTION_HANDOFF_REVISION: &str =
-    "0e7274bf565d9079943845ea4eb0699a525b1db1";
+pub const KVLAB_KV_SELECTION_HANDOFF_REVISION: &str = "0e7274bf565d9079943845ea4eb0699a525b1db1";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KvSelectionState {
@@ -143,8 +142,16 @@ impl KvlabKvSelectionHandoffV1 {
         validate_unique("evicted_token_ids", &wire.evicted_token_ids)?;
 
         let input = state.token_ids.iter().copied().collect::<BTreeSet<_>>();
-        let retained = wire.retained_token_ids.iter().copied().collect::<BTreeSet<_>>();
-        let evicted = wire.evicted_token_ids.iter().copied().collect::<BTreeSet<_>>();
+        let retained = wire
+            .retained_token_ids
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>();
+        let evicted = wire
+            .evicted_token_ids
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>();
 
         for token_id in retained.iter().copied() {
             if !input.contains(&token_id) {
@@ -184,7 +191,9 @@ impl KvlabKvSelectionHandoffV1 {
             .filter(|token_id| evicted.contains(token_id))
             .collect::<Vec<_>>();
         if wire.retained_token_ids != expected_retained {
-            return Err(KvSelectionContractError::OrderMismatch("retained_token_ids"));
+            return Err(KvSelectionContractError::OrderMismatch(
+                "retained_token_ids",
+            ));
         }
         if wire.evicted_token_ids != expected_evicted {
             return Err(KvSelectionContractError::OrderMismatch("evicted_token_ids"));
@@ -232,10 +241,7 @@ fn checked_bytes(count: usize, bytes_per_token: u64) -> Result<u64, KvSelectionC
         .ok_or(KvSelectionContractError::LogicalByteOverflow)
 }
 
-fn validate_unique(
-    field: &'static str,
-    token_ids: &[u64],
-) -> Result<(), KvSelectionContractError> {
+fn validate_unique(field: &'static str, token_ids: &[u64]) -> Result<(), KvSelectionContractError> {
     let mut seen = BTreeSet::new();
     for token_id in token_ids.iter().copied() {
         if !seen.insert(token_id) {
@@ -298,12 +304,20 @@ impl fmt::Display for KvSelectionContractError {
                 write!(formatter, "unknown token id {token_id} in {field}")
             }
             Self::OverlappingPartition { token_id } => {
-                write!(formatter, "token id {token_id} is both retained and evicted")
+                write!(
+                    formatter,
+                    "token id {token_id} is both retained and evicted"
+                )
             }
             Self::IncompletePartition { token_id } => {
-                write!(formatter, "token id {token_id} is absent from the selection partition")
+                write!(
+                    formatter,
+                    "token id {token_id} is absent from the selection partition"
+                )
             }
-            Self::OrderMismatch(field) => write!(formatter, "{field} does not preserve input order"),
+            Self::OrderMismatch(field) => {
+                write!(formatter, "{field} does not preserve input order")
+            }
             Self::LogicalByteOverflow => formatter.write_str("KV logical byte accounting overflow"),
             Self::LogicalAccountingMismatch => {
                 formatter.write_str("KV selection logical byte accounting does not replay")
@@ -323,7 +337,7 @@ impl std::error::Error for KvSelectionContractError {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
+    use serde_json::{Value, json};
 
     use super::{KvlabKvSelectionHandoffV1, canonical_json};
 
@@ -354,7 +368,7 @@ mod tests {
     #[test]
     fn rejects_order_or_accounting_tampering() {
         let mut value: Value = serde_json::from_str(&fixture()).unwrap();
-        value["retained_token_ids"] = json!([12,10]);
+        value["retained_token_ids"] = json!([12, 10]);
         let tampered = canonical_json(&value).unwrap();
         assert!(KvlabKvSelectionHandoffV1::from_canonical_json(&tampered).is_err());
 
