@@ -47,11 +47,15 @@ The trusted ElasticXxx `TransactionalActuator` remains authoritative for physica
 
 Targets: KVLab and FLAT-ATTENTION.
 
-- KV block eviction/intervention scenarios;
-- attention branch masking/gating scenarios;
-- prospective signatures before expensive execution;
-- evidence-backed comparisons against existing heuristics;
-- reject any speedup claim without benchmark evidence.
+- [ ] KV block eviction/intervention scenarios;
+- [x] first public FLAT Boolean attention masking/gating adapter using exact Hamming admission and an explicit dense baseline;
+- [x] FLAT dependency pinned to reviewed commit `a5b6598ffe475c74c938f45feb86b009d0e4ad0a`;
+- [x] prospective-model boundary that assigns no performance or quality meaning to sparsity by itself;
+- [ ] prospective signatures backed by executed FLAT/KV experiments;
+- [ ] evidence-backed comparisons against existing heuristics;
+- [ ] representative benchmark gates for any speedup, traffic, TTFT/TPOT or quality claim.
+
+The first adapter intentionally consumes only FLAT's public backend-neutral Boolean contracts (`BooleanAttentionSignature`, `HammingAdmissionRule`, and `BooleanAttentionMask`). Internal BIKV paged-selection implementation details are not treated as a stable cross-repository API. A separate public contract or evidence handoff is required before ProspectEngine depends on that path.
 
 ## Milestone 0.5 — plugin boundary
 
