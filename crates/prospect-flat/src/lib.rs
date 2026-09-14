@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod kvlab_handoff;
 mod routing_evidence;
 
 use core::fmt;
@@ -12,6 +13,10 @@ use flat_attention::api::boolean_attention_signature::{
 };
 use prospect_core::ProspectiveEngine;
 
+pub use kvlab_handoff::{
+    KVLAB_BKV_HANDOFF_REVISION, KVLAB_BKV_HANDOFF_SCHEMA_V1, KvlabBkvHandoffError,
+    KvlabBkvHandoffV1,
+};
 pub use routing_evidence::{
     FLAT_BOOLEAN_ROUTING_EVIDENCE_SCHEMA_V1, FlatBooleanRoutingEvidenceError,
     FlatBooleanRoutingEvidenceV1, FlatBooleanRoutingMode,
