@@ -30,7 +30,7 @@ Target: ElasticXxx.
 - [x] consume real ElasticXxx runtime observations through a pinned dependency;
 - [x] preserve unsupported telemetry without fabricated values;
 - [x] define a versioned probe contract requiring a validated, resource-declared plan and an explicit paired rollback intent;
-- [ ] compare resource actions before commit;
+- [x] compare resource actions before commit;
 - [ ] connect selected ProspectEngine decisions to PLAN -> VALIDATE -> ACT -> VERIFY -> COMMIT/ROLLBACK;
 - [x] preserve an explicit no-op baseline and rollback intent without claiming physical reversibility.
 
