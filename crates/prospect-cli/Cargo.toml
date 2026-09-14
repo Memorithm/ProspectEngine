@@ -16,6 +16,7 @@ path = "src/main.rs"
 workspace = true
 
 [dependencies]
+prospect-adapter = { path = "../prospect-adapter" }
 prospect-bundle = { path = "../prospect-bundle" }
 prospect-kv-position-campaign = { path = "../prospect-kv-position-campaign" }
 serde = { version = "1", features = ["derive"] }

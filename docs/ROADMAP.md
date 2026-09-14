@@ -88,12 +88,12 @@ Measured multi-threshold sweeps remain empirical. Records are comparable only wh
 
 - [x] stable adapter trait/versioning;
 - [x] capability metadata;
-- [ ] metric registry;
-- [ ] decision-policy registry;
+- [x] metric registry;
+- [x] decision-policy registry;
 - [ ] CLI/API surface;
-- [ ] reproducible scenario bundles.
+- [x] reproducible scenario bundles.
 
-`prospect-adapter` defines adapter contract `1.0`, strict machine-stable namespaced identifiers, explicit upstream revisions, versioned capabilities and compatibility checks. The first built-in metadata implementations cover TDI, ElasticXxx, FLAT Boolean attention and logical KV eviction without treating capability declarations as evidence of performance, safety or physical effects. The CLI surface has started with `verify-kv-campaign`, but the broader CLI/API milestone remains open.
+`prospect-adapter` defines adapter contract `1.0`, strict machine-stable namespaced identifiers, explicit upstream revisions, versioned capabilities and compatibility checks. The first built-in metadata implementations cover TDI, ElasticXxx, FLAT Boolean attention and logical KV eviction without treating capability declarations as evidence of performance, safety or physical effects. `prospect-registry` provides versioned metric and decision-policy registries, and `prospect-bundle` provides canonical reproducible scenario bundles. The CLI now verifies persisted KV campaigns and generic scenario bundles and exposes a deterministic `list-adapters` discovery surface. The broader CLI/API milestone remains open until registry and bundle-driven execution/dispatch surfaces are exposed without weakening evidence boundaries.
 
 ## Later research
 

@@ -1,6 +1,18 @@
 # ProspectEngine CLI
 
-The CLI surface is intentionally verification-first. It exposes deterministic replay and provenance checks without introducing a new scientific model or policy layer.
+The CLI surface is intentionally verification-first. It exposes deterministic replay, provenance checks, and adapter discovery without introducing a new scientific model or policy layer.
+
+## List built-in adapters
+
+Run:
+
+```bash
+cargo run -p prospect-cli --bin prospect -- list-adapters
+```
+
+The command emits a deterministic JSON array describing every built-in adapter known to ProspectEngine. Each entry contains the stable adapter ID, adapter-contract version, exact upstream component/revision, and declared versioned capabilities.
+
+The catalog is a discovery surface only. An adapter being present, or declaring a capability, is not evidence that a particular run occurred or that the adapter is performant, safe, scientifically validated, or physically effective.
 
 ## Verify a KV campaign directory
 
@@ -39,4 +51,4 @@ The command rejects non-canonical or semantically non-canonical bundles through 
 
 Successful commands return exit status 0. Verification/read failures return 1. Invalid CLI usage returns 2.
 
-The CLI verifies structure, provenance, digests, and replay contracts. It does not prove that a representative GPU run occurred, and it does not turn logical KV byte accounting or a scenario-bundle digest into claims about HBM release, memory traffic, latency, throughput, safety, or model-quality preservation.
+The CLI verifies structure, provenance, digests, replay contracts, and discovery metadata. It does not prove that a representative GPU run occurred, and it does not turn logical KV byte accounting, a scenario-bundle digest, or capability metadata into claims about HBM release, memory traffic, latency, throughput, safety, or model-quality preservation.
