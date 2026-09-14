@@ -3,7 +3,6 @@ use core::fmt;
 use prospect_adapter::{AdapterMetadata, AdapterMetadataError, ContractVersion, NamespacedId};
 use prospect_bundle::ScenarioBundle;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 pub const DISPATCH_CATALOG_SCHEMA_V1: &str = "prospect.dispatch-catalog/v1";
 
@@ -78,41 +77,7 @@ pub enum CatalogPreflightError {
     },
 }
 
-#[derive(Serialize)]
-struct CatalogWireRef<'a> {
-    schema: &'static str,
-    adapters: Vec<AdapterWireRef<'a>>,
-    metrics: Vec<RegistryWireRef<'a>>,
-    policies: Vec<RegistryWireRef<'a>>,
-}
-
-#[derive(Serialize)]
-struct AdapterWireRef<'a> {
-    adapter_id: &'a str,
-    contract_version: VersionWire,
-    upstream: Option<UpstreamWireRef<'a>>,
-}
-
-#[derive(Serialize)]
-struct UpstreamWireRef<'a> {
-    component: &'a str,
-    revision: &'a str,
-}
-
-#[derive(Serialize)]
-struct RegistryWireRef<'a> {
-    id: &'a str,
-    version: VersionWire,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct VersionWire {
-    major: u16,
-    minor: u16,
-}
-
-#[derive(Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CatalogWire {
     schema: String,
@@ -121,7 +86,7 @@ struct CatalogWire {
     policies: Vec<RegistryWire>,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct AdapterWire {
     adapter_id: String,
@@ -129,18 +94,25 @@ struct AdapterWire {
     upstream: Option<UpstreamWire>,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct UpstreamWire {
     component: String,
     revision: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RegistryWire {
     id: String,
     version: VersionWire,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VersionWire {
+    major: u16,
+    minor: u16,
 }
 
 impl AvailableUpstream {
@@ -257,7 +229,10 @@ impl DispatchCatalog {
         adapters: &[AdapterMetadata],
     ) -> Result<Self, DispatchCatalogError> {
         Self::new(
-            adapters.iter().map(AvailableAdapter::from_metadata).collect(),
+            adapters
+                .iter()
+                .map(AvailableAdapter::from_metadata)
+                .collect(),
             Vec::new(),
             Vec::new(),
         )
@@ -279,36 +254,29 @@ impl DispatchCatalog {
     }
 
     pub fn canonical_json(&self) -> Result<String, DispatchCatalogError> {
-        let value = serde_json::to_value(self.wire_ref()).map_err(DispatchCatalogError::Json)?;
-        canonical_json(&value).map_err(DispatchCatalogError::Json)
+        serde_json::to_string(&self.to_wire()).map_err(DispatchCatalogError::Json)
     }
 
     pub fn from_canonical_json(payload: &str) -> Result<Self, DispatchCatalogError> {
-        let value: Value = serde_json::from_str(payload).map_err(DispatchCatalogError::Json)?;
-        if canonical_json(&value).map_err(DispatchCatalogError::Json)? != payload {
-            return Err(DispatchCatalogError::NonCanonicalJson);
-        }
         let wire: CatalogWire =
-            serde_json::from_value(value).map_err(DispatchCatalogError::Json)?;
+            serde_json::from_str(payload).map_err(DispatchCatalogError::Json)?;
         if wire.schema != DISPATCH_CATALOG_SCHEMA_V1 {
             return Err(DispatchCatalogError::UnsupportedSchema);
         }
-        let adapters = wire
-            .adapters
-            .into_iter()
-            .map(adapter_from_wire)
-            .collect::<Result<Vec<_>, _>>()?;
-        let metrics = wire
-            .metrics
-            .into_iter()
-            .map(registry_from_wire)
-            .collect::<Result<Vec<_>, _>>()?;
-        let policies = wire
-            .policies
-            .into_iter()
-            .map(registry_from_wire)
-            .collect::<Result<Vec<_>, _>>()?;
-        let catalog = Self::new(adapters, metrics, policies)?;
+        let catalog = Self::new(
+            wire.adapters
+                .into_iter()
+                .map(adapter_from_wire)
+                .collect::<Result<Vec<_>, _>>()?,
+            wire.metrics
+                .into_iter()
+                .map(registry_from_wire)
+                .collect::<Result<Vec<_>, _>>()?,
+            wire.policies
+                .into_iter()
+                .map(registry_from_wire)
+                .collect::<Result<Vec<_>, _>>()?,
+        )?;
         if catalog.canonical_json()? != payload {
             return Err(DispatchCatalogError::NonCanonicalJson);
         }
@@ -319,23 +287,25 @@ impl DispatchCatalog {
         &self,
         bundle: &ScenarioBundle<State, Intervention>,
     ) -> Result<ResolvedCatalogRequirements<'_>, CatalogPreflightError> {
-        let requirement = bundle.adapter();
-        let adapter_id = requirement.adapter_id().as_str();
+        let required_adapter = bundle.adapter();
+        let adapter_id = required_adapter.adapter_id().as_str();
         let adapter = self
             .adapters
             .iter()
             .find(|candidate| candidate.adapter_id().as_str() == adapter_id)
             .ok_or_else(|| CatalogPreflightError::MissingAdapter(adapter_id.to_owned()))?;
-        let offered = adapter.contract_version();
-        let required = requirement.contract_version();
-        if !offered.supports(required) {
+
+        let offered_version = adapter.contract_version();
+        let required_version = required_adapter.contract_version();
+        if !offered_version.supports(required_version) {
             return Err(CatalogPreflightError::IncompatibleAdapterVersion {
                 id: adapter_id.to_owned(),
-                offered,
-                required,
+                offered: offered_version,
+                required: required_version,
             });
         }
-        if let Some(required_upstream) = requirement.upstream() {
+
+        if let Some(required_upstream) = required_adapter.upstream() {
             let matches = adapter.upstream().is_some_and(|candidate| {
                 candidate.component() == required_upstream.component()
                     && candidate.revision() == required_upstream.revision()
@@ -348,6 +318,7 @@ impl DispatchCatalog {
                 });
             }
         }
+
         let metric = bundle
             .metric()
             .map(|requirement| {
@@ -370,6 +341,7 @@ impl DispatchCatalog {
                 )
             })
             .transpose()?;
+
         Ok(ResolvedCatalogRequirements {
             adapter,
             metric,
@@ -377,23 +349,23 @@ impl DispatchCatalog {
         })
     }
 
-    fn wire_ref(&self) -> CatalogWireRef<'_> {
-        CatalogWireRef {
-            schema: DISPATCH_CATALOG_SCHEMA_V1,
+    fn to_wire(&self) -> CatalogWire {
+        CatalogWire {
+            schema: DISPATCH_CATALOG_SCHEMA_V1.to_owned(),
             adapters: self
                 .adapters
                 .iter()
-                .map(|adapter| AdapterWireRef {
-                    adapter_id: adapter.adapter_id.as_str(),
+                .map(|adapter| AdapterWire {
+                    adapter_id: adapter.adapter_id.as_str().to_owned(),
                     contract_version: adapter.contract_version.into(),
-                    upstream: adapter.upstream.as_ref().map(|upstream| UpstreamWireRef {
-                        component: upstream.component.as_str(),
-                        revision: &upstream.revision,
+                    upstream: adapter.upstream.as_ref().map(|upstream| UpstreamWire {
+                        component: upstream.component.as_str().to_owned(),
+                        revision: upstream.revision.clone(),
                     }),
                 })
                 .collect(),
-            metrics: self.metrics.iter().map(registry_wire_ref).collect(),
-            policies: self.policies.iter().map(registry_wire_ref).collect(),
+            metrics: self.metrics.iter().map(registry_to_wire).collect(),
+            policies: self.policies.iter().map(registry_to_wire).collect(),
         }
     }
 }
@@ -456,9 +428,9 @@ fn registry_from_wire(wire: RegistryWire) -> Result<AvailableRegistryEntry, Disp
     AvailableRegistryEntry::new(wire.id, wire.version.try_into()?)
 }
 
-fn registry_wire_ref(entry: &AvailableRegistryEntry) -> RegistryWireRef<'_> {
-    RegistryWireRef {
-        id: entry.id.as_str(),
+fn registry_to_wire(entry: &AvailableRegistryEntry) -> RegistryWire {
+    RegistryWire {
+        id: entry.id.as_str().to_owned(),
         version: entry.version.into(),
     }
 }
@@ -469,15 +441,14 @@ fn resolve_registry_requirement<'a>(
     required: ContractVersion,
     metric: bool,
 ) -> Result<&'a AvailableRegistryEntry, CatalogPreflightError> {
-    let entry = entries.iter().find(|candidate| candidate.id.as_str() == id);
-    let Some(entry) = entry else {
+    let Some(entry) = entries.iter().find(|candidate| candidate.id.as_str() == id) else {
         return if metric {
             Err(CatalogPreflightError::MissingMetric(id.to_owned()))
         } else {
             Err(CatalogPreflightError::MissingPolicy(id.to_owned()))
         };
     };
-    let offered = entry.version;
+    let offered = entry.version();
     if !offered.supports(required) {
         return if metric {
             Err(CatalogPreflightError::IncompatibleMetricVersion {
@@ -512,43 +483,6 @@ impl TryFrom<VersionWire> for ContractVersion {
         ContractVersion::new(value.major, value.minor)
             .map_err(DispatchCatalogError::AdapterMetadata)
     }
-}
-
-fn canonical_json(value: &Value) -> Result<String, serde_json::Error> {
-    fn write_value(value: &Value, output: &mut String) -> Result<(), serde_json::Error> {
-        match value {
-            Value::Object(map) => {
-                output.push('{');
-                let mut keys = map.keys().collect::<Vec<_>>();
-                keys.sort_unstable();
-                for (index, key) in keys.into_iter().enumerate() {
-                    if index != 0 {
-                        output.push(',');
-                    }
-                    output.push_str(&serde_json::to_string(key)?);
-                    output.push(':');
-                    write_value(&map[key], output)?;
-                }
-                output.push('}');
-            }
-            Value::Array(values) => {
-                output.push('[');
-                for (index, item) in values.iter().enumerate() {
-                    if index != 0 {
-                        output.push(',');
-                    }
-                    write_value(item, output)?;
-                }
-                output.push(']');
-            }
-            other => output.push_str(&serde_json::to_string(other)?),
-        }
-        Ok(())
-    }
-
-    let mut output = String::new();
-    write_value(value, &mut output)?;
-    Ok(output)
 }
 
 impl fmt::Display for DispatchCatalogError {
@@ -587,10 +521,17 @@ impl fmt::Display for CatalogPreflightError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingAdapter(id) => write!(formatter, "catalog has no adapter {id}"),
-            Self::IncompatibleAdapterVersion { id, offered, required } => write!(
+            Self::IncompatibleAdapterVersion {
+                id,
+                offered,
+                required,
+            } => write!(
                 formatter,
                 "catalog adapter {id} offers {}.{} but {}.{} is required",
-                offered.major(), offered.minor(), required.major(), required.minor()
+                offered.major(),
+                offered.minor(),
+                required.major(),
+                required.minor()
             ),
             Self::AdapterUpstreamMismatch {
                 id,
@@ -601,16 +542,30 @@ impl fmt::Display for CatalogPreflightError {
                 "catalog adapter {id} does not match required upstream {required_component}@{required_revision}"
             ),
             Self::MissingMetric(id) => write!(formatter, "catalog has no metric {id}"),
-            Self::IncompatibleMetricVersion { id, offered, required } => write!(
+            Self::IncompatibleMetricVersion {
+                id,
+                offered,
+                required,
+            } => write!(
                 formatter,
                 "catalog metric {id} offers {}.{} but {}.{} is required",
-                offered.major(), offered.minor(), required.major(), required.minor()
+                offered.major(),
+                offered.minor(),
+                required.major(),
+                required.minor()
             ),
             Self::MissingPolicy(id) => write!(formatter, "catalog has no policy {id}"),
-            Self::IncompatiblePolicyVersion { id, offered, required } => write!(
+            Self::IncompatiblePolicyVersion {
+                id,
+                offered,
+                required,
+            } => write!(
                 formatter,
                 "catalog policy {id} offers {}.{} but {}.{} is required",
-                offered.major(), offered.minor(), required.major(), required.minor()
+                offered.major(),
+                offered.minor(),
+                required.major(),
+                required.minor()
             ),
         }
     }
@@ -620,17 +575,18 @@ impl std::error::Error for CatalogPreflightError {}
 
 #[cfg(test)]
 mod tests {
-    use prospect_adapter::{AdapterCapability, AdapterMetadata, AdapterUpstream};
+    use prospect_adapter::{
+        AdapterCapability, AdapterMetadata, AdapterUpstream, ContractVersion,
+    };
     use prospect_bundle::{
         AdapterBinding, BundleScenario, RegistryRequirement, ScenarioBundle, UpstreamBinding,
     };
     use prospect_core::ScenarioId;
 
     use super::{
-        AvailableAdapter, AvailableRegistryEntry, CatalogPreflightError, DispatchCatalog,
-        DispatchCatalogError,
+        AvailableAdapter, AvailableRegistryEntry, AvailableUpstream, CatalogPreflightError,
+        DispatchCatalog, DispatchCatalogError,
     };
-    use prospect_adapter::ContractVersion;
 
     fn version(major: u16, minor: u16) -> ContractVersion {
         ContractVersion::new(major, minor).unwrap()
@@ -647,29 +603,32 @@ mod tests {
             .unwrap(),
             Some(3),
             10,
-            vec![BundleScenario::new(ScenarioId::new("candidate").unwrap(), 1)],
-            metric
-                .then(|| RegistryRequirement::new("metric.distance", version(1, 0)).unwrap()),
-            policy
-                .then(|| RegistryRequirement::new("policy.prefer", version(1, 1)).unwrap()),
+            vec![BundleScenario::new(
+                ScenarioId::new("candidate").unwrap(),
+                1,
+            )],
+            metric.then(|| RegistryRequirement::new("metric.distance", version(1, 0)).unwrap()),
+            policy.then(|| RegistryRequirement::new("policy.prefer", version(1, 1)).unwrap()),
         )
         .unwrap()
     }
 
     fn catalog() -> DispatchCatalog {
         DispatchCatalog::new(
-            vec![AvailableAdapter::new(
-                "prospect.fixture",
-                version(1, 2),
-                Some(
-                    super::AvailableUpstream::new(
-                        "memorithm.fixture",
-                        "0123456789abcdef0123456789abcdef01234567",
-                    )
-                    .unwrap(),
-                ),
-            )
-            .unwrap()],
+            vec![
+                AvailableAdapter::new(
+                    "prospect.fixture",
+                    version(1, 2),
+                    Some(
+                        AvailableUpstream::new(
+                            "memorithm.fixture",
+                            "0123456789abcdef0123456789abcdef01234567",
+                        )
+                        .unwrap(),
+                    ),
+                )
+                .unwrap(),
+            ],
             vec![AvailableRegistryEntry::new("metric.distance", version(1, 3)).unwrap()],
             vec![AvailableRegistryEntry::new("policy.prefer", version(1, 1)).unwrap()],
         )
@@ -741,11 +700,7 @@ mod tests {
     #[test]
     fn catalog_preflight_resolves_compatible_requirements() {
         let catalog = catalog();
-        let bundle = bundle(
-            true,
-            true,
-            "0123456789abcdef0123456789abcdef01234567",
-        );
+        let bundle = bundle(true, true, "0123456789abcdef0123456789abcdef01234567");
         let resolved = catalog.resolve_bundle(&bundle).unwrap();
         assert_eq!(resolved.adapter().adapter_id().as_str(), "prospect.fixture");
         assert_eq!(resolved.metric().unwrap().id().as_str(), "metric.distance");
@@ -754,13 +709,9 @@ mod tests {
 
     #[test]
     fn catalog_preflight_fails_closed_on_missing_registry_and_upstream_drift() {
-        let catalog = DispatchCatalog::new(catalog().adapters().to_vec(), Vec::new(), Vec::new())
-            .unwrap();
-        let bundle = bundle(
-            true,
-            false,
-            "0123456789abcdef0123456789abcdef01234567",
-        );
+        let catalog =
+            DispatchCatalog::new(catalog().adapters().to_vec(), Vec::new(), Vec::new()).unwrap();
+        let bundle = bundle(true, false, "0123456789abcdef0123456789abcdef01234567");
         assert!(matches!(
             catalog.resolve_bundle(&bundle),
             Err(CatalogPreflightError::MissingMetric(id)) if id == "metric.distance"
