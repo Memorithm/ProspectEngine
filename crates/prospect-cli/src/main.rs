@@ -60,7 +60,9 @@ where
             let summary = preflight_scenario_bundle_files(bundle_path, catalog_path)
                 .map_err(|error| CliError::Verification(error.to_string()))?;
             serde_json::to_string(&summary).map_err(|error| {
-                CliError::Verification(format!("failed to encode dispatch preflight summary: {error}"))
+                CliError::Verification(format!(
+                    "failed to encode dispatch preflight summary: {error}"
+                ))
             })
         }
         Some("verify-kv-campaign") => {
