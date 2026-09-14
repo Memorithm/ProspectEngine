@@ -63,18 +63,18 @@ impl KvlabBkvHandoffV1 {
                 .map_err(|error| {
                     KvlabBkvHandoffError::FlatContract(FlatBooleanContractError::Signature(error))
                 })?;
-        let keys = wire
-            .page_words
-            .iter()
-            .map(|words| {
-                BooleanAttentionSignature::new(wire.signature_bits, parse_words(words)?)
-                    .map_err(|error| {
-                        KvlabBkvHandoffError::FlatContract(FlatBooleanContractError::Signature(
-                            error,
-                        ))
-                    })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let keys =
+            wire.page_words
+                .iter()
+                .map(|words| {
+                    BooleanAttentionSignature::new(wire.signature_bits, parse_words(words)?)
+                        .map_err(|error| {
+                            KvlabBkvHandoffError::FlatContract(FlatBooleanContractError::Signature(
+                                error,
+                            ))
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
         let state = FlatBooleanAttentionState::new(query, keys)
             .map_err(KvlabBkvHandoffError::FlatContract)?;
         let intervention = FlatBooleanIntervention::new(wire.max_distance);
