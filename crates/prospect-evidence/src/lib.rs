@@ -124,10 +124,10 @@ impl<Score> DecisionEvidence<Score> {
             });
         }
 
-        if let Some(selected_id) = &selected {
-            if !seen.contains(selected_id) {
-                return Err(EvidenceError::UnknownSelection);
-            }
+        if let Some(selected_id) = &selected
+            && !seen.contains(selected_id)
+        {
+            return Err(EvidenceError::UnknownSelection);
         }
 
         Ok(Self {
