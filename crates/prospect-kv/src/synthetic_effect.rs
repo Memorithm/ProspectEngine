@@ -9,10 +9,8 @@ use crate::{
     KvlabKvEvictionHandoffV1,
 };
 
-pub const KVLAB_KV_EVICTION_EFFECT_SCHEMA_V1: &str =
-    "kvlab.prospect-kv-eviction-effect/v1";
-pub const KVLAB_KV_EVICTION_EFFECT_REVISION: &str =
-    "e9c10e38a57657e8910b42f42e3625ca0e4f1bbc";
+pub const KVLAB_KV_EVICTION_EFFECT_SCHEMA_V1: &str = "kvlab.prospect-kv-eviction-effect/v1";
+pub const KVLAB_KV_EVICTION_EFFECT_REVISION: &str = "e9c10e38a57657e8910b42f42e3625ca0e4f1bbc";
 
 const FLOAT_ABS_TOLERANCE: f64 = 1.0e-12;
 const FLOAT_REL_TOLERANCE: f64 = 1.0e-12;
@@ -346,9 +344,7 @@ fn validate_regions(
         if !seen_region_ids.insert(region.region_id.as_str()) {
             return Err(KvlabKvEvictionEffectError::DuplicateRegionId);
         }
-        if region.storage_bytes == 0
-            || region.storage_bytes != eviction.state().bytes_per_token()
-        {
+        if region.storage_bytes == 0 || region.storage_bytes != eviction.state().bytes_per_token() {
             return Err(KvlabKvEvictionEffectError::InvalidRegionStorage);
         }
         if region.contribution.is_empty() {
@@ -449,10 +445,7 @@ fn replay_effect(
     })
 }
 
-fn same_outcome_identity(
-    left: &KvlabKvEvictionEffectV1,
-    right: &KvlabKvEvictionEffectV1,
-) -> bool {
+fn same_outcome_identity(left: &KvlabKvEvictionEffectV1, right: &KvlabKvEvictionEffectV1) -> bool {
     left.eviction().state() == right.eviction().state()
         && left.eviction().outcome() == right.eviction().outcome()
 }
@@ -483,25 +476,62 @@ impl fmt::Display for KvlabKvEvictionEffectError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Json(error) => write!(formatter, "invalid KVLab eviction-effect JSON: {error}"),
-            Self::NonCanonicalJson => formatter.write_str("KVLab eviction-effect JSON is not canonical"),
-            Self::UnsupportedSchema => formatter.write_str("unsupported KVLab eviction-effect schema"),
-            Self::EmptyTraceId => formatter.write_str("KVLab eviction-effect trace id must not be empty"),
-            Self::EmptyRegions => formatter.write_str("KVLab eviction-effect regions must not be empty"),
-            Self::EmptyRegionId => formatter.write_str("KVLab eviction-effect region id must not be empty"),
-            Self::DuplicateRegionId => formatter.write_str("KVLab eviction-effect region ids must be unique"),
-            Self::RegionTokenOrderMismatch => formatter.write_str("KVLab eviction-effect region/token binding does not match the embedded eviction"),
-            Self::InvalidRegionStorage => formatter.write_str("KVLab eviction-effect region storage does not match bytes_per_token"),
-            Self::EmptyContribution => formatter.write_str("KVLab eviction-effect contributions must not be empty"),
-            Self::ContributionWidthMismatch => formatter.write_str("KVLab eviction-effect contribution widths differ"),
-            Self::NonFiniteValue => formatter.write_str("KVLab eviction-effect contains a non-finite numerical value"),
-            Self::RetainedRegionsMismatch => formatter.write_str("KVLab eviction-effect retained regions do not match replay"),
-            Self::EvictedRegionsMismatch => formatter.write_str("KVLab eviction-effect evicted regions do not match replay"),
-            Self::FullOutputMismatch => formatter.write_str("KVLab eviction-effect full-cache output does not match replay"),
-            Self::RetainedOutputMismatch => formatter.write_str("KVLab eviction-effect retained output does not match replay"),
-            Self::L2DeltaMismatch => formatter.write_str("KVLab eviction-effect L2 delta does not match replay"),
-            Self::LogicalEvictedBytesMismatch => formatter.write_str("KVLab eviction-effect logical evicted bytes do not match the embedded eviction"),
-            Self::EmbeddedEviction(error) => write!(formatter, "invalid embedded KV eviction handoff: {error}"),
-            Self::Evidence(error) => write!(formatter, "invalid ProspectEngine evidence source: {error}"),
+            Self::NonCanonicalJson => {
+                formatter.write_str("KVLab eviction-effect JSON is not canonical")
+            }
+            Self::UnsupportedSchema => {
+                formatter.write_str("unsupported KVLab eviction-effect schema")
+            }
+            Self::EmptyTraceId => {
+                formatter.write_str("KVLab eviction-effect trace id must not be empty")
+            }
+            Self::EmptyRegions => {
+                formatter.write_str("KVLab eviction-effect regions must not be empty")
+            }
+            Self::EmptyRegionId => {
+                formatter.write_str("KVLab eviction-effect region id must not be empty")
+            }
+            Self::DuplicateRegionId => {
+                formatter.write_str("KVLab eviction-effect region ids must be unique")
+            }
+            Self::RegionTokenOrderMismatch => formatter.write_str(
+                "KVLab eviction-effect region/token binding does not match the embedded eviction",
+            ),
+            Self::InvalidRegionStorage => formatter
+                .write_str("KVLab eviction-effect region storage does not match bytes_per_token"),
+            Self::EmptyContribution => {
+                formatter.write_str("KVLab eviction-effect contributions must not be empty")
+            }
+            Self::ContributionWidthMismatch => {
+                formatter.write_str("KVLab eviction-effect contribution widths differ")
+            }
+            Self::NonFiniteValue => {
+                formatter.write_str("KVLab eviction-effect contains a non-finite numerical value")
+            }
+            Self::RetainedRegionsMismatch => {
+                formatter.write_str("KVLab eviction-effect retained regions do not match replay")
+            }
+            Self::EvictedRegionsMismatch => {
+                formatter.write_str("KVLab eviction-effect evicted regions do not match replay")
+            }
+            Self::FullOutputMismatch => {
+                formatter.write_str("KVLab eviction-effect full-cache output does not match replay")
+            }
+            Self::RetainedOutputMismatch => {
+                formatter.write_str("KVLab eviction-effect retained output does not match replay")
+            }
+            Self::L2DeltaMismatch => {
+                formatter.write_str("KVLab eviction-effect L2 delta does not match replay")
+            }
+            Self::LogicalEvictedBytesMismatch => formatter.write_str(
+                "KVLab eviction-effect logical evicted bytes do not match the embedded eviction",
+            ),
+            Self::EmbeddedEviction(error) => {
+                write!(formatter, "invalid embedded KV eviction handoff: {error}")
+            }
+            Self::Evidence(error) => {
+                write!(formatter, "invalid ProspectEngine evidence source: {error}")
+            }
         }
     }
 }
@@ -521,8 +551,12 @@ impl fmt::Display for SyntheticKvEvidenceModelError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::EmptyEvidence => "synthetic KV eviction evidence set must not be empty",
-            Self::DuplicateOutcome => "synthetic KV eviction evidence contains duplicate logical outcomes",
-            Self::MissingEvidence => "no synthetic numerical evidence matches this KV eviction outcome",
+            Self::DuplicateOutcome => {
+                "synthetic KV eviction evidence contains duplicate logical outcomes"
+            }
+            Self::MissingEvidence => {
+                "no synthetic numerical evidence matches this KV eviction outcome"
+            }
         })
     }
 }
@@ -537,7 +571,7 @@ mod tests {
 
     use super::{
         KVLAB_KV_EVICTION_EFFECT_REVISION, KvlabKvEvictionEffectV1,
-        SyntheticKvEvidenceModelError, SyntheticKvEvictionEvidenceModel,
+        SyntheticKvEvictionEvidenceModel, SyntheticKvEvidenceModelError,
     };
     use crate::{KvEvictionEngine, KvEvictionEngineError, KvEvictionIntervention, KvEvictionState};
 
