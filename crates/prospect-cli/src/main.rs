@@ -2,6 +2,7 @@
 
 mod dispatch_preflight;
 mod kv_campaign_spec;
+mod kv_campaign_suite;
 mod scenario_bundle;
 
 use std::env;
@@ -10,11 +11,12 @@ use std::process::ExitCode;
 
 use dispatch_preflight::preflight_scenario_bundle_files;
 use kv_campaign_spec::verify_kv_campaign_spec_file;
+use kv_campaign_suite::verify_kv_campaign_suite_directory;
 use prospect_adapter::built_in_adapter_catalog;
 use prospect_cli::verify_kv_campaign_directory;
 use scenario_bundle::verify_scenario_bundle_file;
 
-const USAGE: &str = "Usage:\n  prospect list-adapters\n  prospect preflight-scenario-bundle <bundle.json> <catalog.json>\n  prospect verify-kv-campaign-spec <campaign.json>\n  prospect verify-kv-campaign <campaign-directory>\n  prospect verify-scenario-bundle <bundle.json>";
+const USAGE: &str = "Usage:\n  prospect list-adapters\n  prospect preflight-scenario-bundle <bundle.json> <catalog.json>\n  prospect verify-kv-campaign-spec <campaign.json>\n  prospect verify-kv-campaign <campaign-directory>\n  prospect verify-kv-campaign-suite <suite-directory>\n  prospect verify-scenario-bundle <bundle.json>";
 
 fn main() -> ExitCode {
     match run(env::args_os()) {
@@ -88,6 +90,18 @@ where
                 .map_err(|error| CliError::Verification(error.to_string()))?;
             serde_json::to_string(&summary).map_err(|error| {
                 CliError::Verification(format!("failed to encode campaign summary: {error}"))
+            })
+        }
+        Some("verify-kv-campaign-suite") => {
+            let directory = exactly_one_argument(
+                &mut arguments,
+                "verify-kv-campaign-suite",
+                "campaign suite directory",
+            )?;
+            let summary = verify_kv_campaign_suite_directory(directory)
+                .map_err(|error| CliError::Verification(error.to_string()))?;
+            serde_json::to_string(&summary).map_err(|error| {
+                CliError::Verification(format!("failed to encode campaign suite summary: {error}"))
             })
         }
         Some("verify-scenario-bundle") => {
@@ -275,6 +289,26 @@ mod tests {
             run([
                 OsString::from("prospect"),
                 OsString::from("verify-kv-campaign"),
+                OsString::from("a"),
+                OsString::from("b")
+            ]),
+            Err(CliError::Usage(_))
+        ));
+    }
+
+    #[test]
+    fn kv_campaign_suite_requires_exactly_one_directory() {
+        assert!(matches!(
+            run([
+                OsString::from("prospect"),
+                OsString::from("verify-kv-campaign-suite")
+            ]),
+            Err(CliError::Usage(_))
+        ));
+        assert!(matches!(
+            run([
+                OsString::from("prospect"),
+                OsString::from("verify-kv-campaign-suite"),
                 OsString::from("a"),
                 OsString::from("b")
             ]),
