@@ -58,13 +58,11 @@ impl KvlabBkvHandoffV1 {
             return Err(KvlabBkvHandoffError::UnsupportedSchema);
         }
 
-        let query = BooleanAttentionSignature::new(
-            wire.signature_bits,
-            parse_words(&wire.query_words)?,
-        )
-        .map_err(|error| {
-            KvlabBkvHandoffError::FlatContract(FlatBooleanContractError::Signature(error))
-        })?;
+        let query =
+            BooleanAttentionSignature::new(wire.signature_bits, parse_words(&wire.query_words)?)
+                .map_err(|error| {
+                    KvlabBkvHandoffError::FlatContract(FlatBooleanContractError::Signature(error))
+                })?;
         let keys = wire
             .page_words
             .iter()
@@ -134,9 +132,10 @@ fn parse_words(words: &[String]) -> Result<Vec<u64>, KvlabBkvHandoffError> {
 
 fn parse_word(word: &str) -> Result<u64, KvlabBkvHandoffError> {
     if word.len() != 16
-        || word.as_bytes().iter().any(|byte| {
-            !byte.is_ascii_digit() && !(b'a'..=b'f').contains(byte)
-        })
+        || word
+            .as_bytes()
+            .iter()
+            .any(|byte| !byte.is_ascii_digit() && !(b'a'..=b'f').contains(byte))
     {
         return Err(KvlabBkvHandoffError::InvalidHexWord);
     }
@@ -151,15 +150,18 @@ impl fmt::Display for KvlabBkvHandoffError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Json(error) => write!(formatter, "invalid KVLab BKV handoff JSON: {error}"),
-            Self::NonCanonicalJson => formatter.write_str("KVLab BKV handoff JSON is not canonical"),
+            Self::NonCanonicalJson => {
+                formatter.write_str("KVLab BKV handoff JSON is not canonical")
+            }
             Self::UnsupportedSchema => formatter.write_str("unsupported KVLab BKV handoff schema"),
             Self::InvalidHexWord => formatter.write_str(
                 "KVLab BKV words must be canonical 16-digit lowercase hexadecimal u64 values",
             ),
-            Self::FlatContract(error) => write!(formatter, "invalid FLAT Boolean contract: {error}"),
-            Self::AdmittedPagesMismatch => formatter.write_str(
-                "KVLab admitted pages do not match FLAT exact Hamming mask derivation",
-            ),
+            Self::FlatContract(error) => {
+                write!(formatter, "invalid FLAT Boolean contract: {error}")
+            }
+            Self::AdmittedPagesMismatch => formatter
+                .write_str("KVLab admitted pages do not match FLAT exact Hamming mask derivation"),
         }
     }
 }
@@ -200,7 +202,10 @@ mod tests {
 
         assert_eq!(handoff.generation(), 0);
         assert_eq!(handoff.admitted_pages(), &[0, 1, 3]);
-        assert_eq!(handoff.mask().expect("mask").admitted_blocks(), vec![0, 1, 3]);
+        assert_eq!(
+            handoff.mask().expect("mask").admitted_blocks(),
+            vec![0, 1, 3]
+        );
 
         let run_id = RunId::new("kvlab-flat-1").expect("run id");
         let evidence = handoff.routing_evidence(&run_id).expect("routing evidence");
@@ -209,10 +214,8 @@ mod tests {
 
     #[test]
     fn rejects_candidate_set_drift_across_projects() {
-        let tampered = FIXTURE.replace(
-            "\"admitted_pages\":[0,1,3]",
-            "\"admitted_pages\":[0,1,2,3]",
-        );
+        let tampered =
+            FIXTURE.replace("\"admitted_pages\":[0,1,3]", "\"admitted_pages\":[0,1,2,3]");
         assert!(matches!(
             KvlabBkvHandoffV1::from_canonical_json(&tampered),
             Err(KvlabBkvHandoffError::AdmittedPagesMismatch)
