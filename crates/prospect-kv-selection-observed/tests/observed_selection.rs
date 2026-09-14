@@ -80,7 +80,10 @@ fn consumes_observed_explicit_selection() {
     assert_eq!(record.selection().policy(), "lru");
     assert_eq!(record.selection().retained_token_ids(), [10, 12, 14]);
     assert_eq!(record.candidate_logical_kv_bytes(), 192);
-    assert_eq!(record.metrics()[0].kind(), ObservedSelectionMetricKind::Quality);
+    assert_eq!(
+        record.metrics()[0].kind(),
+        ObservedSelectionMetricKind::Quality
+    );
     assert_eq!(
         record.metrics()[0].preference(),
         ObservedSelectionMetricPreference::HigherIsBetter
@@ -132,8 +135,8 @@ fn comparable_set_rejects_budget_or_baseline_drift() {
         serde_json::from_str(&record_json("magnitude", &[11, 13, 14], '4')).expect("json");
     value["baseline_output_sha256"] = json!("5".repeat(64));
     let drift_json = serde_json::to_string(&value).expect("json");
-    let drift = KvlabKvRealModelSelectionEvidenceV1::from_canonical_json(&drift_json)
-        .expect("drift");
+    let drift =
+        KvlabKvRealModelSelectionEvidenceV1::from_canonical_json(&drift_json).expect("drift");
     assert!(matches!(
         ComparableObservedKvSelectionSet::new(vec![lru, drift]),
         Err(ComparableObservedKvSelectionError::BaselineMismatch)
