@@ -451,7 +451,11 @@ mod tests {
             ]
         );
         assert!(catalog.iter().all(|metadata| metadata.upstream().is_some()));
-        assert!(catalog.iter().all(|metadata| !metadata.capabilities().is_empty()));
+        assert!(
+            catalog
+                .iter()
+                .all(|metadata| !metadata.capabilities().is_empty())
+        );
     }
 
     #[test]
