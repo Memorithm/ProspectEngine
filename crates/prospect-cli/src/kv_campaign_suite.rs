@@ -27,6 +27,15 @@ const BYTES_PER_TOKEN: u64 = 46_080;
 const INPUT_TOKENS: usize = 27;
 const RETAIN_COUNTS: [usize; 3] = [7, 14, 20];
 const POLICIES: [&str; 2] = ["lru", "random_seeded"];
+// SHA-256 of the exact UTF-8 bytes at KVLAB_PREREGISTRATION_REVISION.
+// These are input identities, never evidence of a model execution.
+const PREREGISTERED_CAMPAIGN_SHA256: [&str; 3] = [
+    "5220e3910750ffad24dad1b023d6393491f9ef2ee3a14621b0dd122fd79d81bb",
+    "0b0d461b5a29ed34e22803a287bdc054622008f87073b9f8956a8392cb4605b2",
+    "909d0339fda4d1c1272a6da72aa14ab19fab971c68c560f7c82fb25d45dcbb28",
+];
+const PREREGISTERED_TRACE_SHA256: &str =
+    "3411f378fb3c7010eb94361128c019206fb47bda4271f721498d517eb07ca65f";
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct BaselineMetricSummary {
@@ -303,9 +312,17 @@ fn validate_manifest(manifest: &SuiteManifestWire) -> Result<(), KvCampaignSuite
     let mut paths = BTreeSet::new();
     let mut outputs = BTreeSet::new();
     let mut verification_files = BTreeSet::new();
-    for (entry, expected_count) in manifest.campaigns.iter().zip(RETAIN_COUNTS) {
+    for (index, (entry, expected_count)) in manifest.campaigns.iter().zip(RETAIN_COUNTS).enumerate()
+    {
         if entry.retained_count != expected_count {
             return Err(KvCampaignSuiteError::InvalidManifest("retained_count"));
+        }
+        if entry.campaign_spec_sha256 != PREREGISTERED_CAMPAIGN_SHA256[index]
+            || entry.trace_sha256 != PREREGISTERED_TRACE_SHA256
+        {
+            return Err(KvCampaignSuiteError::ProvenanceMismatch(
+                "preregistered campaign bytes",
+            ));
         }
         let stem = format!("retain-{expected_count:02}-of-27");
         let expected_campaign_path = format!("experiments/prospect/smollm2-r1/{stem}.json");
@@ -753,6 +770,29 @@ mod tests {
     }
 
     fn write_suite(directory: &Path, baseline_drift: bool) {
+        write_suite_variant(directory, baseline_drift, None);
+    }
+
+    #[test]
+    fn rejects_coherently_rehashed_preregistration_substitutions() {
+        for drift in ["input", "selection", "evaluation"] {
+            let directory = TempDirectory::new(drift);
+            // Every generated campaign still passes the generic verifier.
+            // Only the fixed-suite identity check must reject substitution.
+            write_suite_variant(directory.path(), false, Some(drift));
+            assert!(
+                matches!(
+                    verify_kv_campaign_suite_directory(directory.path()),
+                    Err(KvCampaignSuiteError::ProvenanceMismatch(
+                        "preregistered campaign bytes"
+                    ))
+                ),
+                "accepted rehashed {drift} substitution"
+            );
+        }
+    }
+
+    fn write_suite_variant(directory: &Path, baseline_drift: bool, drift: Option<&str>) {
         let mut suite_entries = Vec::new();
         for retained_count in RETAIN_COUNTS {
             let stem = format!("retain-{retained_count:02}-of-27");
@@ -764,7 +804,7 @@ mod tests {
                 '2'
             };
             let (campaign_sha, trace_sha, summary) =
-                write_campaign(&campaign_dir, retained_count, baseline_char);
+                write_campaign(&campaign_dir, retained_count, baseline_char, drift);
             let verification_file = format!("verification-{stem}.json");
             let verification_value = serde_json::to_value(&summary).unwrap();
             fs::write(
@@ -808,11 +848,34 @@ mod tests {
         directory: &Path,
         retained_count: usize,
         baseline_char: char,
+        drift: Option<&str>,
     ) -> (String, String, CampaignVerificationSummary) {
-        let model_tokens = (100_u64..127).collect::<Vec<_>>();
-        let evaluation_tokens = (200_u64..208).collect::<Vec<_>>();
+        // Actual frozen inputs; only output metrics/digests below are synthetic fixtures.
+        let mut model_tokens = vec![
+            22007_u64, 6463, 314, 260, 3075, 338, 6650, 260, 2591, 284, 260, 8872, 1592, 30, 198,
+            198, 504, 8872, 314, 253, 8304, 282, 260, 2591, 30, 657, 314,
+        ];
+        let evaluation_tokens = vec![253_u64, 19284, 1248, 338, 21837, 260, 2591, 30];
+        if drift == Some("input") {
+            model_tokens[0] += 1;
+        }
+        let evaluation_id = if drift == Some("evaluation") {
+            "substituted-evaluation"
+        } else {
+            "nnis-r1-gravity-is-tail8"
+        };
         let lru_positions = ((INPUT_TOKENS - retained_count)..INPUT_TOKENS).collect::<Vec<_>>();
-        let random_positions = (0..retained_count).collect::<Vec<_>>();
+        let mut random_positions: Vec<usize> = match retained_count {
+            7 => vec![1, 2, 4, 10, 12, 17, 20],
+            14 => vec![0, 1, 2, 3, 4, 6, 10, 11, 12, 16, 17, 20, 22, 23],
+            20 => vec![
+                0, 1, 2, 3, 4, 6, 10, 11, 12, 13, 15, 16, 17, 18, 19, 20, 22, 23, 24, 26,
+            ],
+            _ => unreachable!(),
+        };
+        if drift == Some("selection") {
+            random_positions = (0..retained_count).collect();
+        }
         let experiment_id = format!("smollm2-r1-position-retain-{retained_count:02}-of-27");
         let campaign = json!({
             "schema":"kvlab.prospect-kv-real-model-position-campaign/v1",
@@ -823,7 +886,7 @@ mod tests {
             "tokenizer_revision":MODEL_REVISION,
             "runtime_backend":RUNTIME_BACKEND,
             "runtime_revision":NNIS_RUNTIME_REVISION,
-            "evaluation_id":"nnis-r1-gravity-is-tail8",
+            "evaluation_id":evaluation_id,
             "seed":7,
             "bytes_per_token":BYTES_PER_TOKEN,
             "model_input_token_ids":model_tokens,
@@ -863,7 +926,7 @@ mod tests {
                 "tokenizer_revision":MODEL_REVISION,
                 "runtime_backend":RUNTIME_BACKEND,
                 "runtime_revision":NNIS_RUNTIME_REVISION,
-                "evaluation_id":"nnis-r1-gravity-is-tail8",
+                "evaluation_id":evaluation_id,
                 "trace_sha256":trace_sha,
                 "seed":7,
                 "selection":{

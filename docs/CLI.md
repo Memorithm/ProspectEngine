@@ -88,3 +88,17 @@ The command rejects non-canonical or semantically non-canonical bundles through 
 Successful commands return exit status 0. Verification/read/preflight failures return 1. Invalid CLI usage returns 2.
 
 The CLI verifies structure, provenance, digests, replay contracts, discovery metadata, and declared dispatch compatibility. It does not prove that a representative GPU run occurred, and it does not turn logical KV byte accounting, a scenario-bundle digest, catalog membership, or capability metadata into claims about HBM release, memory traffic, latency, throughput, safety, or model-quality preservation.
+
+## Verify the frozen SmolLM2 R1 suite
+
+```bash
+cargo run -p prospect-cli --bin prospect -- verify-kv-campaign-suite suite-output
+```
+
+The verifier checks all three budget directories, their published summaries,
+common baseline and trace, and the exact SHA-256 of each preregistered
+campaign at KVLab revision `51f2f414c6ca3ef0260d885c72b8f5863bd66047`.
+Recomputing a manifest after substituting tokens, policy positions or an
+evaluation identifier cannot make a different experiment pass this fixed
+suite contract. Generic campaign verification remains available for other
+experiments. Synthetic test outputs do not establish a real model run.
