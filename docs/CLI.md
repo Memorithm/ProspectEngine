@@ -102,3 +102,20 @@ Recomputing a manifest after substituting tokens, policy positions or an
 evaluation identifier cannot make a different experiment pass this fixed
 suite contract. Generic campaign verification remains available for other
 experiments. Synthetic test outputs do not establish a real model run.
+
+
+## Reproducible CLI builds
+
+The workspace tracks `Cargo.lock` because it ships the `prospect` executable.
+Build a reviewed checkout with:
+
+```bash
+cargo +1.89.0 build --locked --release -p prospect-cli --bin prospect
+```
+
+CI runs locked Clippy, tests and the release CLI build. A dependency change
+must include its reviewed lockfile update; do not remove `--locked` from
+experiment launchers to make a missing or stale lockfile pass. Earlier
+ProspectEngine revisions without a committed lockfile are not repaired
+retroactively. Campaigns requiring locked verifier builds need an explicit
+successor verifier pin. A reproducible build is not model-execution evidence.
