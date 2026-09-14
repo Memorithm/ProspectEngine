@@ -156,10 +156,7 @@ where
     type Signature = M::Signature;
     type Error = FlatBooleanEngineError<M::Error>;
 
-    fn baseline(
-        &self,
-        state: &FlatBooleanAttentionState,
-    ) -> Result<Self::Signature, Self::Error> {
+    fn baseline(&self, state: &FlatBooleanAttentionState) -> Result<Self::Signature, Self::Error> {
         let mask = state
             .dense_mask()
             .map_err(FlatBooleanEngineError::Contract)?;
@@ -300,8 +297,8 @@ mod tests {
             Err(FlatBooleanContractError::WidthMismatch { .. })
         ));
 
-        let state = FlatBooleanAttentionState::new(signature(0), vec![signature(0)])
-            .expect("valid state");
+        let state =
+            FlatBooleanAttentionState::new(signature(0), vec![signature(0)]).expect("valid state");
         assert!(matches!(
             state.hamming_mask(5),
             Err(FlatBooleanContractError::Signature(_))
