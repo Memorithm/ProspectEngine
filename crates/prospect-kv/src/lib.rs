@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod heuristic_comparison;
 pub mod synthetic_effect;
 
 use core::fmt;
