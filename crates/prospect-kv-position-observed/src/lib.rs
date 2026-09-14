@@ -581,6 +581,11 @@ fn same_baseline(
 }
 
 fn float_close(left: f64, right: f64) -> bool {
+    // Finite inputs can still produce an infinite derived delta. Without this
+    // guard the relative comparison can become infinity <= infinity.
+    if !left.is_finite() || !right.is_finite() {
+        return false;
+    }
     let difference = (left - right).abs();
     difference <= FLOAT_ABS_TOLERANCE
         || difference <= FLOAT_REL_TOLERANCE * left.abs().max(right.abs())
@@ -786,6 +791,64 @@ mod tests {
             ]
         }))
         .unwrap()
+    }
+
+    #[test]
+    fn delta_guard_rejects_overflow_through_public_evidence_parser() {
+        for (baseline, candidate) in [(-1.0e308_f64, 1.0e308_f64), (1.0e308_f64, -1.0e308_f64)] {
+            assert!(baseline.is_finite() && candidate.is_finite());
+            assert!(!(candidate - baseline).is_finite());
+            let mut value: Value =
+                serde_json::from_str(&fixture("fixture", &[0, 2, 4], '3', 0.75)).unwrap();
+            value["metrics"][0]["kind"] = json!("numerical");
+            value["metrics"][0]["baseline_value"] = json!(baseline);
+            value["metrics"][0]["candidate_value"] = json!(candidate);
+            value["metrics"][0]["delta"] = json!(0.0);
+            let result = KvlabKvRealModelPositionEvidenceV2::from_canonical_json(
+                &canonical_json(&value).unwrap(),
+            );
+            assert!(
+                matches!(
+                    result,
+                    Err(super::KvlabKvRealModelPositionError::MetricDeltaMismatch(_))
+                ),
+                "non-finite derived delta admitted: {result:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn delta_guard_rejects_nonfinite_comparison_operands() {
+        for invalid in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            for finite in [0.0, 1.0, -1.0, 1.0e308] {
+                assert!(!super::float_close(finite, invalid));
+                assert!(!super::float_close(invalid, finite));
+            }
+            assert!(!super::float_close(invalid, invalid));
+        }
+    }
+
+    #[test]
+    fn delta_guard_preserves_large_finite_differences() {
+        let mut value: Value =
+            serde_json::from_str(&fixture("fixture", &[0, 2, 4], '3', 0.75)).unwrap();
+        value["metrics"][0]["baseline_value"] = json!(1.0e307);
+        value["metrics"][0]["candidate_value"] = json!(2.0e307);
+        value["metrics"][0]["delta"] = json!(1.0e307);
+        assert!(
+            KvlabKvRealModelPositionEvidenceV2::from_canonical_json(
+                &canonical_json(&value).unwrap()
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn delta_guard_preserves_existing_finite_tolerances() {
+        assert!(super::float_close(0.0, 5.0e-13));
+        assert!(super::float_close(1.0e6, 1.0e6 + 5.0e-7));
+        assert!(!super::float_close(0.0, 1.0e-6));
+        assert!(!super::float_close(1.0e6, 1.0e6 + 1.0));
     }
 
     #[test]
