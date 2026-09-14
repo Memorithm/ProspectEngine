@@ -1,0 +1,16 @@
+[package]
+name = "prospect-kv-position"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Sequence-position identified KV selection contracts for ProspectEngine"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
