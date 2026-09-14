@@ -1,0 +1,66 @@
+name: Temporary SmolLM2 campaign spec verification
+
+on:
+  push:
+    branches:
+      - feature/kv-campaign-spec-preflight
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout ProspectEngine branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/kv-campaign-spec-preflight
+      - name: Install Rust 1.89
+        run: rustup toolchain install 1.89.0 --profile minimal
+      - name: Select Rust 1.89
+        run: rustup default 1.89.0
+      - name: Fetch merged KVLab preregistrations
+        run: |
+          set -euo pipefail
+          base="https://raw.githubusercontent.com/Memorithm/KVLab/51f2f414c6ca3ef0260d885c72b8f5863bd66047/experiments/prospect/smollm2-r1"
+          for budget in 07 14 20; do
+            curl --fail --silent --show-error --location \
+              "$base/retain-${budget}-of-27.json" \
+              --output "/tmp/retain-${budget}-of-27.json"
+          done
+      - name: Run ProspectEngine campaign-spec preflight
+        run: |
+          set -euo pipefail
+          for budget in 07 14 20; do
+            cargo run --quiet -p prospect-cli --bin prospect -- \
+              verify-kv-campaign-spec "/tmp/retain-${budget}-of-27.json" \
+              > "/tmp/summary-${budget}.json"
+            cat "/tmp/summary-${budget}.json"
+          done
+      - name: Validate cross-repository summaries
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          expected = {"07": 7, "14": 14, "20": 20}
+          trace_hashes = set()
+          for suffix, retained in expected.items():
+              summary = json.loads(Path(f"/tmp/summary-{suffix}.json").read_text())
+              assert summary["bytes_per_token"] == 46080
+              assert summary["model_input_tokens"] == 27
+              assert summary["evaluation_tokens"] == 8
+              assert summary["logical_input_bytes"] == 27 * 46080
+              assert summary["run_repository_revision"] == "404577ce939093767dc75d2d67de2fe3c16fa4dc"
+              assert summary["runtime_revision"] == "58e7db8e1c4b471a7fe82a4beba11904240c4e89"
+              assert [policy["policy"] for policy in summary["policies"]] == ["lru", "random_seeded"]
+              for policy in summary["policies"]:
+                  assert policy["retained_tokens"] == retained
+                  assert policy["evicted_tokens"] == 27 - retained
+                  assert policy["logical_retained_bytes"] == retained * 46080
+                  assert policy["logical_evicted_bytes"] == (27 - retained) * 46080
+              trace_hashes.add(summary["trace_sha256"])
+          assert len(trace_hashes) == 1
+          print("all three merged SmolLM2 campaign specs passed ProspectEngine preflight")
+          PY
