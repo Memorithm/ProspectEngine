@@ -1,12 +1,15 @@
 #![forbid(unsafe_code)]
 
+mod scenario_bundle;
+
 use std::env;
 use std::ffi::OsString;
 use std::process::ExitCode;
 
 use prospect_cli::verify_kv_campaign_directory;
+use scenario_bundle::verify_scenario_bundle_file;
 
-const USAGE: &str = "Usage: prospect verify-kv-campaign <campaign-directory>";
+const USAGE: &str = "Usage:\n  prospect verify-kv-campaign <campaign-directory>\n  prospect verify-scenario-bundle <bundle.json>";
 
 fn main() -> ExitCode {
     match run(env::args_os()) {
@@ -34,27 +37,50 @@ where
     let Some(command) = arguments.next() else {
         return Err(CliError::Usage("missing command".to_owned()));
     };
-    if command != "verify-kv-campaign" {
-        return Err(CliError::Usage(format!(
+
+    match command.to_str() {
+        Some("verify-kv-campaign") => {
+            let directory = exactly_one_argument(&mut arguments, "verify-kv-campaign", "campaign directory")?;
+            let summary = verify_kv_campaign_directory(directory)
+                .map_err(|error| CliError::Verification(error.to_string()))?;
+            serde_json::to_string(&summary).map_err(|error| {
+                CliError::Verification(format!("failed to encode campaign summary: {error}"))
+            })
+        }
+        Some("verify-scenario-bundle") => {
+            let path = exactly_one_argument(&mut arguments, "verify-scenario-bundle", "bundle file")?;
+            let summary = verify_scenario_bundle_file(path)
+                .map_err(|error| CliError::Verification(error.to_string()))?;
+            serde_json::to_string(&summary).map_err(|error| {
+                CliError::Verification(format!("failed to encode bundle summary: {error}"))
+            })
+        }
+        _ => Err(CliError::Usage(format!(
             "unknown command {:?}",
             command.to_string_lossy()
-        )));
+        ))),
     }
-    let Some(directory) = arguments.next() else {
-        return Err(CliError::Usage(
-            "verify-kv-campaign requires a campaign directory".to_owned(),
-        ));
+}
+
+fn exactly_one_argument<I>(
+    arguments: &mut I,
+    command: &str,
+    argument_name: &str,
+) -> Result<OsString, CliError>
+where
+    I: Iterator<Item = OsString>,
+{
+    let Some(value) = arguments.next() else {
+        return Err(CliError::Usage(format!(
+            "{command} requires exactly one {argument_name}"
+        )));
     };
     if arguments.next().is_some() {
-        return Err(CliError::Usage(
-            "verify-kv-campaign accepts exactly one campaign directory".to_owned(),
-        ));
+        return Err(CliError::Usage(format!(
+            "{command} accepts exactly one {argument_name}"
+        )));
     }
-
-    let summary = verify_kv_campaign_directory(directory)
-        .map_err(|error| CliError::Verification(error.to_string()))?;
-    serde_json::to_string(&summary)
-        .map_err(|error| CliError::Verification(format!("failed to encode summary: {error}")))
+    Ok(value)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -81,7 +107,7 @@ mod tests {
     }
 
     #[test]
-    fn requires_exactly_one_campaign_directory() {
+    fn kv_campaign_requires_exactly_one_directory() {
         assert!(matches!(
             run([
                 OsString::from("prospect"),
@@ -93,6 +119,26 @@ mod tests {
             run([
                 OsString::from("prospect"),
                 OsString::from("verify-kv-campaign"),
+                OsString::from("a"),
+                OsString::from("b")
+            ]),
+            Err(CliError::Usage(_))
+        ));
+    }
+
+    #[test]
+    fn scenario_bundle_requires_exactly_one_file() {
+        assert!(matches!(
+            run([
+                OsString::from("prospect"),
+                OsString::from("verify-scenario-bundle")
+            ]),
+            Err(CliError::Usage(_))
+        ));
+        assert!(matches!(
+            run([
+                OsString::from("prospect"),
+                OsString::from("verify-scenario-bundle"),
                 OsString::from("a"),
                 OsString::from("b")
             ]),
