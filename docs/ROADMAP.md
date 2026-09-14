@@ -47,7 +47,8 @@ The trusted ElasticXxx `TransactionalActuator` remains authoritative for physica
 
 Targets: KVLab and FLAT-ATTENTION.
 
-- [ ] KV block eviction/intervention scenarios;
+- [x] bounded Boolean KV/attention page-selection intervention scenarios through deterministic Hamming-threshold sweeps;
+- [ ] explicit post-selection KV eviction scenarios with downstream numerical semantics;
 - [x] first public FLAT Boolean attention masking/gating adapter using exact Hamming admission and an explicit dense baseline;
 - [x] FLAT dependency pinned to reviewed commit `a5b6598ffe475c74c938f45feb86b009d0e4ad0a`;
 - [x] prospective-model boundary that assigns no performance or quality meaning to sparsity by itself;
@@ -58,6 +59,8 @@ Targets: KVLab and FLAT-ATTENTION.
 - [ ] representative benchmark gates for any speedup, traffic, TTFT/TPOT or quality claim.
 
 The first adapter intentionally consumes only FLAT's public backend-neutral Boolean contracts (`BooleanAttentionSignature`, `HammingAdmissionRule`, and `BooleanAttentionMask`). Internal BIKV paged-selection implementation details are not treated as a stable cross-repository API. KVLab now provides the separate schema `kvlab.prospect-bkv-handoff/v1`, whose exact bit-packed signatures and candidate pages are independently revalidated by ProspectEngine before conversion into a FLAT mask.
+
+The bounded scenario generator sorts and validates a caller-provided threshold set, emits stable scenario IDs, and keeps the dense all-admitted path as the explicit engine baseline. These scenarios represent Boolean page-selection interventions; they are not equivalent to physical KV eviction after numerical state has been materialized.
 
 Routing and KVLab handoff evidence are structural and pre-execution: they prove which Boolean inputs and threshold produced a specific canonical mask. They do not by themselves prove numerical correctness, runtime speed, physical traffic reduction, or model-quality preservation.
 
