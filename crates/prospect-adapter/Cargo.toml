@@ -1,0 +1,19 @@
+[package]
+name = "prospect-adapter"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Versioned adapter contracts and capability metadata for ProspectEngine"
+
+[lints]
+workspace = true
+
+[dependencies]
+prospect-elastic = { path = "../prospect-elastic" }
+prospect-flat = { path = "../prospect-flat" }
+prospect-kv = { path = "../prospect-kv" }
+prospect-tdi = { path = "../prospect-tdi" }
+serde = { version = "1", features = ["derive"] }

@@ -86,12 +86,14 @@ Measured multi-threshold sweeps remain empirical. Records are comparable only wh
 
 ## Milestone 0.5 — plugin boundary
 
-- stable adapter trait/versioning;
-- capability metadata;
-- metric registry;
-- decision-policy registry;
-- CLI/API surface;
-- reproducible scenario bundles.
+- [x] stable adapter trait/versioning;
+- [x] capability metadata;
+- [ ] metric registry;
+- [ ] decision-policy registry;
+- [ ] CLI/API surface;
+- [ ] reproducible scenario bundles.
+
+`prospect-adapter` defines adapter contract `1.0`, strict machine-stable namespaced identifiers, explicit upstream revisions, versioned capabilities and compatibility checks. The first built-in metadata implementations cover TDI, ElasticXxx, FLAT Boolean attention and logical KV eviction without treating capability declarations as evidence of performance, safety or physical effects. The CLI surface has started with `verify-kv-campaign`, but the broader CLI/API milestone remains open.
 
 ## Later research
 
