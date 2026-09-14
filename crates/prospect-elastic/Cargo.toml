@@ -15,3 +15,6 @@ workspace = true
 prospect-core = { path = "../prospect-core" }
 elastic-core = { git = "https://github.com/Memorithm/ElasticXxx", rev = "50bb85ea84191c01d95e5b4e5e3c81af10e95ebd", package = "elastic-core" }
 elastic-runtime = { git = "https://github.com/Memorithm/ElasticXxx", rev = "50bb85ea84191c01d95e5b4e5e3c81af10e95ebd", package = "elastic-runtime" }
+
+[dev-dependencies]
+elastic-eir = { git = "https://github.com/Memorithm/ElasticXxx", rev = "50bb85ea84191c01d95e5b4e5e3c81af10e95ebd", package = "elastic-eir" }
