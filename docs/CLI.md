@@ -1,6 +1,6 @@
 # ProspectEngine CLI
 
-The CLI surface is intentionally verification-first. It exposes deterministic replay, provenance checks, and adapter discovery without introducing a new scientific model or policy layer.
+The CLI surface is intentionally verification-first. It exposes deterministic replay, provenance checks, adapter discovery, and non-executing dispatch preflight without introducing a new scientific model or policy layer.
 
 ## List built-in adapters
 
@@ -13,6 +13,27 @@ cargo run -p prospect-cli --bin prospect -- list-adapters
 The command emits a deterministic JSON array describing every built-in adapter known to ProspectEngine. Each entry contains the stable adapter ID, adapter-contract version, exact upstream component/revision, and declared versioned capabilities.
 
 The catalog is a discovery surface only. An adapter being present, or declaring a capability, is not evidence that a particular run occurred or that the adapter is performant, safe, scientifically validated, or physically effective.
+
+## Preflight a scenario bundle against a dispatch catalog
+
+Run:
+
+```bash
+cargo run -p prospect-cli --bin prospect -- \
+  preflight-scenario-bundle experiment.bundle.json dispatch-catalog.json
+```
+
+Both files must be canonical: the bundle must satisfy `prospect.scenario-bundle/v1` and the availability catalog must satisfy `prospect.dispatch-catalog/v1`. The command resolves only the declared software contracts:
+
+- exact adapter ID;
+- compatible adapter contract version using the existing same-major/provider-minor rule;
+- exact upstream component/revision when the bundle declares one;
+- optional metric ID/version;
+- optional decision-policy ID/version.
+
+Successful output is a compact JSON summary containing SHA-256 identities for both canonical input files plus requested/offered versions for every resolved requirement. Missing, incompatible, or upstream-drifted requirements fail closed.
+
+This command does not load plugin code, decode domain state/interventions, evaluate scenarios, invoke a metric/policy, or create execution evidence. It establishes software-contract compatibility only.
 
 ## Verify a KV campaign directory
 
@@ -49,6 +70,6 @@ The command rejects non-canonical or semantically non-canonical bundles through 
 
 ## Exit status and evidence boundary
 
-Successful commands return exit status 0. Verification/read failures return 1. Invalid CLI usage returns 2.
+Successful commands return exit status 0. Verification/read/preflight failures return 1. Invalid CLI usage returns 2.
 
-The CLI verifies structure, provenance, digests, replay contracts, and discovery metadata. It does not prove that a representative GPU run occurred, and it does not turn logical KV byte accounting, a scenario-bundle digest, or capability metadata into claims about HBM release, memory traffic, latency, throughput, safety, or model-quality preservation.
+The CLI verifies structure, provenance, digests, replay contracts, discovery metadata, and declared dispatch compatibility. It does not prove that a representative GPU run occurred, and it does not turn logical KV byte accounting, a scenario-bundle digest, catalog membership, or capability metadata into claims about HBM release, memory traffic, latency, throughput, safety, or model-quality preservation.
