@@ -10,14 +10,34 @@ use prospect_kv_position_campaign::{
 };
 use serde::Serialize;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct CampaignVerificationSummary {
     campaign_spec_sha256: String,
     trace_sha256: String,
     policies: Vec<String>,
+    observations: Vec<CampaignPolicyObservationSummary>,
     record_count: usize,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct CampaignMetricObservationSummary {
+    name: String,
+    kind: String,
+    unit: String,
+    preference: String,
+    baseline_value: f64,
+    candidate_value: f64,
+    delta: f64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct CampaignPolicyObservationSummary {
+    policy: String,
+    retained_positions: Vec<usize>,
+    logical_retained_bytes: u64,
+    logical_evicted_bytes: u64,
+    metrics: Vec<CampaignMetricObservationSummary>,
+}
 #[derive(Debug)]
 pub enum CampaignDirectoryError {
     Io { path: PathBuf, source: io::Error },
@@ -43,11 +63,69 @@ impl CampaignVerificationSummary {
     }
 
     #[must_use]
+    pub fn observations(&self) -> &[CampaignPolicyObservationSummary] {
+        &self.observations
+    }
+
+    #[must_use]
     pub const fn record_count(&self) -> usize {
         self.record_count
     }
 }
 
+impl CampaignPolicyObservationSummary {
+    #[must_use]
+    pub fn policy(&self) -> &str {
+        &self.policy
+    }
+    #[must_use]
+    pub fn retained_positions(&self) -> &[usize] {
+        &self.retained_positions
+    }
+    #[must_use]
+    pub const fn logical_retained_bytes(&self) -> u64 {
+        self.logical_retained_bytes
+    }
+    #[must_use]
+    pub const fn logical_evicted_bytes(&self) -> u64 {
+        self.logical_evicted_bytes
+    }
+    #[must_use]
+    pub fn metrics(&self) -> &[CampaignMetricObservationSummary] {
+        &self.metrics
+    }
+}
+
+impl CampaignMetricObservationSummary {
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    #[must_use]
+    pub fn kind(&self) -> &str {
+        &self.kind
+    }
+    #[must_use]
+    pub fn unit(&self) -> &str {
+        &self.unit
+    }
+    #[must_use]
+    pub fn preference(&self) -> &str {
+        &self.preference
+    }
+    #[must_use]
+    pub const fn baseline_value(&self) -> f64 {
+        self.baseline_value
+    }
+    #[must_use]
+    pub const fn candidate_value(&self) -> f64 {
+        self.candidate_value
+    }
+    #[must_use]
+    pub const fn delta(&self) -> f64 {
+        self.delta
+    }
+}
 pub fn verify_kv_campaign_directory(
     directory: impl AsRef<Path>,
 ) -> Result<CampaignVerificationSummary, CampaignDirectoryError> {
@@ -102,6 +180,32 @@ pub fn verify_kv_campaign_directory(
         campaign_spec_sha256: verified.campaign_spec_sha256().to_owned(),
         trace_sha256: verified.trace_sha256().to_owned(),
         policies: verified.policies().to_vec(),
+        observations: verified
+            .records()
+            .iter()
+            .map(|record| {
+                let outcome = record.selection().outcome();
+                CampaignPolicyObservationSummary {
+                    policy: outcome.policy().to_owned(),
+                    retained_positions: outcome.retained_positions().to_vec(),
+                    logical_retained_bytes: outcome.logical_retained_bytes(),
+                    logical_evicted_bytes: outcome.logical_evicted_bytes(),
+                    metrics: record
+                        .metrics()
+                        .iter()
+                        .map(|metric| CampaignMetricObservationSummary {
+                            name: metric.name().to_owned(),
+                            kind: metric.kind().as_str().to_owned(),
+                            unit: metric.unit().to_owned(),
+                            preference: metric.preference().as_str().to_owned(),
+                            baseline_value: metric.baseline_value(),
+                            candidate_value: metric.candidate_value(),
+                            delta: metric.delta(),
+                        })
+                        .collect(),
+                }
+            })
+            .collect(),
         record_count: verified.records().len(),
     })
 }
@@ -195,6 +299,21 @@ mod tests {
         let summary = verify_kv_campaign_directory(directory.path()).unwrap();
         assert_eq!(summary.policies(), &["lru"]);
         assert_eq!(summary.record_count(), 1);
+        assert_eq!(summary.observations().len(), 1);
+        let observation = &summary.observations()[0];
+        assert_eq!(observation.policy(), "lru");
+        assert_eq!(observation.retained_positions(), &[0, 2, 4]);
+        assert_eq!(observation.logical_retained_bytes(), 192);
+        assert_eq!(observation.logical_evicted_bytes(), 128);
+        assert_eq!(observation.metrics().len(), 1);
+        let metric = &observation.metrics()[0];
+        assert_eq!(metric.name(), "mean_nll");
+        assert_eq!(metric.kind(), "quality");
+        assert_eq!(metric.unit(), "nat_per_token");
+        assert_eq!(metric.preference(), "lower_is_better");
+        assert_eq!(metric.baseline_value(), 1.0);
+        assert_eq!(metric.candidate_value(), 1.25);
+        assert_eq!(metric.delta(), 0.25);
         assert_eq!(summary.campaign_spec_sha256().len(), 64);
         assert_eq!(summary.trace_sha256().len(), 64);
     }

@@ -54,7 +54,7 @@ Run:
 cargo run -p prospect-cli --bin prospect -- verify-kv-campaign campaign-output
 ```
 
-A successful verification writes one compact JSON object to stdout containing the campaign-spec SHA-256, reconstructed trace SHA-256, verified policy names, and record count. The loader is strict: `campaign.json` and `manifest.json` are mandatory; all other directory entries are treated as evidence inputs, non-file entries are rejected, and unexpected evidence filenames fail verification. Every evidence payload is checked against the manifest SHA-256 and replayed by `prospect-kv-position-campaign` before success is reported.
+A successful verification writes one compact JSON object to stdout containing the campaign-spec SHA-256, reconstructed trace SHA-256, verified policy names, record count, and one observed summary per policy. Each policy summary contains exact retained positions, logical KV bytes retained/evicted, and every verified metric with its declared kind, unit, preference, baseline value, candidate value, and delta. ProspectEngine does not infer a winner from these values. The loader is strict: `campaign.json` and `manifest.json` are mandatory; all other directory entries are treated as evidence inputs, non-file entries are rejected, and unexpected evidence filenames fail verification. Every evidence payload is checked against the manifest SHA-256 and replayed by `prospect-kv-position-campaign` before success is reported.
 
 ## Verify a scenario bundle
 
