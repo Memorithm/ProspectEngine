@@ -9,9 +9,7 @@ use std::fmt;
 use elastic_runtime::ObservationSnapshot;
 use prospect_core::ProspectiveEngine;
 
-pub use comparison::{
-    ElasticPrecommitChoice, ElasticPrecommitComparison, compare_before_commit,
-};
+pub use comparison::{ElasticPrecommitChoice, ElasticPrecommitComparison, compare_before_commit};
 pub use probe::{
     ELASTIC_PROBE_SCHEMA_V1, ElasticProbeError, ElasticProbeSetV1, ElasticProbeV1,
     ValidatedPlanIntentV1,
