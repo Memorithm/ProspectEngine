@@ -35,6 +35,21 @@ Successful output is a compact JSON summary containing SHA-256 identities for bo
 
 This command does not load plugin code, decode domain state/interventions, evaluate scenarios, invoke a metric/policy, or create execution evidence. It establishes software-contract compatibility only.
 
+## Verify a KV campaign specification before execution
+
+Run:
+
+```bash
+cargo run -p prospect-cli --bin prospect -- \
+  verify-kv-campaign-spec campaign.json
+```
+
+The input must be canonical `kvlab.prospect-kv-real-model-position-campaign/v1` JSON. The command validates the same pre-execution invariants required by the KVLab v4 position-native campaign contract: non-empty provenance fields, a lowercase full Git SHA for `run_repository_revision`, non-empty model/evaluation traces, positive logical bytes per token, unique non-empty policy names, strictly increasing in-range retained positions, and rejection of a candidate that duplicates the full-cache baseline.
+
+Successful output is a compact deterministic JSON summary containing the exact campaign-spec SHA-256, reconstructed position-trace SHA-256, declared model/tokenizer/runtime provenance, seed, input/evaluation token counts, total logical input bytes, and one budget summary per policy. Each policy summary contains retained positions, retained/evicted token counts, and logical retained/evicted bytes.
+
+This is a pre-execution input verifier. It does not invoke KVLab or NNIS, does not assert that the declared Git/runtime revisions are present locally, and does not create observed evidence. Logical byte accounting is only the declared campaign budget; physical HBM residency, traffic, latency, throughput, and model quality remain unmeasured until an execution backend records them explicitly.
+
 ## Verify a KV campaign directory
 
 Expected directory layout:
