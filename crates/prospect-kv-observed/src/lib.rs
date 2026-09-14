@@ -10,10 +10,8 @@ use prospect_kv::{
 };
 use serde::Deserialize;
 
-pub const KVLAB_KV_REAL_MODEL_EVIDENCE_SCHEMA_V1: &str =
-    "kvlab.prospect-kv-real-model-eviction/v1";
-pub const KVLAB_KV_REAL_MODEL_EVIDENCE_REVISION: &str =
-    "6c1ee30e016827de507e3428387f750931eab5fa";
+pub const KVLAB_KV_REAL_MODEL_EVIDENCE_SCHEMA_V1: &str = "kvlab.prospect-kv-real-model-eviction/v1";
+pub const KVLAB_KV_REAL_MODEL_EVIDENCE_REVISION: &str = "6c1ee30e016827de507e3428387f750931eab5fa";
 
 const FLOAT_ABS_TOLERANCE: f64 = 1.0e-12;
 const FLOAT_REL_TOLERANCE: f64 = 1.0e-12;
@@ -380,8 +378,14 @@ impl KvlabKvRealModelEvictionEvidenceV1 {
         }
         for (field, digest) in [
             ("trace_sha256", wire.trace_sha256.as_str()),
-            ("baseline_output_sha256", wire.baseline_output_sha256.as_str()),
-            ("candidate_output_sha256", wire.candidate_output_sha256.as_str()),
+            (
+                "baseline_output_sha256",
+                wire.baseline_output_sha256.as_str(),
+            ),
+            (
+                "candidate_output_sha256",
+                wire.candidate_output_sha256.as_str(),
+            ),
         ] {
             if !is_lower_hex(digest, 64) {
                 return Err(KvlabKvRealModelEvidenceError::InvalidSha256(field));
@@ -604,7 +608,8 @@ impl ObservedKvEvictionEvidenceModel {
         };
 
         for (index, record) in records.iter().enumerate() {
-            if !same_context(first, record) || first.eviction().state() != record.eviction().state() {
+            if !same_context(first, record) || first.eviction().state() != record.eviction().state()
+            {
                 return Err(ObservedKvEvidenceModelError::ContextMismatch);
             }
             if !same_baseline(first, record) {
@@ -726,7 +731,9 @@ fn fnv1a64(bytes: &[u8]) -> u64 {
 impl fmt::Display for KvlabKvRealModelEvidenceError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Json(error) => write!(formatter, "invalid KVLab real-model evidence JSON: {error}"),
+            Self::Json(error) => {
+                write!(formatter, "invalid KVLab real-model evidence JSON: {error}")
+            }
             Self::NonCanonicalJson => {
                 formatter.write_str("KVLab real-model evidence JSON is not canonical")
             }
@@ -734,7 +741,10 @@ impl fmt::Display for KvlabKvRealModelEvidenceError {
                 formatter.write_str("unsupported KVLab real-model evidence schema")
             }
             Self::EmptyText(field) => {
-                write!(formatter, "KVLab real-model evidence field {field} must not be empty")
+                write!(
+                    formatter,
+                    "KVLab real-model evidence field {field} must not be empty"
+                )
             }
             Self::InvalidRunRevision => formatter
                 .write_str("KVLab run repository revision must be a lowercase full Git SHA"),
@@ -745,14 +755,18 @@ impl fmt::Display for KvlabKvRealModelEvidenceError {
             Self::EmbeddedEviction(error) => {
                 write!(formatter, "invalid embedded KV eviction handoff: {error}")
             }
-            Self::BaselineLogicalBytesMismatch => formatter
-                .write_str("baseline logical KV bytes do not match the embedded eviction"),
-            Self::CandidateLogicalBytesMismatch => formatter
-                .write_str("candidate logical KV bytes do not match the embedded eviction"),
+            Self::BaselineLogicalBytesMismatch => {
+                formatter.write_str("baseline logical KV bytes do not match the embedded eviction")
+            }
+            Self::CandidateLogicalBytesMismatch => {
+                formatter.write_str("candidate logical KV bytes do not match the embedded eviction")
+            }
             Self::EmptyMetrics => {
                 formatter.write_str("KVLab real-model evidence must contain at least one metric")
             }
-            Self::DuplicateMetric(name) => write!(formatter, "duplicate KVLab observed metric {name}"),
+            Self::DuplicateMetric(name) => {
+                write!(formatter, "duplicate KVLab observed metric {name}")
+            }
             Self::UnknownMetricKind(kind) => {
                 write!(formatter, "unknown KVLab observed metric kind {kind}")
             }
@@ -819,7 +833,7 @@ mod tests {
 
     use super::{
         KVLAB_KV_REAL_MODEL_EVIDENCE_REVISION, KvlabKvRealModelEvictionEvidenceV1,
-        MetricPreference, ObservedKvEvidenceModelError, ObservedKvEvictionEvidenceModel,
+        MetricPreference, ObservedKvEvictionEvidenceModel, ObservedKvEvidenceModelError,
         ObservedMetricKind,
     };
 
