@@ -1,0 +1,122 @@
+name: Temporary suite input binding
+on:
+  push:
+    branches: [fix/suite-preregistration-binding]
+permissions:
+  contents: write
+concurrency:
+  group: suite-preregistration-binding
+  cancel-in-progress: false
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - name: Install Rust
+        run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt,clippy
+      - name: Bind exact campaign bytes and add regression tests
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          p = Path('crates/prospect-cli/src/kv_campaign_suite.rs')
+          s = p.read_text()
+          if 'PREREGISTERED_CAMPAIGN_SHA256' in s:
+              raise SystemExit('patch already applied')
+          assert hashlib.sha1(b'blob '+str(len(s.encode())).encode()+b'\0'+s.encode()).hexdigest() == '0be1a85e4e5336c1d18d9d36b80e0ee1cc8be147'
+          def replace(old, new):
+              global s
+              assert s.count(old) == 1, (old, s.count(old))
+              s = s.replace(old, new, 1)
+          replace('const POLICIES: [&str; 2] = ["lru", "random_seeded"];', '''const POLICIES: [&str; 2] = ["lru", "random_seeded"];
+          // SHA-256 of the exact UTF-8 bytes at KVLAB_PREREGISTRATION_REVISION.
+          // These are input identities, never evidence of a model execution.
+          const PREREGISTERED_CAMPAIGN_SHA256: [&str; 3] = [
+              "5220e3910750ffad24dad1b023d6393491f9ef2ee3a14621b0dd122fd79d81bb",
+              "0b0d461b5a29ed34e22803a287bdc054622008f87073b9f8956a8392cb4605b2",
+              "909d0339fda4d1c1272a6da72aa14ab19fab971c68c560f7c82fb25d45dcbb28",
+          ];
+          const PREREGISTERED_TRACE_SHA256: &str =
+              "3411f378fb3c7010eb94361128c019206fb47bda4271f721498d517eb07ca65f";''')
+          replace('for (entry, expected_count) in manifest.campaigns.iter().zip(RETAIN_COUNTS) {', 'for (index, (entry, expected_count)) in manifest.campaigns.iter().zip(RETAIN_COUNTS).enumerate() {')
+          replace('''        let stem = format!("retain-{expected_count:02}-of-27");''', '''        if entry.campaign_spec_sha256 != PREREGISTERED_CAMPAIGN_SHA256[index]
+                      || entry.trace_sha256 != PREREGISTERED_TRACE_SHA256 {
+                  return Err(KvCampaignSuiteError::ProvenanceMismatch("preregistered campaign bytes"));
+              }
+              let stem = format!("retain-{expected_count:02}-of-27");''')
+          replace('''    fn write_suite(directory: &Path, baseline_drift: bool) {
+                  let mut suite_entries = Vec::new();''', '''    fn write_suite(directory: &Path, baseline_drift: bool) {
+                  write_suite_variant(directory, baseline_drift, None);
+              }
+
+              #[test]
+              fn rejects_coherently_rehashed_preregistration_substitutions() {
+                  for drift in ["input", "selection", "evaluation"] {
+                      let directory = TempDirectory::new(drift);
+                      // Every generated campaign still passes the generic verifier.
+                      // Only the fixed-suite identity check must reject substitution.
+                      write_suite_variant(directory.path(), false, Some(drift));
+                      assert!(matches!(
+                          verify_kv_campaign_suite_directory(directory.path()),
+                          Err(KvCampaignSuiteError::ProvenanceMismatch("preregistered campaign bytes"))
+                      ), "accepted rehashed {drift} substitution");
+                  }
+              }
+
+              fn write_suite_variant(directory: &Path, baseline_drift: bool, drift: Option<&str>) {
+                  let mut suite_entries = Vec::new();''')
+          replace('write_campaign(&campaign_dir, retained_count, baseline_char);', 'write_campaign(&campaign_dir, retained_count, baseline_char, drift);')
+          replace('''        baseline_char: char,
+              ) -> (String, String, CampaignVerificationSummary) {''', '''        baseline_char: char,
+                  drift: Option<&str>,
+              ) -> (String, String, CampaignVerificationSummary) {''')
+          replace('''        let model_tokens = (100_u64..127).collect::<Vec<_>>();
+                  let evaluation_tokens = (200_u64..208).collect::<Vec<_>>();''', '''        // Actual frozen inputs; only output metrics/digests below are synthetic fixtures.
+                  let mut model_tokens = vec![22007_u64,6463,314,260,3075,338,6650,260,2591,284,260,8872,1592,30,198,198,504,8872,314,253,8304,282,260,2591,30,657,314];
+                  let evaluation_tokens = vec![253_u64,19284,1248,338,21837,260,2591,30];
+                  if drift == Some("input") { model_tokens[0] += 1; }
+                  let evaluation_id = if drift == Some("evaluation") { "substituted-evaluation" } else { "nnis-r1-gravity-is-tail8" };''')
+          replace('''        let random_positions = (0..retained_count).collect::<Vec<_>>();''', '''        let mut random_positions: Vec<usize> = match retained_count {
+                      7 => vec![1,2,4,10,12,17,20],
+                      14 => vec![0,1,2,3,4,6,10,11,12,16,17,20,22,23],
+                      20 => vec![0,1,2,3,4,6,10,11,12,13,15,16,17,18,19,20,22,23,24,26],
+                      _ => unreachable!(),
+                  };
+                  if drift == Some("selection") { random_positions = (0..retained_count).collect(); }''')
+          # Both the campaign and its evidence must have the same changed context.
+          assert s.count('"evaluation_id":"nnis-r1-gravity-is-tail8",') == 2
+          s = s.replace('"evaluation_id":"nnis-r1-gravity-is-tail8",', '"evaluation_id":evaluation_id,')
+          p.write_text(s)
+          doc = Path('docs/CLI.md')
+          doc.write_text(doc.read_text()+'''
+          ## Verify the frozen SmolLM2 R1 suite
+
+          ```bash
+          cargo run -p prospect-cli --bin prospect -- verify-kv-campaign-suite suite-output
+          ```
+
+          The verifier checks all three budget directories, their published summaries,
+          common baseline and trace, and the exact SHA-256 of each preregistered
+          campaign at KVLab revision `51f2f414c6ca3ef0260d885c72b8f5863bd66047`.
+          Recomputing a manifest after substituting tokens, policy positions or an
+          evaluation identifier cannot make a different experiment pass this fixed
+          suite contract. Generic campaign verification remains available for other
+          experiments. Synthetic test outputs do not establish a real model run.
+          ''')
+          PY
+      - name: Format and validate
+        run: |
+          cargo +1.89.0 fmt --all
+          cargo +1.89.0 clippy --workspace --all-targets -- -D warnings
+          cargo +1.89.0 test --workspace
+      - name: Commit only reviewed source and documentation
+        run: |
+          git config user.name 'MEMOPERF'
+          git config user.email 'contact@checkupauto.fr'
+          git add crates/prospect-cli/src/kv_campaign_suite.rs docs/CLI.md
+          git commit -m 'fix(cli): bind KV suites to exact preregistered inputs'
+          git push origin HEAD:fix/suite-preregistration-binding
