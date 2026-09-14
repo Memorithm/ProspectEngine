@@ -37,6 +37,48 @@ const PREREGISTERED_CAMPAIGN_SHA256: [&str; 3] = [
 const PREREGISTERED_TRACE_SHA256: &str =
     "3411f378fb3c7010eb94361128c019206fb47bda4271f721498d517eb07ca65f";
 
+// Profiles are fixed software contracts, never supplied by an untrusted manifest.
+// R1 keeps its original pins; R2 cannot silently fall back to the R1 contract.
+struct SuiteContract {
+    input_schema: &'static str,
+    verification_schema: &'static str,
+    provider_revision: &'static str,
+    preregistration_revision: &'static str,
+    runtime_revision: &'static str,
+    launch_verifier_revision: &'static str,
+    campaign_root: &'static str,
+    campaign_sha256: [&'static str; 3],
+    generation: &'static str,
+}
+
+const R1_CONTRACT: SuiteContract = SuiteContract {
+    input_schema: SUITE_SCHEMA_V1,
+    verification_schema: VERIFICATION_SCHEMA_V1,
+    provider_revision: KVLAB_SUITE_PROVIDER_REVISION,
+    preregistration_revision: KVLAB_PREREGISTRATION_REVISION,
+    runtime_revision: NNIS_RUNTIME_REVISION,
+    launch_verifier_revision: PROSPECT_LAUNCH_VERIFIER_REVISION,
+    campaign_root: "experiments/prospect/smollm2-r1",
+    campaign_sha256: PREREGISTERED_CAMPAIGN_SHA256,
+    generation: "r1",
+};
+
+const R2_CONTRACT: SuiteContract = SuiteContract {
+    input_schema: "kvlab.smollm2-r2-position-suite-result/v1",
+    verification_schema: "prospect.kv-campaign-suite-r2-verification/v1",
+    provider_revision: "cefe129f126c865819545ea94b3d3510400d8964",
+    preregistration_revision: "216b49ae4d62ed4c4c2edfd1e88f929d0a0fd9e5",
+    runtime_revision: "091aabbb3e132627cf64716720aae530442d2a32",
+    launch_verifier_revision: "298acdc91682ef1d09914b6f964e8934828825c0",
+    campaign_root: "experiments/prospect/smollm2-r2",
+    campaign_sha256: [
+        "d826e0ca1869b6f3134e8b34bb65db14aa034d2518bf9559810ae80f19012346",
+        "01eeec54e02bf3f56bbd2e75175e2f04fc4593701875a21b90981b40cfa4eff5",
+        "e09b14c8479bac98b93625f3d98f667943d8318ff769dbbbf3db989959dcba07",
+    ],
+    generation: "r2",
+};
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct BaselineMetricSummary {
     pub name: String,
@@ -161,7 +203,20 @@ struct SelectionWire {
 pub fn verify_kv_campaign_suite_directory(
     directory: impl AsRef<Path>,
 ) -> Result<KvCampaignSuiteSummary, KvCampaignSuiteError> {
-    let directory = directory.as_ref();
+    verify_suite_with_contract(directory.as_ref(), &R1_CONTRACT)
+}
+
+/// Independently verify the frozen R2 suite. Does not execute a model.
+pub fn verify_kv_campaign_suite_r2_directory(
+    directory: impl AsRef<Path>,
+) -> Result<KvCampaignSuiteSummary, KvCampaignSuiteError> {
+    verify_suite_with_contract(directory.as_ref(), &R2_CONTRACT)
+}
+
+fn verify_suite_with_contract(
+    directory: &Path,
+    contract: &SuiteContract,
+) -> Result<KvCampaignSuiteSummary, KvCampaignSuiteError> {
     let manifest_path = directory.join("suite-manifest.json");
     let manifest_json = read_text(&manifest_path)?;
     let manifest_value: Value =
@@ -171,7 +226,7 @@ pub fn verify_kv_campaign_suite_directory(
     }
     let manifest: SuiteManifestWire =
         serde_json::from_value(manifest_value).map_err(KvCampaignSuiteError::Json)?;
-    validate_manifest(&manifest)?;
+    validate_manifest(&manifest, contract)?;
     validate_directory_entries(directory, &manifest)?;
 
     let suite_manifest_sha256 = sha256_hex(manifest_json.as_bytes());
@@ -181,6 +236,7 @@ pub fn verify_kv_campaign_suite_directory(
 
     for entry in &manifest.campaigns {
         let campaign_directory = directory.join(&entry.output_directory);
+        validate_campaign_entry_types(&campaign_directory)?;
         let summary = verify_kv_campaign_directory(&campaign_directory).map_err(|error| {
             KvCampaignSuiteError::CampaignVerification {
                 retained_count: entry.retained_count,
@@ -189,7 +245,7 @@ pub fn verify_kv_campaign_suite_directory(
         })?;
         verify_manifest_campaign_summary(entry, &summary)?;
         verify_published_summary(directory, entry, &summary)?;
-        verify_campaign_context(&campaign_directory, &manifest, entry)?;
+        verify_campaign_context(&campaign_directory, &manifest, entry, contract)?;
 
         let comparison = load_observed_comparison(&campaign_directory, entry.retained_count)?;
         let expected_budget = checked_bytes(entry.retained_count)?;
@@ -236,9 +292,9 @@ pub fn verify_kv_campaign_suite_directory(
     let baseline = common_baseline.ok_or(KvCampaignSuiteError::InvalidManifest("campaigns"))?;
     let trace_sha256 = common_trace.ok_or(KvCampaignSuiteError::InvalidManifest("campaigns"))?;
     Ok(KvCampaignSuiteSummary {
-        schema: VERIFICATION_SCHEMA_V1.to_owned(),
+        schema: contract.verification_schema.to_owned(),
         suite_manifest_sha256,
-        kvlab_suite_provider_revision: KVLAB_SUITE_PROVIDER_REVISION.to_owned(),
+        kvlab_suite_provider_revision: contract.provider_revision.to_owned(),
         kvlab_preregistration_revision: manifest.kvlab_preregistration_revision,
         kvlab_execution_revision: manifest.kvlab_execution_revision,
         nnis_runtime_revision: manifest.nnis_runtime_revision,
@@ -256,15 +312,18 @@ pub fn verify_kv_campaign_suite_directory(
     })
 }
 
-fn validate_manifest(manifest: &SuiteManifestWire) -> Result<(), KvCampaignSuiteError> {
-    if manifest.schema != SUITE_SCHEMA_V1 {
+fn validate_manifest(
+    manifest: &SuiteManifestWire,
+    contract: &SuiteContract,
+) -> Result<(), KvCampaignSuiteError> {
+    if manifest.schema != contract.input_schema {
         return Err(KvCampaignSuiteError::UnsupportedSchema);
     }
     for (field, actual, expected) in [
         (
             "kvlab_preregistration_revision",
             manifest.kvlab_preregistration_revision.as_str(),
-            KVLAB_PREREGISTRATION_REVISION,
+            contract.preregistration_revision,
         ),
         (
             "kvlab_execution_revision",
@@ -274,12 +333,12 @@ fn validate_manifest(manifest: &SuiteManifestWire) -> Result<(), KvCampaignSuite
         (
             "nnis_runtime_revision",
             manifest.nnis_runtime_revision.as_str(),
-            NNIS_RUNTIME_REVISION,
+            contract.runtime_revision,
         ),
         (
             "prospect_verifier_revision",
             manifest.prospect_verifier_revision.as_str(),
-            PROSPECT_LAUNCH_VERIFIER_REVISION,
+            contract.launch_verifier_revision,
         ),
         ("model_id", manifest.model_id.as_str(), MODEL_ID),
         (
@@ -305,7 +364,9 @@ fn validate_manifest(manifest: &SuiteManifestWire) -> Result<(), KvCampaignSuite
     if manifest.bytes_per_token != BYTES_PER_TOKEN {
         return Err(KvCampaignSuiteError::ProvenanceMismatch("bytes_per_token"));
     }
-    let _device_ordinal = manifest.device_ordinal;
+    if manifest.device_ordinal > i32::MAX as usize {
+        return Err(KvCampaignSuiteError::InvalidManifest("device_ordinal"));
+    }
     if manifest.campaigns.len() != RETAIN_COUNTS.len() {
         return Err(KvCampaignSuiteError::InvalidManifest("campaigns"));
     }
@@ -317,7 +378,7 @@ fn validate_manifest(manifest: &SuiteManifestWire) -> Result<(), KvCampaignSuite
         if entry.retained_count != expected_count {
             return Err(KvCampaignSuiteError::InvalidManifest("retained_count"));
         }
-        if entry.campaign_spec_sha256 != PREREGISTERED_CAMPAIGN_SHA256[index]
+        if entry.campaign_spec_sha256 != contract.campaign_sha256[index]
             || entry.trace_sha256 != PREREGISTERED_TRACE_SHA256
         {
             return Err(KvCampaignSuiteError::ProvenanceMismatch(
@@ -325,7 +386,7 @@ fn validate_manifest(manifest: &SuiteManifestWire) -> Result<(), KvCampaignSuite
             ));
         }
         let stem = format!("retain-{expected_count:02}-of-27");
-        let expected_campaign_path = format!("experiments/prospect/smollm2-r1/{stem}.json");
+        let expected_campaign_path = format!("{}/{stem}.json", contract.campaign_root);
         let expected_verification = format!("verification-{stem}.json");
         if entry.campaign_path != expected_campaign_path
             || entry.output_directory != stem
@@ -447,6 +508,7 @@ fn verify_campaign_context(
     campaign_directory: &Path,
     manifest: &SuiteManifestWire,
     entry: &SuiteCampaignWire,
+    contract: &SuiteContract,
 ) -> Result<(), KvCampaignSuiteError> {
     let payload = read_text(&campaign_directory.join("campaign.json"))?;
     let campaign: CampaignWire =
@@ -469,7 +531,11 @@ fn verify_campaign_context(
             message: "campaign execution context drifted from suite manifest".to_owned(),
         });
     }
-    if campaign.experiment_id.trim().is_empty() || campaign.evaluation_id.trim().is_empty() {
+    let expected_experiment = format!(
+        "smollm2-{}-position-retain-{:02}-of-27",
+        contract.generation, entry.retained_count
+    );
+    if campaign.experiment_id != expected_experiment || campaign.evaluation_id.trim().is_empty() {
         return Err(KvCampaignSuiteError::CampaignVerification {
             retained_count: entry.retained_count,
             message: "campaign experiment/evaluation identity is empty".to_owned(),
@@ -570,7 +636,38 @@ fn checked_bytes(tokens: usize) -> Result<u64, KvCampaignSuiteError> {
         ))
 }
 
+// The input directory must remain trusted and unmodified during verification.
+// These checks reject static symlinks/special files; they are not an OS sandbox.
+fn require_regular_file(path: &Path) -> Result<(), KvCampaignSuiteError> {
+    let metadata = fs::symlink_metadata(path).map_err(|source| KvCampaignSuiteError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    if !metadata.is_file() {
+        return Err(KvCampaignSuiteError::EntryTypeMismatch(
+            path.display().to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_campaign_entry_types(directory: &Path) -> Result<(), KvCampaignSuiteError> {
+    let entries = fs::read_dir(directory).map_err(|source| KvCampaignSuiteError::Io {
+        path: directory.to_path_buf(),
+        source,
+    })?;
+    for entry in entries {
+        let entry = entry.map_err(|source| KvCampaignSuiteError::Io {
+            path: directory.to_path_buf(),
+            source,
+        })?;
+        require_regular_file(&entry.path())?;
+    }
+    Ok(())
+}
+
 fn read_text(path: &Path) -> Result<String, KvCampaignSuiteError> {
+    require_regular_file(path)?;
     fs::read_to_string(path).map_err(|source| KvCampaignSuiteError::Io {
         path: path.to_path_buf(),
         source,
@@ -769,6 +866,320 @@ mod tests {
         ));
     }
 
+    // Output metrics and output digests in these fixtures are synthetic.
+    // Their campaign input bytes are the frozen real R2 preregistration only.
+    fn write_r2_suite(directory: &Path) {
+        write_suite_for_contract(directory, false, None, &R2_CONTRACT);
+    }
+
+    fn edit_json_file(path: &Path, edit: impl FnOnce(&mut Value)) {
+        let mut value: Value = serde_json::from_str(&fs::read_to_string(path).unwrap()).unwrap();
+        edit(&mut value);
+        fs::write(path, canonical_json(&value).unwrap()).unwrap();
+    }
+
+    fn refresh_r2_records(root: &Path, count: usize) {
+        let directory = root.join(format!("retain-{count:02}-of-27"));
+        edit_json_file(&directory.join("manifest.json"), |manifest| {
+            for record in manifest["records"].as_array_mut().unwrap() {
+                let path = directory.join(record["filename"].as_str().unwrap());
+                record["sha256"] = json!(sha256_hex(&fs::read(path).unwrap()));
+            }
+        });
+        let summary = verify_kv_campaign_directory(&directory).unwrap();
+        fs::write(
+            root.join(format!("verification-retain-{count:02}-of-27.json")),
+            canonical_json(&serde_json::to_value(summary).unwrap()).unwrap(),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn r2_verifies_exact_frozen_inputs_and_is_deterministic() {
+        let directory = TempDirectory::new("r2-valid");
+        write_r2_suite(directory.path());
+        let summary = verify_kv_campaign_suite_r2_directory(directory.path()).unwrap();
+        let again = verify_kv_campaign_suite_r2_directory(directory.path()).unwrap();
+        assert_eq!(
+            serde_json::to_string(&summary).unwrap(),
+            serde_json::to_string(&again).unwrap()
+        );
+        assert_eq!(summary.schema, R2_CONTRACT.verification_schema);
+        assert_eq!(
+            summary.kvlab_suite_provider_revision,
+            R2_CONTRACT.provider_revision
+        );
+        assert_eq!(
+            summary.kvlab_preregistration_revision,
+            R2_CONTRACT.preregistration_revision
+        );
+        assert_eq!(summary.nnis_runtime_revision, R2_CONTRACT.runtime_revision);
+        assert_eq!(
+            summary.prospect_launch_verifier_revision,
+            R2_CONTRACT.launch_verifier_revision
+        );
+        assert_eq!(summary.trace_sha256, PREREGISTERED_TRACE_SHA256);
+        assert_eq!(summary.baseline_logical_kv_bytes, 27 * BYTES_PER_TOKEN);
+        assert_eq!(summary.campaigns.len(), 3);
+        for (index, campaign) in summary.campaigns.iter().enumerate() {
+            assert_eq!(campaign.retained_count, RETAIN_COUNTS[index]);
+            assert_eq!(
+                campaign.campaign.campaign_spec_sha256(),
+                R2_CONTRACT.campaign_sha256[index]
+            );
+            assert_eq!(
+                campaign.logical_retained_bytes,
+                RETAIN_COUNTS[index] as u64 * BYTES_PER_TOKEN
+            );
+            assert_eq!(campaign.campaign.record_count(), 2);
+        }
+    }
+
+    #[test]
+    fn r1_and_r2_commands_do_not_accept_each_others_suite() {
+        let r1 = TempDirectory::new("r1-disjoint");
+        let r2 = TempDirectory::new("r2-disjoint");
+        write_suite(r1.path(), false);
+        write_r2_suite(r2.path());
+        assert!(verify_kv_campaign_suite_directory(r1.path()).is_ok());
+        assert!(verify_kv_campaign_suite_r2_directory(r2.path()).is_ok());
+        assert!(matches!(
+            verify_kv_campaign_suite_directory(r2.path()),
+            Err(KvCampaignSuiteError::UnsupportedSchema)
+        ));
+        assert!(matches!(
+            verify_kv_campaign_suite_r2_directory(r1.path()),
+            Err(KvCampaignSuiteError::UnsupportedSchema)
+        ));
+    }
+
+    #[test]
+    fn r2_rejects_coherently_rehashed_input_selection_and_evaluation_substitutions() {
+        for drift in ["input", "selection", "evaluation"] {
+            let directory = TempDirectory::new("r2-rehashed");
+            write_suite_for_contract(directory.path(), false, Some(drift), &R2_CONTRACT);
+            assert!(
+                matches!(
+                    verify_kv_campaign_suite_r2_directory(directory.path()),
+                    Err(KvCampaignSuiteError::ProvenanceMismatch(
+                        "preregistered campaign bytes"
+                    ))
+                ),
+                "accepted {drift}"
+            );
+        }
+    }
+
+    #[test]
+    fn r2_rejects_each_drifted_manifest_identity() {
+        for field in [
+            "kvlab_preregistration_revision",
+            "kvlab_execution_revision",
+            "nnis_runtime_revision",
+            "prospect_verifier_revision",
+            "model_id",
+            "model_revision",
+            "source_model_sha256",
+            "runtime_backend",
+        ] {
+            let directory = TempDirectory::new("r2-identity");
+            write_r2_suite(directory.path());
+            edit_json_file(&directory.path().join("suite-manifest.json"), |v| {
+                v[field] = json!("drifted")
+            });
+            assert!(
+                matches!(
+                    verify_kv_campaign_suite_r2_directory(directory.path()),
+                    Err(KvCampaignSuiteError::ProvenanceMismatch(_))
+                ),
+                "accepted {field}"
+            );
+        }
+    }
+
+    #[test]
+    fn r2_rejects_preflight_receipts_and_unknown_schemas() {
+        for schema in [
+            "kvlab.smollm2-r2-position-suite-preflight/v1",
+            "unknown/v1",
+            "kvlab.smollm2-r2-position-suite-result/v2",
+        ] {
+            let directory = TempDirectory::new("r2-schema");
+            write_r2_suite(directory.path());
+            edit_json_file(&directory.path().join("suite-manifest.json"), |v| {
+                v["schema"] = json!(schema)
+            });
+            assert!(matches!(
+                verify_kv_campaign_suite_r2_directory(directory.path()),
+                Err(KvCampaignSuiteError::UnsupportedSchema)
+            ));
+        }
+    }
+
+    #[test]
+    fn r2_rejects_manifest_structure_order_paths_and_device_drift() {
+        for change in [
+            "missing",
+            "duplicate",
+            "order",
+            "path",
+            "extra",
+            "device",
+            "float",
+        ] {
+            let directory = TempDirectory::new("r2-manifest");
+            write_r2_suite(directory.path());
+            edit_json_file(
+                &directory.path().join("suite-manifest.json"),
+                |v| match change {
+                    "missing" => {
+                        v["campaigns"].as_array_mut().unwrap().pop();
+                    }
+                    "duplicate" => v["campaigns"][1] = v["campaigns"][0].clone(),
+                    "order" => v["campaigns"].as_array_mut().unwrap().swap(0, 1),
+                    "path" => v["campaigns"][0]["output_directory"] = json!("../outside"),
+                    "extra" => v["unrecognized"] = json!(true),
+                    "device" => v["device_ordinal"] = json!(2147483648_u64),
+                    "float" => v["campaigns"][0]["retained_count"] = json!(7.0),
+                    _ => unreachable!(),
+                },
+            );
+            assert!(
+                verify_kv_campaign_suite_r2_directory(directory.path()).is_err(),
+                "accepted {change}"
+            );
+        }
+    }
+
+    #[test]
+    fn r2_rejects_noncanonical_and_duplicate_manifest_keys() {
+        for duplicate in [false, true] {
+            let directory = TempDirectory::new("r2-canonical");
+            write_r2_suite(directory.path());
+            let path = directory.path().join("suite-manifest.json");
+            let payload = fs::read_to_string(&path).unwrap();
+            let invalid = if duplicate {
+                payload.replacen('{', "{\"device_ordinal\":0,", 1)
+            } else {
+                format!("{payload}\n")
+            };
+            fs::write(&path, invalid).unwrap();
+            assert!(matches!(
+                verify_kv_campaign_suite_r2_directory(directory.path()),
+                Err(KvCampaignSuiteError::NonCanonicalManifest)
+            ));
+        }
+    }
+
+    #[test]
+    fn r2_rejects_published_summary_tampering() {
+        let directory = TempDirectory::new("r2-summary");
+        write_r2_suite(directory.path());
+        edit_json_file(
+            &directory.path().join("verification-retain-07-of-27.json"),
+            |v| v["observations"][0]["metrics"][0]["candidate_value"] = json!(42.0),
+        );
+        assert!(matches!(
+            verify_kv_campaign_suite_r2_directory(directory.path()),
+            Err(KvCampaignSuiteError::PublishedVerificationMismatch(7))
+        ));
+    }
+
+    #[test]
+    fn r2_rejects_cross_budget_baseline_output_drift() {
+        let directory = TempDirectory::new("r2-baseline-output");
+        write_suite_for_contract(directory.path(), true, None, &R2_CONTRACT);
+        assert!(matches!(
+            verify_kv_campaign_suite_r2_directory(directory.path()),
+            Err(KvCampaignSuiteError::CrossCampaignBaselineMismatch)
+        ));
+    }
+
+    #[test]
+    fn r2_rejects_coherently_rehashed_cross_budget_baseline_metric_drift() {
+        let directory = TempDirectory::new("r2-baseline-metric");
+        write_r2_suite(directory.path());
+        for index in 0..2 {
+            let path = directory
+                .path()
+                .join(format!("retain-20-of-27/selection-{index:03}.json"));
+            edit_json_file(&path, |v| {
+                let metric = &mut v["metrics"][0];
+                metric["baseline_value"] = json!(1.5);
+                metric["delta"] = json!(metric["candidate_value"].as_f64().unwrap() - 1.5);
+            });
+        }
+        refresh_r2_records(directory.path(), 20);
+        assert!(matches!(
+            verify_kv_campaign_suite_r2_directory(directory.path()),
+            Err(KvCampaignSuiteError::CrossCampaignBaselineMismatch)
+        ));
+    }
+
+    #[test]
+    fn r2_rejects_missing_evidence_and_unexpected_entries() {
+        for extra in [false, true] {
+            let directory = TempDirectory::new("r2-file-set");
+            write_r2_suite(directory.path());
+            if extra {
+                fs::write(directory.path().join("not-evidence.txt"), "x").unwrap();
+            } else {
+                fs::remove_file(directory.path().join("retain-07-of-27/selection-000.json"))
+                    .unwrap();
+            }
+            assert!(verify_kv_campaign_suite_r2_directory(directory.path()).is_err());
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn r2_rejects_symlinks_at_every_evidence_boundary() {
+        use std::os::unix::fs::symlink;
+        for relative in [
+            "suite-manifest.json",
+            "verification-retain-07-of-27.json",
+            "retain-07-of-27/campaign.json",
+            "retain-07-of-27/manifest.json",
+            "retain-07-of-27/selection-000.json",
+        ] {
+            let directory = TempDirectory::new("r2-symlink");
+            let outside = TempDirectory::new("r2-symlink-target");
+            write_r2_suite(directory.path());
+            let path = directory.path().join(relative);
+            let target = outside.path().join("payload.json");
+            fs::rename(&path, &target).unwrap();
+            symlink(&target, &path).unwrap();
+            assert!(
+                matches!(
+                    verify_kv_campaign_suite_r2_directory(directory.path()),
+                    Err(KvCampaignSuiteError::EntryTypeMismatch(_))
+                ),
+                "accepted symlink {relative}"
+            );
+        }
+    }
+
+    #[test]
+    fn r1_summary_schema_and_pins_stay_unchanged() {
+        let directory = TempDirectory::new("r1-regression");
+        write_suite(directory.path(), false);
+        let summary = verify_kv_campaign_suite_directory(directory.path()).unwrap();
+        assert_eq!(summary.schema, VERIFICATION_SCHEMA_V1);
+        assert_eq!(
+            summary.kvlab_suite_provider_revision,
+            KVLAB_SUITE_PROVIDER_REVISION
+        );
+        assert_eq!(
+            summary.kvlab_preregistration_revision,
+            KVLAB_PREREGISTRATION_REVISION
+        );
+        assert_eq!(summary.nnis_runtime_revision, NNIS_RUNTIME_REVISION);
+        assert_eq!(
+            summary.prospect_launch_verifier_revision,
+            PROSPECT_LAUNCH_VERIFIER_REVISION
+        );
+    }
+
     fn write_suite(directory: &Path, baseline_drift: bool) {
         write_suite_variant(directory, baseline_drift, None);
     }
@@ -793,6 +1204,15 @@ mod tests {
     }
 
     fn write_suite_variant(directory: &Path, baseline_drift: bool, drift: Option<&str>) {
+        write_suite_for_contract(directory, baseline_drift, drift, &R1_CONTRACT);
+    }
+
+    fn write_suite_for_contract(
+        directory: &Path,
+        baseline_drift: bool,
+        drift: Option<&str>,
+        contract: &SuiteContract,
+    ) {
         let mut suite_entries = Vec::new();
         for retained_count in RETAIN_COUNTS {
             let stem = format!("retain-{retained_count:02}-of-27");
@@ -803,8 +1223,13 @@ mod tests {
             } else {
                 '2'
             };
-            let (campaign_sha, trace_sha, summary) =
-                write_campaign(&campaign_dir, retained_count, baseline_char, drift);
+            let (campaign_sha, trace_sha, summary) = write_campaign(
+                &campaign_dir,
+                retained_count,
+                baseline_char,
+                drift,
+                contract,
+            );
             let verification_file = format!("verification-{stem}.json");
             let verification_value = serde_json::to_value(&summary).unwrap();
             fs::write(
@@ -814,7 +1239,7 @@ mod tests {
             .unwrap();
             suite_entries.push(json!({
                 "retained_count":retained_count,
-                "campaign_path":format!("experiments/prospect/smollm2-r1/{stem}.json"),
+                "campaign_path":format!("{}/{stem}.json", contract.campaign_root),
                 "output_directory":stem,
                 "campaign_spec_sha256":campaign_sha,
                 "trace_sha256":trace_sha,
@@ -824,11 +1249,11 @@ mod tests {
             }));
         }
         let suite = json!({
-            "schema":SUITE_SCHEMA_V1,
-            "kvlab_preregistration_revision":KVLAB_PREREGISTRATION_REVISION,
+            "schema":contract.input_schema,
+            "kvlab_preregistration_revision":contract.preregistration_revision,
             "kvlab_execution_revision":KVLAB_EXECUTION_REVISION,
-            "nnis_runtime_revision":NNIS_RUNTIME_REVISION,
-            "prospect_verifier_revision":PROSPECT_LAUNCH_VERIFIER_REVISION,
+            "nnis_runtime_revision":contract.runtime_revision,
+            "prospect_verifier_revision":contract.launch_verifier_revision,
             "model_id":MODEL_ID,
             "model_revision":MODEL_REVISION,
             "source_model_sha256":MODEL_SHA256,
@@ -849,6 +1274,7 @@ mod tests {
         retained_count: usize,
         baseline_char: char,
         drift: Option<&str>,
+        contract: &SuiteContract,
     ) -> (String, String, CampaignVerificationSummary) {
         // Actual frozen inputs; only output metrics/digests below are synthetic fixtures.
         let mut model_tokens = vec![
@@ -876,7 +1302,10 @@ mod tests {
         if drift == Some("selection") {
             random_positions = (0..retained_count).collect();
         }
-        let experiment_id = format!("smollm2-r1-position-retain-{retained_count:02}-of-27");
+        let experiment_id = format!(
+            "smollm2-{}-position-retain-{retained_count:02}-of-27",
+            contract.generation
+        );
         let campaign = json!({
             "schema":"kvlab.prospect-kv-real-model-position-campaign/v1",
             "experiment_id":experiment_id,
@@ -885,7 +1314,7 @@ mod tests {
             "model_revision":MODEL_REVISION,
             "tokenizer_revision":MODEL_REVISION,
             "runtime_backend":RUNTIME_BACKEND,
-            "runtime_revision":NNIS_RUNTIME_REVISION,
+            "runtime_revision":contract.runtime_revision,
             "evaluation_id":evaluation_id,
             "seed":7,
             "bytes_per_token":BYTES_PER_TOKEN,
@@ -925,7 +1354,7 @@ mod tests {
                 "model_revision":MODEL_REVISION,
                 "tokenizer_revision":MODEL_REVISION,
                 "runtime_backend":RUNTIME_BACKEND,
-                "runtime_revision":NNIS_RUNTIME_REVISION,
+                "runtime_revision":contract.runtime_revision,
                 "evaluation_id":evaluation_id,
                 "trace_sha256":trace_sha,
                 "seed":7,

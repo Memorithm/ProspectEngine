@@ -11,12 +11,14 @@ use std::process::ExitCode;
 
 use dispatch_preflight::preflight_scenario_bundle_files;
 use kv_campaign_spec::verify_kv_campaign_spec_file;
-use kv_campaign_suite::verify_kv_campaign_suite_directory;
+use kv_campaign_suite::{
+    verify_kv_campaign_suite_directory, verify_kv_campaign_suite_r2_directory,
+};
 use prospect_adapter::built_in_adapter_catalog;
 use prospect_cli::verify_kv_campaign_directory;
 use scenario_bundle::verify_scenario_bundle_file;
 
-const USAGE: &str = "Usage:\n  prospect list-adapters\n  prospect preflight-scenario-bundle <bundle.json> <catalog.json>\n  prospect verify-kv-campaign-spec <campaign.json>\n  prospect verify-kv-campaign <campaign-directory>\n  prospect verify-kv-campaign-suite <suite-directory>\n  prospect verify-scenario-bundle <bundle.json>";
+const USAGE: &str = "Usage:\n  prospect list-adapters\n  prospect preflight-scenario-bundle <bundle.json> <catalog.json>\n  prospect verify-kv-campaign-spec <campaign.json>\n  prospect verify-kv-campaign <campaign-directory>\n  prospect verify-kv-campaign-suite <suite-directory>\n  prospect verify-kv-campaign-suite-r2 <suite-directory>\n  prospect verify-scenario-bundle <bundle.json>";
 
 fn main() -> ExitCode {
     match run(env::args_os()) {
@@ -90,6 +92,18 @@ where
                 .map_err(|error| CliError::Verification(error.to_string()))?;
             serde_json::to_string(&summary).map_err(|error| {
                 CliError::Verification(format!("failed to encode campaign summary: {error}"))
+            })
+        }
+        Some("verify-kv-campaign-suite-r2") => {
+            let directory = exactly_one_argument(
+                &mut arguments,
+                "verify-kv-campaign-suite-r2",
+                "suite directory",
+            )?;
+            let summary = verify_kv_campaign_suite_r2_directory(directory)
+                .map_err(|error| CliError::Verification(error.to_string()))?;
+            serde_json::to_string(&summary).map_err(|error| {
+                CliError::Verification(format!("failed to encode R2 suite summary: {error}"))
             })
         }
         Some("verify-kv-campaign-suite") => {
@@ -191,6 +205,27 @@ mod tests {
     use std::ffi::OsString;
 
     use super::{CliError, run};
+
+    #[test]
+    fn r2_suite_requires_exactly_one_directory() {
+        for args in [
+            vec!["prospect", "verify-kv-campaign-suite-r2"],
+            vec!["prospect", "verify-kv-campaign-suite-r2", "a", "b"],
+        ] {
+            assert!(matches!(
+                run(args.into_iter().map(OsString::from)),
+                Err(CliError::Usage(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn r2_suite_missing_directory_is_a_verification_error() {
+        assert!(matches!(
+            run(["prospect", "verify-kv-campaign-suite-r2", ""].map(OsString::from)),
+            Err(CliError::Verification(_))
+        ));
+    }
 
     #[test]
     fn rejects_unknown_command() {
