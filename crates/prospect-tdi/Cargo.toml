@@ -1,0 +1,16 @@
+[package]
+name = "prospect-tdi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "ProspectEngine adapter for exact TDI finite-state prospective signatures"
+
+[lints]
+workspace = true
+
+[dependencies]
+prospect-core = { path = "../prospect-core" }
+tdi-core = { git = "https://github.com/Memorithm/TDI", rev = "58df6877b87a062726adfc3ca2a7ffe937083506", package = "tdi-core" }
