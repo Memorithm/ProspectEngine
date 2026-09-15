@@ -1,5 +1,9 @@
 # ProspectEngine Roadmap
 
+## Current execution/publication milestone — 2026-09-15
+
+The bootstrap, evidence model, ElasticXxx bridge and plugin boundary are implemented. The active engineering slice is mandatory R2 global verification before publication, with separate immutable per-campaign/global verifier pins and regression tests. See [NEXT_MILESTONE.md](NEXT_MILESTONE.md) for current acceptance criteria and [R2-SUITE-READINESS.md](R2-SUITE-READINESS.md) for actual-build and synthetic-publication checks. No new CUDA or representative model-quality result is established by this documentation update.
+
 ## Bootstrap — complete
 
 Goal: prove the architecture with the smallest reusable executable core.
@@ -14,7 +18,7 @@ Goal: prove the architecture with the smallest reusable executable core.
 - [x] CI for format, clippy and tests
 - [x] PolyForm Noncommercial licensing aligned with SciRust
 
-## Milestone 0.2 — evidence model
+## Milestone 0.2 — evidence model — complete
 
 - [x] canonical scenario/evidence record;
 - [x] deterministic serialization format;
@@ -78,7 +82,11 @@ Budget-matched heuristic comparison is represented by KVLab schema `kvlab.prospe
 
 KVLab position-native campaign outputs have been self-contained since merged revision `ffc406abedcaf2b69cd89d804b52c3ebf7cd93ee`: the canonical campaign specification is published atomically with the manifest and observed records. Budget-matched preflight was added at `183d3ddff7e9e3b6d2f4df4559eb70c2e6ab40b8`, and position-native real-model LRU/seeded-random controls were merged at `404577ce939093767dc75d2d67de2fe3c16fa4dc`. KVLab then preregistered three concrete SmolLM2-135M campaign inputs at merge `51f2f414c6ca3ef0260d885c72b8f5863bd66047`, retaining 7/27, 14/27 and 20/27 positions with equal LRU/random budgets. Those inputs pin model/tokenizer snapshot `93efa2f097d58c2a74874c7e644dbc9b0cee75a2`, KVLab execution revision `404577ce939093767dc75d2d67de2fe3c16fa4dc`, and NNIS runtime revision `58e7db8e1c4b471a7fe82a4beba11904240c4e89`.
 
-NNIS revision `58e7db8e1c4b471a7fe82a4beba11904240c4e89` now fails closed when a KVLab v4 request's logical bytes-per-token do not match the exact `KvCache<f32>` geometry; the admitted SmolLM2-135M checkpoint therefore requires exactly 46,080 logical bytes per token. ProspectEngine merge `328dfc0c2989b9cfb2dc6b251c181141844f5241` adds pre-execution verification for canonical KVLab campaign specifications, including provenance, trace reconstruction, position validation and logical byte budgets. All three merged SmolLM2 preregistrations pass that cross-repository preflight and reconstruct one common trace. This establishes reproducible execution readiness only: no new GPU execution has yet produced observed NLL/token-accuracy evidence for these campaigns, so the real-model numerical/quality, representative heuristic-comparison and benchmark-claim gates above remain open.
+Historical R1 input checks established trace, position and logical-byte consistency only. NNIS `58e7db8e1c4b471a7fe82a4beba11904240c4e89` checked the F32 KV geometry but preserved BF16 source weights before an F32-only decoder; the R1 pinned verifier also lacked the lockfile requested by its launcher. Those input checks did not establish executable end-to-end readiness. R1 inputs and historical revisions remain unchanged.
+
+R2 inputs are frozen at KVLab `216b49ae4d62ed4c4c2edfd1e88f929d0a0fd9e5`, with repaired NNIS runtime `091aabbb3e132627cf64716720aae530442d2a32`. The existing per-campaign verifier is ProspectEngine `298acdc91682ef1d09914b6f964e8934828825c0`; the separately pinned global publication verifier is `ca9685cd98f3a0a23e8c4f7e368736bb3aa28d0c`. The R2 whole-suite consumer checks exact frozen inputs, published summaries, policy budgets and common baseline identity. KVLab #100 places that global check before the final publication rename and emits a separate stage-consistency receipt without changing the v1 manifest or file set. Final-head CI and actual producer/consumer checks remain required; defining the workflow does not imply it passed.
+
+Finite-operand guards protect the shared KVLab metric path (#97), the position-native Rust consumer (#41) and the separate legacy eviction consumer (#42). They reject overflowing derived deltas without changing finite tolerances. These integrity repairs and synthetic fixtures do not provide observed GPU evidence. The real-model numerical/quality, representative comparison and benchmark-claim gates above remain open.
 
 Observed real-model eviction evidence uses KVLab schema `kvlab.prospect-kv-real-model-eviction/v1`, merged at revision `6c1ee30e016827de507e3428387f750931eab5fa`. The dedicated `prospect-kv-observed` backend independently replays the embedded logical eviction, validates model/tokenizer/runtime/trace provenance, output digests, exact logical byte accounting, finite named numerical/quality metrics and `candidate - baseline` deltas, then exposes the source as `Observed`. Evidence sets must share one experimental context and one paired full-cache baseline; `baseline()` comes from that observed baseline and candidate evaluation fails closed when the exact logical outcome is absent. This contract/consumer path does not itself prove that a representative real-model execution has occurred, so the real-model execution and representative-signature gates remain open.
 
@@ -88,7 +96,7 @@ Executed BKV-K6.3 evidence is handled separately. ProspectEngine revalidates the
 
 Measured multi-threshold sweeps remain empirical. Records are comparable only when commit, benchmark identities, device/driver/backend, attention problem, measurement protocol, signature width, selection policy and measurement scope match. Ranking uses each candidate's paired dense baseline via exact integer cross multiplication, so baseline drift between runs is not silently ignored. Missing thresholds are never interpolated or synthesized.
 
-## Milestone 0.5 — plugin boundary
+## Milestone 0.5 — plugin boundary — complete
 
 - [x] stable adapter trait/versioning;
 - [x] capability metadata;
