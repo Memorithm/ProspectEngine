@@ -72,6 +72,12 @@ after the final successful candidate return, that return is retained but the chi
 remains `Interrupted`; the presence of every suffix signature does not silently
 rewrite the terminal state to `Completed`.
 
+An `evaluation_limit_reached` terminal is valid only when the number of successful
+child candidates exactly reaches the configured child quota while work remains.
+A `deadline_reached` terminal is valid only when the child header actually declared
+a deadline. These checks prevent a coherently rehashed child journal from inventing
+an impossible interruption reason.
+
 ## Independent child-journal inspection
 
 `inspect_continuation_journal` verifies the child journal against the exact parent
@@ -81,10 +87,18 @@ journal, original canonical bundle and external restart expectations. It checks:
 - the parent/child run linkage;
 - exact parent journal, bundle and expectation identities;
 - implementation, codec and adapter identities;
-- restored-prefix and remaining-suffix scenario ordering;
+- the parent lifecycle itself, including its successful-candidate count and exact
+  never-started suffix;
+- exact equality between that proven parent partition and the child's declared
+  restored-prefix/remaining-suffix split;
 - candidate-call ordering and quota;
 - child success/failure/terminal lifecycle consistency;
 - per-entry and total journal size limits.
+
+The parent partition check is independent of the child's internal consistency. A
+child journal cannot enlarge its claimed restored prefix merely by coherently
+rehashing itself and omitting one of the candidate calls that the parent never
+actually completed.
 
 It never decodes payloads, executes an adapter, modifies either journal or emits a
 resume capability. `resume_authorized` remains false in its summary. A child journal
