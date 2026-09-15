@@ -33,15 +33,22 @@ jobs:
           path = 'crates/prospect-scenario/src/lib.rs'
           source = original(path, 'cd1e92b699295fdb88e589d4b58fc5a26a62e1ea')
           Path(path).write_text(source.replace('#![forbid(unsafe_code)]\n', '#![forbid(unsafe_code)]\n\npub mod controlled;\n', 1))
-
           path = 'crates/prospect-dispatch/src/execution.rs'
           source = original(path, '8cff6ace43b86a7795731bfdcaf8a46aba3315bb')
           Path(path).write_text('pub mod controlled;\npub use controlled::{RegisteredBatchExecution, evaluate_registered_bundle_controlled};\n\n' + source)
 
           path = Path('crates/prospect-dispatch/src/execution/controlled.rs')
           source = path.read_text()
-          assert source.count('use prospect_core::{Scenario, ScenarioId};') == 1
-          path.write_text(source.replace('use prospect_core::{Scenario, ScenarioId};', 'use prospect_core::Scenario;'))
+          fixes = {
+              'use prospect_core::{Scenario, ScenarioId};': 'use prospect_core::Scenario;',
+              '    #[must_use]\n    pub const fn evaluation(': '    pub const fn evaluation(',
+              '    #[must_use]\n    pub fn into_evaluation(': '    pub fn into_evaluation(',
+              '/// retries an intervention, actuates a physical system or claims GPU execution.': '/// retries an intervention or implements independent physical actuation. Registered\n/// engines retain responsibility for any effects of their calls; no GPU qualification\n/// or rollback is inferred from this report.',
+          }
+          for old, new in fixes.items():
+              assert source.count(old) == 1, old
+              source = source.replace(old, new)
+          path.write_text(source)
 
           path = Path('crates/prospect-scenario/src/controlled/tests.rs')
           source = path.read_text()
@@ -70,9 +77,6 @@ jobs:
           checkpoints, automatic retry and GPU/domain validation are separate work.
 
           '''
-          import textwrap
-          addition = textwrap.dedent(addition)
-          # Triple-quoted first line is already unindented; normalize the body only.
           addition = addition.replace('\n          ', '\n')
           Path(path).write_text(source.replace(anchor, addition + anchor))
 
