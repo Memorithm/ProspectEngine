@@ -96,6 +96,18 @@ authorize automatic resume, decode arbitrary codecs, authenticate GPU
 execution or convert partial work into a completed batch.
 See [execution records](docs/EXECUTION-RECORDS.md) for API and CLI usage.
 
+## Live execution journals
+
+`evaluate_registered_bundle_journaled` records acknowledged call intents before
+engine invocation and actual returns afterward, reusing the controlled evaluator.
+Storage/encoding failures block later calls and preserve actual returns in memory.
+`FileJournal` writes a fresh owner-only file with per-entry synchronization.
+`prospect inspect-execution-journal <journal.jsonl> <bundle.json>` checks the input
+binding and chained lifecycle without changing the journal. An unmatched intent
+is an unknown call outcome, never an automatic-retry permission. Torn tails are
+reported explicitly. See [live journal contracts](docs/LIVE-EXECUTION-JOURNAL.md).
+This is live diagnostic persistence, not safe restart or hardware authentication.
+
 ## Validate and build
 
 ```bash

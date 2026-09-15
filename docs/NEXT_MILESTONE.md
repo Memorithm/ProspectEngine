@@ -37,24 +37,34 @@ deadline checkpoints, terminal states and retained partial work. Existing
 batch and full execution APIs are unchanged. See
 [controlled evaluation](CONTROLLED-EVALUATION.md).
 
-## Current engineering slice: persistent input-bound terminal records
+## Completed terminal-record foundation
 
-Bind the exact canonical bundle before engine calls, preserve terminal
-execution with explicitly named payload codecs and independently validate
-record/input identity and the ordered lifecycle partition. Capture and
-persistence errors must not destroy the in-memory report or retry engines.
-Publish to a new path without overwriting existing records. File verification
-reuses bounded input loading. See [execution records](EXECUTION-RECORDS.md).
+ProspectEngine #46 is merged at `aba66f17f9ef8f24ff98bf1e26b6b1317ec14b01`.
+Terminal execution records bind canonical input captured before engine calls,
+preserve the successful/failed/unstarted partition, and support no-clobber
+persistence and independent CLI readback. See [execution records](EXECUTION-RECORDS.md).
+They remain terminal records, not engine snapshots or automatic-resume tokens.
 
-Acceptance requires final-head Rust 1.89 format, locked Clippy/workspace
-tests, real producer-example to release-CLI verification, filesystem
-no-clobber/negative tests and unchanged R2 interoperability. Software
-fixtures and checksums do not authenticate scientific or GPU observations.
+## Current engineering slice: live execution journaling
 
-Safe resume remains a separate functional slice: live checkpoint/event
-capture, exact implementation/input binding across restart, explicit
-idempotency and unknown-side-effect handling. Terminal records are not
-resumable engine state; loading one never authorizes re-execution.
+Record and acknowledge each call intent before invoking the engine, followed by
+its actual return, under the existing cooperative evaluator. Keep journal errors
+separate from actual domain errors and preserve returned work in memory. The file
+sink synchronizes each append and never reopens existing journals for writing.
+Inspection validates canonical input binding and ordered chained events; an
+unmatched intent remains an unknown result, never presumed unexecuted or retryable.
+Incomplete tails must be explicit, never silently repaired or marked complete.
+See [live execution journals](LIVE-EXECUTION-JOURNAL.md).
+
+Acceptance requires final-head Rust CI, storage-failure injection at every append,
+actual file-backed process-exit tests, no implicit replay, and unchanged terminal
+record/R2 interoperability. A storage acknowledgement or hash does not authenticate
+engine/GPU execution or guarantee power-loss survival.
+
+Safe restart remains separate: compare implementation/codec identities to trusted
+expectations, restore appropriate typed state, define purity/idempotency and
+explicitly reconcile unknown-side-effect calls. No current reader issues resume
+authorization or reconstructs a rankable batch from an untrusted stored record.
 
 ## Next empirical slice: exact R2 CUDA qualification
 

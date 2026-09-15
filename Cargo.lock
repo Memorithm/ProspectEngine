@@ -252,9 +252,13 @@ version = "0.1.0"
 dependencies = [
  "prospect-adapter",
  "prospect-bundle",
+ "prospect-core",
  "prospect-dispatch",
+ "prospect-evidence",
  "prospect-kv-position-campaign",
  "prospect-kv-position-observed",
+ "prospect-registry",
+ "prospect-scenario",
  "serde",
  "serde_json",
  "sha2",

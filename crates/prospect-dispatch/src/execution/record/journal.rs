@@ -5,7 +5,9 @@
 //! An unmatched call intent means an unknown result, never permission to retry.
 
 mod evaluation;
-pub use evaluation::{JournalRun, JournalRunState, evaluate_registered_bundle_journaled};
+pub use evaluation::{
+    JournalCapture, JournalRun, JournalRunState, evaluate_registered_bundle_journaled,
+};
 
 use std::io;
 
@@ -16,8 +18,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::{
-    ExecutionRecordError, MAX_RECORD_BYTES, PayloadCodecs, RecordInterruption,
-    canonical, check_payload, digest, invalid, parse_bundle, validate_metadata,
+    ExecutionRecordError, MAX_RECORD_BYTES, PayloadCodecs, RecordInterruption, canonical,
+    check_payload, digest, invalid, parse_bundle, validate_metadata,
 };
 
 /// Maximum admitted raw bytes in a journal (not an allocator or RSS bound).
@@ -45,15 +47,28 @@ impl EngineIdentity {
     /// assert_eq!(identity.component(), "example.engine");
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn new(component: &str, revision: &str, artifact_sha256: &str) -> Result<Self, ExecutionRecordError> {
-        let value = Self { component: component.into(), revision: revision.into(), artifact_sha256: artifact_sha256.into() };
+    pub fn new(
+        component: &str,
+        revision: &str,
+        artifact_sha256: &str,
+    ) -> Result<Self, ExecutionRecordError> {
+        let value = Self {
+            component: component.into(),
+            revision: revision.into(),
+            artifact_sha256: artifact_sha256.into(),
+        };
         value.validate()?;
         Ok(value)
     }
     fn validate(&self) -> Result<(), ExecutionRecordError> {
-        NamespacedId::new(self.component.as_str()).map_err(|_| ExecutionRecordError::Invalid("invalid implementation component"))?;
+        NamespacedId::new(self.component.as_str())
+            .map_err(|_| ExecutionRecordError::Invalid("invalid implementation component"))?;
         for (value, length) in [(&self.revision, 40), (&self.artifact_sha256, 64)] {
-            if value.len() != length || !value.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
+            if value.len() != length
+                || !value
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+            {
                 return invalid("invalid implementation revision or artifact digest");
             }
         }
@@ -61,13 +76,19 @@ impl EngineIdentity {
     }
     /// Namespaced implementation component, as declared by the application.
     #[must_use]
-    pub fn component(&self) -> &str { &self.component }
+    pub fn component(&self) -> &str {
+        &self.component
+    }
     /// Declared exact Git revision; not inferred from adapter metadata.
     #[must_use]
-    pub fn revision(&self) -> &str { &self.revision }
+    pub fn revision(&self) -> &str {
+        &self.revision
+    }
     /// Declared implementation-artifact digest; not measured by this module.
     #[must_use]
-    pub fn artifact_sha256(&self) -> &str { &self.artifact_sha256 }
+    pub fn artifact_sha256(&self) -> &str {
+        &self.artifact_sha256
+    }
 }
 
 /// A single-writer destination which acknowledges an entire LF-terminated entry.
@@ -88,16 +109,24 @@ pub enum JournalError {
 }
 impl std::fmt::Display for JournalError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self { Self::Contract(e) => e.fmt(f), Self::Storage(e) => write!(f, "journal storage: {e}") }
+        match self {
+            Self::Contract(e) => e.fmt(f),
+            Self::Storage(e) => write!(f, "journal storage: {e}"),
+        }
     }
 }
 impl std::error::Error for JournalError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self { Self::Contract(e) => Some(e), Self::Storage(e) => Some(e) }
+        match self {
+            Self::Contract(e) => Some(e),
+            Self::Storage(e) => Some(e),
+        }
     }
 }
 impl From<ExecutionRecordError> for JournalError {
-    fn from(value: ExecutionRecordError) -> Self { Self::Contract(value) }
+    fn from(value: ExecutionRecordError) -> Self {
+        Self::Contract(value)
+    }
 }
 
 /// Target of an acknowledged call intent. Baseline is not a candidate.
@@ -131,11 +160,23 @@ enum Terminal {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "event", rename_all = "snake_case", deny_unknown_fields)]
 enum Event {
-    Initialized { header: Header },
-    CallStarted { target: CallTarget },
-    CallSucceeded { target: CallTarget, payload: String },
-    CallFailed { target: CallTarget, error_payload: String },
-    Finished { terminal: Terminal },
+    Initialized {
+        header: Header,
+    },
+    CallStarted {
+        target: CallTarget,
+    },
+    CallSucceeded {
+        target: CallTarget,
+        payload: String,
+    },
+    CallFailed {
+        target: CallTarget,
+        error_payload: String,
+    },
+    Finished {
+        terminal: Terminal,
+    },
 }
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -153,15 +194,28 @@ struct Emitter<'a, W: ?Sized> {
 }
 impl<W: JournalSink + ?Sized> Emitter<'_, W> {
     fn append(&mut self, event: Event) -> Result<(), JournalError> {
-        if self.sequence >= MAX_ENTRIES { return Err(ExecutionRecordError::Invalid("too many journal entries").into()); }
-        let mut line = canonical(&Entry { sequence: self.sequence, previous_sha256: self.previous.clone(), event })?;
+        if self.sequence >= MAX_ENTRIES {
+            return Err(ExecutionRecordError::Invalid("too many journal entries").into());
+        }
+        let mut line = canonical(&Entry {
+            sequence: self.sequence,
+            previous_sha256: self.previous.clone(),
+            event,
+        })?;
         let hash = digest(line.as_bytes());
         line.push('\n');
-        let total = self.bytes.checked_add(line.len()).ok_or(ExecutionRecordError::Invalid("journal byte accounting overflow"))?;
+        let total = self
+            .bytes
+            .checked_add(line.len())
+            .ok_or(ExecutionRecordError::Invalid(
+                "journal byte accounting overflow",
+            ))?;
         if line.len() > MAX_JOURNAL_ENTRY_BYTES || total > MAX_JOURNAL_BYTES {
             return Err(ExecutionRecordError::Invalid("journal byte limit exceeded").into());
         }
-        self.sink.append_record(line.as_bytes()).map_err(JournalError::Storage)?;
+        self.sink
+            .append_record(line.as_bytes())
+            .map_err(JournalError::Storage)?;
         // Never advance the acknowledged prefix when storage returned an error.
         self.bytes = total;
         self.previous = Some(hash);
@@ -204,8 +258,13 @@ pub struct JournalSummary {
 /// from this function authorizes replay, appending to the old file or conversion
 /// to a rankable BatchResult. Coherently rehashed forgery and prefix deletion are
 /// not authenticated by this consistency-only format.
-pub fn inspect_execution_journal(payload: &str, expected_bundle: &str) -> Result<JournalSummary, ExecutionRecordError> {
-    if payload.len() > MAX_JOURNAL_BYTES { return invalid("journal exceeds byte limit"); }
+pub fn inspect_execution_journal(
+    payload: &str,
+    expected_bundle: &str,
+) -> Result<JournalSummary, ExecutionRecordError> {
+    if payload.len() > MAX_JOURNAL_BYTES {
+        return invalid("journal exceeds byte limit");
+    }
     let bundle = parse_bundle(expected_bundle)?;
     let mut header = None;
     let mut previous = None;
@@ -214,16 +273,26 @@ pub fn inspect_execution_journal(payload: &str, expected_bundle: &str) -> Result
     let mut incomplete_tail_bytes = 0;
     let mut lifecycle = Lifecycle::default();
     for raw in payload.split_inclusive('\n') {
-        if lifecycle.terminal.is_some() { return invalid("bytes after journal terminal"); }
-        if raw.len() > MAX_JOURNAL_ENTRY_BYTES { return invalid("journal entry exceeds byte limit"); }
+        if lifecycle.terminal.is_some() {
+            return invalid("bytes after journal terminal");
+        }
+        if raw.len() > MAX_JOURNAL_ENTRY_BYTES {
+            return invalid("journal entry exceeds byte limit");
+        }
         let Some(line) = raw.strip_suffix('\n') else {
             incomplete_tail_bytes = raw.len();
             break;
         };
-        if count >= MAX_ENTRIES { return invalid("too many journal entries"); }
+        if count >= MAX_ENTRIES {
+            return invalid("too many journal entries");
+        }
         let entry: Entry = serde_json::from_str(line)?;
-        if canonical(&entry)? != line { return invalid("noncanonical, duplicate or missing journal fields"); }
-        if entry.sequence != count || entry.previous_sha256 != previous { return invalid("journal sequence or hash-chain mismatch"); }
+        if canonical(&entry)? != line {
+            return invalid("noncanonical, duplicate or missing journal fields");
+        }
+        if entry.sequence != count || entry.previous_sha256 != previous {
+            return invalid("journal sequence or hash-chain mismatch");
+        }
         match &entry.event {
             Event::Initialized { header: value } if count == 0 => {
                 validate_header(value, &bundle, expected_bundle)?;
@@ -231,7 +300,9 @@ pub fn inspect_execution_journal(payload: &str, expected_bundle: &str) -> Result
             }
             Event::Initialized { .. } => return invalid("duplicate journal header"),
             event => {
-                let header = header.as_ref().ok_or(ExecutionRecordError::Invalid("journal must start with header"))?;
+                let header = header.as_ref().ok_or(ExecutionRecordError::Invalid(
+                    "journal must start with header",
+                ))?;
                 lifecycle.accept(event, header, &bundle)?;
             }
         }
@@ -240,16 +311,20 @@ pub fn inspect_execution_journal(payload: &str, expected_bundle: &str) -> Result
         count += 1;
     }
     let header = header.ok_or(ExecutionRecordError::Invalid("no complete journal header"))?;
-    let state = if incomplete_tail_bytes != 0 { "incomplete_tail" }
-        else if lifecycle.active.is_some() { "unknown_call_result" }
-        else { match lifecycle.terminal {
+    let state = if incomplete_tail_bytes != 0 {
+        "incomplete_tail"
+    } else if lifecycle.active.is_some() {
+        "unknown_call_result"
+    } else {
+        match &lifecycle.terminal {
             Some(Terminal::Completed) => "completed",
             Some(Terminal::Interrupted { .. }) => "interrupted",
             Some(Terminal::Failed) => "failed",
             None if lifecycle.failed.is_some() => "open_after_failure",
             None if lifecycle.baseline => "open_after_return",
             None => "not_started",
-        }};
+        }
+    };
     Ok(JournalSummary {
         schema: "prospect.execution-journal-inspection/v1",
         journal_sha256: digest(payload.as_bytes()),
@@ -271,19 +346,33 @@ pub fn inspect_execution_journal(payload: &str, expected_bundle: &str) -> Result
     })
 }
 
-fn validate_header(header: &Header, bundle: &ScenarioBundle<Value, Value>, input: &str) -> Result<AdapterMetadata, ExecutionRecordError> {
-    if header.schema != SCHEMA || header.bundle_sha256 != digest(input.as_bytes()) { return invalid("journal input binding mismatch"); }
+fn validate_header(
+    header: &Header,
+    bundle: &ScenarioBundle<Value, Value>,
+    input: &str,
+) -> Result<AdapterMetadata, ExecutionRecordError> {
+    if header.schema != SCHEMA || header.bundle_sha256 != digest(input.as_bytes()) {
+        return invalid("journal input binding mismatch");
+    }
     RunId::new(&header.run_id).map_err(|_| ExecutionRecordError::Invalid("invalid run ID"))?;
     header.implementation.validate()?;
     header.codecs.validate()?;
     let metadata = validate_metadata(&header.adapter)?;
     let required = bundle.adapter();
-    if metadata.adapter_id() != required.adapter_id() || !metadata.contract_version().supports(required.contract_version()) {
+    if metadata.adapter_id() != required.adapter_id()
+        || !metadata
+            .contract_version()
+            .supports(required.contract_version())
+    {
         return invalid("journal adapter contract mismatch");
     }
     if let Some(required) = required.upstream() {
-        let actual = metadata.upstream().ok_or(ExecutionRecordError::Invalid("missing journal upstream"))?;
-        if actual.component() != required.component() || actual.revision() != required.revision() { return invalid("journal upstream mismatch"); }
+        let actual = metadata
+            .upstream()
+            .ok_or(ExecutionRecordError::Invalid("missing journal upstream"))?;
+        if actual.component() != required.component() || actual.revision() != required.revision() {
+            return invalid("journal upstream mismatch");
+        }
     }
     Ok(metadata)
 }
@@ -298,15 +387,28 @@ struct Lifecycle {
     terminal: Option<Terminal>,
 }
 impl Lifecycle {
-    fn accept(&mut self, event: &Event, header: &Header, bundle: &ScenarioBundle<Value, Value>) -> Result<(), ExecutionRecordError> {
+    fn accept(
+        &mut self,
+        event: &Event,
+        header: &Header,
+        bundle: &ScenarioBundle<Value, Value>,
+    ) -> Result<(), ExecutionRecordError> {
         match event {
             Event::Initialized { .. } => return invalid("unexpected journal header"),
             Event::CallStarted { target } => {
-                if self.active.is_some() || self.failed.is_some() || header.max_evaluations == 0 { return invalid("inadmissible call intent"); }
+                if self.active.is_some() || self.failed.is_some() || header.max_evaluations == 0 {
+                    return invalid("inadmissible call intent");
+                }
                 match target {
                     CallTarget::Baseline if !self.baseline && self.started == 0 => {}
-                    CallTarget::Scenario { id } if self.baseline && self.started < header.max_evaluations
-                        && bundle.scenarios().get(self.started).is_some_and(|s| s.id().as_str() == id) => {
+                    CallTarget::Scenario { id }
+                        if self.baseline
+                            && self.started < header.max_evaluations
+                            && bundle
+                                .scenarios()
+                                .get(self.started)
+                                .is_some_and(|s| s.id().as_str() == id) =>
+                    {
                         self.started += 1;
                     }
                     _ => return invalid("call target out of order or quota exceeded"),
@@ -315,26 +417,55 @@ impl Lifecycle {
             }
             Event::CallSucceeded { target, payload } => {
                 check_payload(payload)?;
-                if self.active.as_ref() != Some(target) { return invalid("return without matching intent"); }
-                match target { CallTarget::Baseline => self.baseline = true, CallTarget::Scenario { .. } => self.successful += 1 }
+                if self.active.as_ref() != Some(target) {
+                    return invalid("return without matching intent");
+                }
+                match target {
+                    CallTarget::Baseline => self.baseline = true,
+                    CallTarget::Scenario { .. } => self.successful += 1,
+                }
                 self.active = None;
             }
-            Event::CallFailed { target, error_payload } => {
+            Event::CallFailed {
+                target,
+                error_payload,
+            } => {
                 check_payload(error_payload)?;
-                if self.active.as_ref() != Some(target) { return invalid("failure without matching intent"); }
+                if self.active.as_ref() != Some(target) {
+                    return invalid("failure without matching intent");
+                }
                 self.failed = Some(target.clone());
                 self.active = None;
             }
             Event::Finished { terminal } => {
-                if self.active.is_some() { return invalid("terminal while call result is unknown"); }
+                if self.active.is_some() {
+                    return invalid("terminal while call result is unknown");
+                }
                 match terminal {
-                    Terminal::Completed if !self.baseline || self.failed.is_some() || self.successful != bundle.scenarios().len() => return invalid("incomplete journal relabelled completed"),
-                    Terminal::Failed if self.failed.is_none() => return invalid("terminal failure without failed call"),
+                    Terminal::Completed
+                        if !self.baseline
+                            || self.failed.is_some()
+                            || self.successful != bundle.scenarios().len() =>
+                    {
+                        return invalid("incomplete journal relabelled completed");
+                    }
+                    Terminal::Failed if self.failed.is_none() => {
+                        return invalid("terminal failure without failed call");
+                    }
                     Terminal::Interrupted { reason } => {
-                        if self.failed.is_some() { return invalid("engine error replaced by interruption"); }
+                        if self.failed.is_some() {
+                            return invalid("engine error replaced by interruption");
+                        }
                         match reason {
-                            RecordInterruption::DeadlineReached if !header.deadline_configured => return invalid("deadline not configured"),
-                            RecordInterruption::EvaluationLimitReached if self.successful != header.max_evaluations || self.started == bundle.scenarios().len() => return invalid("invalid quota interruption"),
+                            RecordInterruption::DeadlineReached if !header.deadline_configured => {
+                                return invalid("deadline not configured");
+                            }
+                            RecordInterruption::EvaluationLimitReached
+                                if self.successful != header.max_evaluations
+                                    || self.started == bundle.scenarios().len() =>
+                            {
+                                return invalid("invalid quota interruption");
+                            }
                             _ => {}
                         }
                     }

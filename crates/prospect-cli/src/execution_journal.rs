@@ -38,28 +38,50 @@ impl FileJournal {
     pub fn create(path: impl AsRef<Path>) -> io::Result<Self> {
         let mut options = OpenOptions::new();
         options.write(true).create_new(true);
-        #[cfg(unix)] {
+        #[cfg(unix)]
+        {
             use std::os::unix::fs::OpenOptionsExt;
             options.mode(0o600);
         }
-        Ok(Self { file: options.open(path)?, acknowledged_bytes: 0, poisoned: false })
+        Ok(Self {
+            file: options.open(path)?,
+            acknowledged_bytes: 0,
+            poisoned: false,
+        })
     }
     /// Bytes whose writes and synchronization both returned success to this handle.
     #[must_use]
-    pub const fn acknowledged_bytes(&self) -> usize { self.acknowledged_bytes }
+    pub const fn acknowledged_bytes(&self) -> usize {
+        self.acknowledged_bytes
+    }
     /// A failed write or admission permanently blocks further writes on this handle.
     #[must_use]
-    pub const fn is_poisoned(&self) -> bool { self.poisoned }
+    pub const fn is_poisoned(&self) -> bool {
+        self.poisoned
+    }
 }
 impl JournalSink for FileJournal {
     fn append_record(&mut self, record: &[u8]) -> io::Result<()> {
-        if self.poisoned { return Err(io::Error::other("journal sink is poisoned; inspect without retry")); }
+        if self.poisoned {
+            return Err(io::Error::other(
+                "journal sink is poisoned; inspect without retry",
+            ));
+        }
         // Set the latch before ANY fallible operation; success alone releases it.
         self.poisoned = true;
-        let total = self.acknowledged_bytes.checked_add(record.len()).ok_or_else(|| io::Error::other("journal byte overflow"))?;
-        if record.len() > MAX_JOURNAL_ENTRY_BYTES || total > MAX_JOURNAL_BYTES
-            || !record.ends_with(b"\n") || record[..record.len() - 1].contains(&b'\n') {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid or oversized journal entry"));
+        let total = self
+            .acknowledged_bytes
+            .checked_add(record.len())
+            .ok_or_else(|| io::Error::other("journal byte overflow"))?;
+        if record.len() > MAX_JOURNAL_ENTRY_BYTES
+            || total > MAX_JOURNAL_BYTES
+            || !record.ends_with(b"\n")
+            || record[..record.len() - 1].contains(&b'\n')
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid or oversized journal entry",
+            ));
         }
         self.file.write_all(record)?;
         self.file.sync_all()?;
@@ -75,7 +97,8 @@ impl JournalSink for FileJournal {
 /// interrupted, failed or explicitly torn-tail log; it is not a successful run.
 /// Fully malformed entries, invalid UTF-8 and oversized inputs return errors.
 pub fn inspect_execution_journal_files(
-    journal_path: impl AsRef<Path>, bundle_path: impl AsRef<Path>,
+    journal_path: impl AsRef<Path>,
+    bundle_path: impl AsRef<Path>,
 ) -> Result<JournalSummary, Box<dyn std::error::Error>> {
     let mut budget = TextReadBudget::default();
     let journal = budget.read_text(journal_path.as_ref())?;
