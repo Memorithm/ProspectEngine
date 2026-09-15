@@ -1,0 +1,29 @@
+name: Prepare multi-trace evaluation matrix
+on:
+  push:
+    branches:
+      - feat/multi-trace-evaluation-matrix
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+      - name: Install Rust 1.89
+        run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt --component clippy
+      - name: Validate multi-trace code and workspace
+        run: |
+          cargo +1.89.0 fmt --all
+          cargo +1.89.0 clippy --locked --workspace --all-targets -- -D warnings
+          cargo +1.89.0 test --locked --workspace
+      - name: Commit validated source only
+        run: |
+          git rm -f .github/workflows/tmp-multi-trace-qualify.yml
+          git add crates/prospect-scenario/src/lib.rs
+          git add crates/prospect-scenario/src/multi_trace.rs
+          git -c user.name='MEMOPERF' -c user.email='contact@checkupauto.fr' commit -m 'feat(scenario): add strict multi-trace evaluation matrix'
+          git push origin HEAD:refs/heads/feat/multi-trace-evaluation-matrix
