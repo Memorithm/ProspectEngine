@@ -73,10 +73,17 @@ impl<I, S> TraceBatch<I, S> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MultiTraceError {
     EmptyTraceSet,
-    EmptyScenarioSet { trace_id: TraceId },
+    EmptyScenarioSet {
+        trace_id: TraceId,
+    },
     DuplicateTraceId(TraceId),
-    DuplicateScenarioId { trace_id: TraceId, scenario_id: ScenarioId },
-    ScenarioCountMismatch { trace_id: TraceId },
+    DuplicateScenarioId {
+        trace_id: TraceId,
+        scenario_id: ScenarioId,
+    },
+    ScenarioCountMismatch {
+        trace_id: TraceId,
+    },
     ScenarioIdMismatch {
         trace_id: TraceId,
         index: usize,
@@ -93,7 +100,9 @@ pub enum MultiTraceError {
 impl fmt::Display for MultiTraceError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyTraceSet => formatter.write_str("multi-trace evaluation requires at least one trace"),
+            Self::EmptyTraceSet => {
+                formatter.write_str("multi-trace evaluation requires at least one trace")
+            }
             Self::EmptyScenarioSet { trace_id } => write!(
                 formatter,
                 "trace {trace_id} contains no candidate scenarios"
@@ -108,10 +117,9 @@ impl fmt::Display for MultiTraceError {
                 formatter,
                 "trace {trace_id} contains duplicate scenario id {scenario_id}"
             ),
-            Self::ScenarioCountMismatch { trace_id } => write!(
-                formatter,
-                "trace {trace_id} has a different scenario count"
-            ),
+            Self::ScenarioCountMismatch { trace_id } => {
+                write!(formatter, "trace {trace_id} has a different scenario count")
+            }
             Self::ScenarioIdMismatch {
                 trace_id,
                 index,
@@ -377,7 +385,11 @@ mod tests {
         assert_eq!(scores.traces().len(), 2);
         for trace in scores.traces() {
             assert_eq!(
-                trace.scores().iter().map(|score| score.score).collect::<Vec<_>>(),
+                trace
+                    .scores()
+                    .iter()
+                    .map(|score| score.score)
+                    .collect::<Vec<_>>(),
                 [1, 3]
             );
         }
@@ -464,7 +476,7 @@ mod tests {
             MultiTraceBatch::<i32, i32>::new(vec![]),
             Err(MultiTraceError::EmptyTraceSet)
         );
-        let empty = BatchResult {
+        let empty: BatchResult<i32, i32> = BatchResult {
             baseline: 10,
             outcomes: vec![],
         };
