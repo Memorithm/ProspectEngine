@@ -15,16 +15,38 @@ jobs:
           ref: ${{ github.sha }}
       - name: Install Rust 1.89
         run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt --component clippy
-      - name: Wire constrained evidence module
+      - name: Wire evidence and align stacked decision fix
         run: |
           python3 - <<'PY'
           from pathlib import Path
+
           p = Path('crates/prospect-evidence/src/lib.rs')
           s = p.read_text()
           anchor = '#![forbid(unsafe_code)]\n'
           if s.count(anchor) != 1 or 'pub mod constrained;' in s:
               raise SystemExit('prospect-evidence module anchor drift')
           p.write_text(s.replace(anchor, anchor + '\npub mod constrained;\n', 1))
+
+          p = Path('crates/prospect-scenario/src/decision.rs')
+          s = p.read_text()
+          old = '!core::ptr::eq(candidate, other)'
+          if s.count(old) != 1:
+              raise SystemExit(f'stacked Pareto fix drift: {s.count(old)}')
+          p.write_text(s.replace(old, '!core::ptr::eq(*candidate, other)', 1))
+
+          p = Path('crates/prospect-evidence/src/constrained.rs')
+          s = p.read_text()
+          replacements = {
+              '        R: DeserializeOwned,\n        T: DeserializeOwned + Ord,':
+                  '        R: DeserializeOwned + Serialize,\n        T: DeserializeOwned + Serialize + Ord,',
+              '            evidence.alternatives()[3].rejection_reason(),\n            Some(&"hard-limit".to_owned())':
+                  '            evidence.alternatives()[3].rejection_reason().map(String::as_str),\n            Some("hard-limit")',
+          }
+          for old, new in replacements.items():
+              if s.count(old) != 1:
+                  raise SystemExit(f'evidence fix drift: {old!r} count={s.count(old)}')
+              s = s.replace(old, new, 1)
+          p.write_text(s)
           PY
       - name: Validate stacked decision and evidence code
         run: |
@@ -33,7 +55,7 @@ jobs:
           cargo +1.89.0 test --locked --workspace
       - name: Commit validated source only
         run: |
-          git rm .github/workflows/tmp-constrained-evidence.yml
+          git rm -f .github/workflows/tmp-constrained-evidence.yml
           git add crates/prospect-evidence/src/lib.rs crates/prospect-evidence/src/constrained.rs
           git add crates/prospect-scenario/src/lib.rs crates/prospect-scenario/src/decision.rs
           git -c user.name='MEMOPERF' -c user.email='contact@checkupauto.fr' commit -m 'feat: integrate canonical constrained decision evidence'
