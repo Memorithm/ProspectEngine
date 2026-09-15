@@ -1,5 +1,4 @@
 use std::fmt;
-use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -55,19 +54,23 @@ pub fn preflight_scenario_bundle_files(
     bundle_path: impl AsRef<Path>,
     catalog_path: impl AsRef<Path>,
 ) -> Result<DispatchPreflightSummary, DispatchPreflightFileError> {
+    let mut budget = prospect_cli::input::TextReadBudget::default();
     let bundle_path = bundle_path.as_ref();
     let catalog_path = catalog_path.as_ref();
     let bundle_payload =
-        fs::read_to_string(bundle_path).map_err(|source| DispatchPreflightFileError::BundleIo {
-            path: bundle_path.to_path_buf(),
-            source,
-        })?;
-    let catalog_payload = fs::read_to_string(catalog_path).map_err(|source| {
-        DispatchPreflightFileError::CatalogIo {
-            path: catalog_path.to_path_buf(),
-            source,
-        }
-    })?;
+        budget
+            .read_text(bundle_path)
+            .map_err(|source| DispatchPreflightFileError::BundleIo {
+                path: bundle_path.to_path_buf(),
+                source,
+            })?;
+    let catalog_payload =
+        budget
+            .read_text(catalog_path)
+            .map_err(|source| DispatchPreflightFileError::CatalogIo {
+                path: catalog_path.to_path_buf(),
+                source,
+            })?;
 
     let bundle = ScenarioBundle::<Value, Value>::from_canonical_json(&bundle_payload)
         .map_err(DispatchPreflightFileError::Bundle)?;

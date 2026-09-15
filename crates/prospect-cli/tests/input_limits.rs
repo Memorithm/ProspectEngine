@@ -15,7 +15,10 @@ impl TempDirectory {
         let path = std::env::temp_dir().join(format!(
             "prospect-cli-input-boundary-{}-{}-{}",
             std::process::id(),
-            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
             NEXT.fetch_add(1, Ordering::Relaxed),
         ));
         fs::create_dir(&path).unwrap();
@@ -24,14 +27,22 @@ impl TempDirectory {
 }
 
 impl Drop for TempDirectory {
-    fn drop(&mut self) { let _ = fs::remove_dir_all(&self.0); }
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
 }
 
 fn require_read_failure(command: &str, paths: &[&Path], message: &str) {
     let output = Command::new(env!("CARGO_BIN_EXE_prospect"))
-        .arg(command).args(paths).output().unwrap();
+        .arg(command)
+        .args(paths)
+        .output()
+        .unwrap();
     assert_eq!(output.status.code(), Some(1), "{command}: {output:?}");
-    assert!(output.stdout.is_empty(), "partial success emitted by {command}");
+    assert!(
+        output.stdout.is_empty(),
+        "partial success emitted by {command}"
+    );
     let stderr = String::from_utf8(output.stderr).unwrap();
     assert!(stderr.contains(message), "{command}: {stderr}");
 }
@@ -41,13 +52,24 @@ fn oversized_inputs_fail_before_json_decoding_for_every_file_command() {
     let directory = TempDirectory::new();
     let huge = directory.0.join("huge.json");
     let tiny = directory.0.join("tiny.json");
-    File::create(&huge).unwrap().set_len(MAX_JSON_FILE_BYTES as u64 + 1).unwrap();
+    File::create(&huge)
+        .unwrap()
+        .set_len(MAX_JSON_FILE_BYTES as u64 + 1)
+        .unwrap();
     fs::write(&tiny, "{}").unwrap();
     for command in ["verify-kv-campaign-spec", "verify-scenario-bundle"] {
         require_read_failure(command, &[&huge], "input limit exceeded");
     }
-    require_read_failure("preflight-scenario-bundle", &[&huge, &tiny], "input limit exceeded");
-    require_read_failure("preflight-scenario-bundle", &[&tiny, &huge], "input limit exceeded");
+    require_read_failure(
+        "preflight-scenario-bundle",
+        &[&huge, &tiny],
+        "input limit exceeded",
+    );
+    require_read_failure(
+        "preflight-scenario-bundle",
+        &[&tiny, &huge],
+        "input limit exceeded",
+    );
     for (command, manifest_name) in [
         ("verify-kv-campaign", "manifest.json"),
         ("verify-kv-campaign-suite", "suite-manifest.json"),
@@ -55,8 +77,10 @@ fn oversized_inputs_fail_before_json_decoding_for_every_file_command() {
     ] {
         let input = directory.0.join(command);
         fs::create_dir(&input).unwrap();
-        File::create(input.join(manifest_name)).unwrap()
-            .set_len(MAX_JSON_FILE_BYTES as u64 + 1).unwrap();
+        File::create(input.join(manifest_name))
+            .unwrap()
+            .set_len(MAX_JSON_FILE_BYTES as u64 + 1)
+            .unwrap();
         fs::write(input.join("campaign.json"), "{}").unwrap();
         require_read_failure(command, &[&input], "input limit exceeded");
     }
@@ -74,8 +98,16 @@ fn standalone_and_dispatch_commands_reject_static_input_symlinks() {
     for command in ["verify-kv-campaign-spec", "verify-scenario-bundle"] {
         require_read_failure(command, &[&link], "regular file");
     }
-    require_read_failure("preflight-scenario-bundle", &[&link, &input], "regular file");
-    require_read_failure("preflight-scenario-bundle", &[&input, &link], "regular file");
+    require_read_failure(
+        "preflight-scenario-bundle",
+        &[&link, &input],
+        "regular file",
+    );
+    require_read_failure(
+        "preflight-scenario-bundle",
+        &[&input, &link],
+        "regular file",
+    );
 }
 
 #[cfg(unix)]

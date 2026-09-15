@@ -58,9 +58,16 @@ impl TextReadBudget {
     /// ```
     pub fn new(per_file_bytes: usize, total_bytes: usize) -> io::Result<Self> {
         if per_file_bytes == 0 || per_file_bytes == usize::MAX || total_bytes == 0 {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "invalid verification input limits"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid verification input limits",
+            ));
         }
-        Ok(Self { per_file_bytes, remaining_bytes: total_bytes, failed: false })
+        Ok(Self {
+            per_file_bytes,
+            remaining_bytes: total_bytes,
+            failed: false,
+        })
     }
 
     /// Remaining cumulative bytes. Successful repeated reads are charged again.
@@ -110,21 +117,30 @@ impl TextReadBudget {
 
     fn require_open(&self) -> io::Result<()> {
         if self.failed {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "verification input budget closed after read failure"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "verification input budget closed after read failure",
+            ));
         }
         Ok(())
     }
 
     fn limit_error(&self) -> io::Error {
-        io::Error::new(io::ErrorKind::InvalidData, format!(
-            "verification input limit exceeded (per-file {} bytes, remaining total {} bytes)",
-            self.per_file_bytes, self.remaining_bytes,
-        ))
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "verification input limit exceeded (per-file {} bytes, remaining total {} bytes)",
+                self.per_file_bytes, self.remaining_bytes,
+            ),
+        )
     }
 
     fn check_metadata(&self, metadata: &fs::Metadata, allowed: usize) -> io::Result<()> {
         if !metadata.is_file() {
-            return Err(io::Error::new(io::ErrorKind::InvalidInput, "verification input must be a regular file, not a symlink or special file"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "verification input must be a regular file, not a symlink or special file",
+            ));
         }
         if metadata.len() > allowed as u64 {
             return Err(self.limit_error());
@@ -146,7 +162,8 @@ impl TextReadBudget {
             if let Some(error) = limit_error {
                 return Err(error);
             }
-            String::from_utf8(bytes).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+            String::from_utf8(bytes)
+                .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
         })();
         if result.is_err() {
             self.failed = true;
@@ -184,8 +201,12 @@ mod tests {
         fn new() -> Self {
             static NEXT: AtomicU64 = AtomicU64::new(0);
             let path = std::env::temp_dir().join(format!(
-                "prospect-input-{}-{}-{}", std::process::id(),
-                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos(),
+                "prospect-input-{}-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos(),
                 NEXT.fetch_add(1, Ordering::Relaxed),
             ));
             fs::create_dir(&path).unwrap();
@@ -194,7 +215,9 @@ mod tests {
     }
 
     impl Drop for TempDirectory {
-        fn drop(&mut self) { let _ = fs::remove_dir_all(&self.0); }
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
     }
 
     #[test]
@@ -212,7 +235,10 @@ mod tests {
     fn rejects_oversized_metadata_without_charging_content() {
         let directory = TempDirectory::new();
         let path = directory.0.join("large.json");
-        File::create(&path).unwrap().set_len(MAX_JSON_FILE_BYTES as u64 + 1).unwrap();
+        File::create(&path)
+            .unwrap()
+            .set_len(MAX_JSON_FILE_BYTES as u64 + 1)
+            .unwrap();
         let mut budget = TextReadBudget::default();
         let error = budget.read_text(&path).unwrap_err();
         assert_eq!(error.kind(), ErrorKind::InvalidData);
@@ -232,7 +258,9 @@ mod tests {
     #[test]
     fn never_accepts_a_valid_json_prefix_with_oversized_tail() {
         let mut budget = TextReadBudget::new(2, 20).unwrap();
-        let error = budget.read_stream(Cursor::new(b"{}malicious-tail")).unwrap_err();
+        let error = budget
+            .read_stream(Cursor::new(b"{}malicious-tail"))
+            .unwrap_err();
         assert!(error.to_string().contains("limit exceeded"));
     }
 
@@ -263,24 +291,42 @@ mod tests {
         let path = directory.0.join("bad.json");
         fs::write(&path, [0xff]).unwrap();
         let mut budget = TextReadBudget::new(8, 16).unwrap();
-        assert_eq!(budget.read_text(&path).unwrap_err().kind(), ErrorKind::InvalidData);
+        assert_eq!(
+            budget.read_text(&path).unwrap_err().kind(),
+            ErrorKind::InvalidData
+        );
         fs::write(&path, "{}").unwrap();
-        assert!(budget.read_text(&path).unwrap_err().to_string().contains("closed"));
+        assert!(
+            budget
+                .read_text(&path)
+                .unwrap_err()
+                .to_string()
+                .contains("closed")
+        );
     }
 
     #[test]
     fn missing_file_and_directory_are_rejected() {
         let directory = TempDirectory::new();
         assert!(read_text(directory.0.join("missing.json")).is_err());
-        assert_eq!(read_text(&directory.0).unwrap_err().kind(), ErrorKind::InvalidInput);
+        assert_eq!(
+            read_text(&directory.0).unwrap_err().kind(),
+            ErrorKind::InvalidInput
+        );
     }
 
     #[test]
     fn rejects_invalid_policy_and_keeps_default_limits_explicit() {
         for (file, total) in [(0, 1), (1, 0), (usize::MAX, 1)] {
-            assert_eq!(TextReadBudget::new(file, total).unwrap_err().kind(), ErrorKind::InvalidInput);
+            assert_eq!(
+                TextReadBudget::new(file, total).unwrap_err().kind(),
+                ErrorKind::InvalidInput
+            );
         }
-        assert_eq!(TextReadBudget::default().remaining_bytes(), 128 * 1024 * 1024);
+        assert_eq!(
+            TextReadBudget::default().remaining_bytes(),
+            128 * 1024 * 1024
+        );
     }
 
     #[test]
@@ -288,7 +334,12 @@ mod tests {
         struct FailingReader(bool);
         impl Read for FailingReader {
             fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
-                if self.0 { return Err(io::Error::other("injected read failure")); }
+                if buffer.is_empty() {
+                    return Ok(0);
+                }
+                if self.0 {
+                    return Err(io::Error::other("injected read failure"));
+                }
                 self.0 = true;
                 buffer[0] = b'x';
                 Ok(1)
@@ -309,8 +360,14 @@ mod tests {
         let link = directory.0.join("link.json");
         fs::write(&target, "{}").unwrap();
         symlink(&target, &link).unwrap();
-        assert_eq!(read_text(&link).unwrap_err().kind(), ErrorKind::InvalidInput);
+        assert_eq!(
+            read_text(&link).unwrap_err().kind(),
+            ErrorKind::InvalidInput
+        );
         fs::remove_file(&target).unwrap();
-        assert_eq!(read_text(&link).unwrap_err().kind(), ErrorKind::InvalidInput);
+        assert_eq!(
+            read_text(&link).unwrap_err().kind(),
+            ErrorKind::InvalidInput
+        );
     }
 }

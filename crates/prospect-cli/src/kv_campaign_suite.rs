@@ -4,7 +4,10 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use prospect_cli::{CampaignVerificationSummary, verify_kv_campaign_directory};
+use prospect_cli::input::TextReadBudget;
+#[cfg(test)]
+use prospect_cli::verify_kv_campaign_directory;
+use prospect_cli::{CampaignVerificationSummary, verify_kv_campaign_directory_with_budget};
 use prospect_kv_position_observed::{
     KvlabKvRealModelPositionEvidenceV2, ObservedKvPositionComparison,
 };
@@ -217,8 +220,16 @@ fn verify_suite_with_contract(
     directory: &Path,
     contract: &SuiteContract,
 ) -> Result<KvCampaignSuiteSummary, KvCampaignSuiteError> {
+    verify_suite_with_budget(directory, contract, &mut TextReadBudget::default())
+}
+
+fn verify_suite_with_budget(
+    directory: &Path,
+    contract: &SuiteContract,
+    budget: &mut TextReadBudget,
+) -> Result<KvCampaignSuiteSummary, KvCampaignSuiteError> {
     let manifest_path = directory.join("suite-manifest.json");
-    let manifest_json = read_text(&manifest_path)?;
+    let manifest_json = read_text(&manifest_path, budget)?;
     let manifest_value: Value =
         serde_json::from_str(&manifest_json).map_err(KvCampaignSuiteError::Json)?;
     if canonical_json(&manifest_value).map_err(KvCampaignSuiteError::Json)? != manifest_json {
@@ -237,17 +248,17 @@ fn verify_suite_with_contract(
     for entry in &manifest.campaigns {
         let campaign_directory = directory.join(&entry.output_directory);
         validate_campaign_entry_types(&campaign_directory)?;
-        let summary = verify_kv_campaign_directory(&campaign_directory).map_err(|error| {
-            KvCampaignSuiteError::CampaignVerification {
+        let summary = verify_kv_campaign_directory_with_budget(&campaign_directory, budget)
+            .map_err(|error| KvCampaignSuiteError::CampaignVerification {
                 retained_count: entry.retained_count,
                 message: error.to_string(),
-            }
-        })?;
+            })?;
         verify_manifest_campaign_summary(entry, &summary)?;
-        verify_published_summary(directory, entry, &summary)?;
-        verify_campaign_context(&campaign_directory, &manifest, entry, contract)?;
+        verify_published_summary(directory, entry, &summary, budget)?;
+        verify_campaign_context(&campaign_directory, &manifest, entry, contract, budget)?;
 
-        let comparison = load_observed_comparison(&campaign_directory, entry.retained_count)?;
+        let comparison =
+            load_observed_comparison(&campaign_directory, entry.retained_count, budget)?;
         let expected_budget = checked_bytes(entry.retained_count)?;
         if comparison.logical_budget_bytes() != expected_budget {
             return Err(KvCampaignSuiteError::BudgetMismatch(entry.retained_count));
@@ -486,9 +497,10 @@ fn verify_published_summary(
     directory: &Path,
     entry: &SuiteCampaignWire,
     summary: &CampaignVerificationSummary,
+    budget: &mut TextReadBudget,
 ) -> Result<(), KvCampaignSuiteError> {
     let path = directory.join(&entry.verification_file);
-    let payload = read_text(&path)?;
+    let payload = read_text(&path, budget)?;
     let value: Value = serde_json::from_str(&payload).map_err(KvCampaignSuiteError::Json)?;
     if canonical_json(&value).map_err(KvCampaignSuiteError::Json)? != payload {
         return Err(KvCampaignSuiteError::PublishedVerificationMismatch(
@@ -509,8 +521,9 @@ fn verify_campaign_context(
     manifest: &SuiteManifestWire,
     entry: &SuiteCampaignWire,
     contract: &SuiteContract,
+    budget: &mut TextReadBudget,
 ) -> Result<(), KvCampaignSuiteError> {
-    let payload = read_text(&campaign_directory.join("campaign.json"))?;
+    let payload = read_text(&campaign_directory.join("campaign.json"), budget)?;
     let campaign: CampaignWire =
         serde_json::from_str(&payload).map_err(KvCampaignSuiteError::Json)?;
     if campaign.schema != "kvlab.prospect-kv-real-model-position-campaign/v1"
@@ -554,11 +567,12 @@ fn verify_campaign_context(
 fn load_observed_comparison(
     campaign_directory: &Path,
     retained_count: usize,
+    budget: &mut TextReadBudget,
 ) -> Result<ObservedKvPositionComparison, KvCampaignSuiteError> {
     let mut records = Vec::with_capacity(POLICIES.len());
     for index in 0..POLICIES.len() {
         let path = campaign_directory.join(format!("selection-{index:03}.json"));
-        let payload = read_text(&path)?;
+        let payload = read_text(&path, budget)?;
         let record =
             KvlabKvRealModelPositionEvidenceV2::from_canonical_json(&payload).map_err(|error| {
                 KvCampaignSuiteError::ComparisonInvalid {
@@ -656,7 +670,12 @@ fn validate_campaign_entry_types(directory: &Path) -> Result<(), KvCampaignSuite
         path: directory.to_path_buf(),
         source,
     })?;
-    for entry in entries {
+    for (index, entry) in entries.enumerate() {
+        if index >= POLICIES.len() + 2 {
+            return Err(KvCampaignSuiteError::InvalidManifest(
+                "too many campaign entries",
+            ));
+        }
         let entry = entry.map_err(|source| KvCampaignSuiteError::Io {
             path: directory.to_path_buf(),
             source,
@@ -666,12 +685,14 @@ fn validate_campaign_entry_types(directory: &Path) -> Result<(), KvCampaignSuite
     Ok(())
 }
 
-fn read_text(path: &Path) -> Result<String, KvCampaignSuiteError> {
+fn read_text(path: &Path, budget: &mut TextReadBudget) -> Result<String, KvCampaignSuiteError> {
     require_regular_file(path)?;
-    fs::read_to_string(path).map_err(|source| KvCampaignSuiteError::Io {
-        path: path.to_path_buf(),
-        source,
-    })
+    budget
+        .read_text(path)
+        .map_err(|source| KvCampaignSuiteError::Io {
+            path: path.to_path_buf(),
+            source,
+        })
 }
 
 fn is_lower_hex(value: &str, length: usize) -> bool {
@@ -1178,6 +1199,35 @@ mod tests {
             summary.prospect_launch_verifier_revision,
             PROSPECT_LAUNCH_VERIFIER_REVISION
         );
+    }
+
+    #[test]
+    fn input_limits_suite_shares_one_budget_across_all_reads() {
+        for contract in [&R1_CONTRACT, &R2_CONTRACT] {
+            let directory = TempDirectory::new("suite-read-budget");
+            write_suite_for_contract(directory.path(), false, None, contract);
+            let size = |path: PathBuf| fs::read(path).unwrap().len();
+            let mut total = size(directory.path().join("suite-manifest.json"));
+            for count in RETAIN_COUNTS {
+                let campaign = directory.path().join(format!("retain-{count:02}-of-27"));
+                total += size(campaign.join("manifest.json"));
+                // Context and baseline comparison reread these exact inputs.
+                total += 2 * size(campaign.join("campaign.json"));
+                for index in 0..POLICIES.len() {
+                    total += 2 * size(campaign.join(format!("selection-{index:03}.json")));
+                }
+                total += size(
+                    directory
+                        .path()
+                        .join(format!("verification-retain-{count:02}-of-27.json")),
+                );
+            }
+            let mut exact = TextReadBudget::new(total, total).unwrap();
+            assert!(verify_suite_with_budget(directory.path(), contract, &mut exact).is_ok());
+            assert_eq!(exact.remaining_bytes(), 0);
+            let mut short = TextReadBudget::new(total, total - 1).unwrap();
+            assert!(verify_suite_with_budget(directory.path(), contract, &mut short).is_err());
+        }
     }
 
     fn write_suite(directory: &Path, baseline_drift: bool) {
