@@ -52,6 +52,11 @@ jobs:
       - name: Reproducible CLI build
         run: cargo build --locked --release -p prospect-cli --bin prospect
 
+      - name: Verify actual input-bound execution record example (synthetic only)
+        run: |
+          cargo run --locked -p prospect-dispatch --example bound_execution_record > "$RUNNER_TEMP/bound-record-example.jsonl"
+          python3 scripts/check_execution_record_example.py "$RUNNER_TEMP/bound-record-example.jsonl" target/release/prospect
+
       - name: Preflight immutable KVLab R2 inputs without model execution
         run: |
           python3 - <<'PY'
