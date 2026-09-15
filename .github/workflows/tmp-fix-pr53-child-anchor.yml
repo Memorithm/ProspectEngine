@@ -1,0 +1,31 @@
+name: Harden verified continuation child anchoring
+on:
+  push:
+    branches:
+      - feat/verified-continuation-assembly-v2
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+      - name: Install Rust 1.89
+        run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt --component clippy
+      - name: Apply trusted child anchor contract
+        run: python3 .github/scripts/fix_pr53_child_anchor.py
+      - name: Validate child anchoring and workspace
+        run: |
+          cargo +1.89.0 fmt --all
+          cargo +1.89.0 clippy --locked --workspace --all-targets -- -D warnings
+          cargo +1.89.0 test --locked --workspace
+      - name: Commit source-only hardening
+        run: |
+          git rm -f .github/workflows/tmp-fix-pr53-child-anchor.yml .github/scripts/fix_pr53_child_anchor.py
+          git add crates/prospect-dispatch/src/execution/record/journal/recovery/continuation/assembly.rs
+          git add crates/prospect-dispatch/src/execution/record/journal/recovery/continuation/assembly/tests.rs
+          git -c user.name='MEMOPERF' -c user.email='contact@checkupauto.fr' commit -m 'fix(recovery): externally anchor continuation child journal'
+          git push origin HEAD:refs/heads/feat/verified-continuation-assembly-v2
