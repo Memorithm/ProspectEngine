@@ -2,6 +2,7 @@
 
 pub mod controlled;
 pub mod decision;
+pub mod multi_trace;
 
 use prospect_core::{DecisionPolicy, ProspectiveEngine, Scenario, ScenarioId, SignatureMetric};
 
