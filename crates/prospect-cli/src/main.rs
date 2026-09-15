@@ -18,7 +18,7 @@ use prospect_adapter::built_in_adapter_catalog;
 use prospect_cli::verify_kv_campaign_directory;
 use scenario_bundle::verify_scenario_bundle_file;
 
-const USAGE: &str = "Usage:\n  prospect list-adapters\n  prospect preflight-scenario-bundle <bundle.json> <catalog.json>\n  prospect verify-kv-campaign-spec <campaign.json>\n  prospect verify-kv-campaign <campaign-directory>\n  prospect verify-kv-campaign-suite <suite-directory>\n  prospect verify-kv-campaign-suite-r2 <suite-directory>\n  prospect verify-scenario-bundle <bundle.json>";
+const USAGE: &str = "Usage:\n  prospect verify-execution-record <record.json> <bundle.json>\n  prospect list-adapters\n  prospect preflight-scenario-bundle <bundle.json> <catalog.json>\n  prospect verify-kv-campaign-spec <campaign.json>\n  prospect verify-kv-campaign <campaign-directory>\n  prospect verify-kv-campaign-suite <suite-directory>\n  prospect verify-kv-campaign-suite-r2 <suite-directory>\n  prospect verify-scenario-bundle <bundle.json>";
 
 fn main() -> ExitCode {
     match run(env::args_os()) {
@@ -48,6 +48,19 @@ where
     };
 
     match command.to_str() {
+        Some("verify-execution-record") => {
+            let (record, bundle) = exactly_two_arguments(
+                &mut arguments,
+                "verify-execution-record",
+                "record file",
+                "canonical input bundle",
+            )?;
+            let summary =
+                prospect_cli::execution_record::verify_execution_record_files(record, bundle)
+                    .map_err(|error| CliError::Verification(error.to_string()))?;
+            serde_json::to_string(&summary)
+                .map_err(|error| CliError::Verification(error.to_string()))
+        }
         Some("list-adapters") => {
             require_no_arguments(&mut arguments, "list-adapters")?;
             let catalog = built_in_adapter_catalog()

@@ -85,6 +85,17 @@ See [controlled evaluation](docs/CONTROLLED-EVALUATION.md) for runnable
 examples, terminal states and cooperative-control limitations. Persistent
 checkpoints, automatic retry and GPU/domain validation are separate work.
 
+## Persistent input-bound execution records
+
+Controlled runs can now bind their canonical input before engine calls and
+capture terminal reports with explicit signature/error codecs. The record
+retains completed work, failed calls and never-started inputs separately.
+A no-clobber writer and `prospect verify-execution-record <record.json> <bundle.json>`
+preserve and independently check the file/input contract. This does not
+authorize automatic resume, decode arbitrary codecs, authenticate GPU
+execution or convert partial work into a completed batch.
+See [execution records](docs/EXECUTION-RECORDS.md) for API and CLI usage.
+
 ## Validate and build
 
 ```bash

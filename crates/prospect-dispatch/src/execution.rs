@@ -1,4 +1,5 @@
 pub mod controlled;
+pub mod record;
 pub use controlled::{RegisteredBatchExecution, evaluate_registered_bundle_controlled};
 
 use core::fmt;
