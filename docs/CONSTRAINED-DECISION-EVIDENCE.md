@@ -39,11 +39,18 @@ invalid Pareto references fail closed.
 
 ## Canonical JSON and independent parsing
 
-`canonical_json` emits the versioned wire representation with deterministic field
-order. `from_canonical_json` parses under `deny_unknown_fields`, validates the full
-record, recomputes the derived lexicographic/Pareto results from the recorded
-objective values, reserializes canonically and requires byte equality with the
-supplied input.
+`canonical_json` first serializes the complete typed wire record into a JSON value,
+then emits that value recursively with every object key sorted lexicographically.
+Array order remains semantic and is preserved exactly. This rule applies not only to
+ProspectEngine's own fields but also to nested application payloads such as rejection
+reasons. A `HashMap<String, _>` therefore cannot make the canonical bytes depend on
+its randomized iteration order. Application values that cannot be represented by
+`serde_json` remain serialization errors rather than being normalized implicitly.
+
+`from_canonical_json` parses under `deny_unknown_fields`, validates the full record,
+recomputes the derived lexicographic/Pareto results from the recorded objective
+values, reserializes with the same recursive canonicalizer and requires byte equality
+with the supplied input.
 
 Consequently a record cannot change a derived selection while leaving the objective
 values unchanged and still pass validation. Likewise a stale or incomplete Pareto
@@ -82,10 +89,10 @@ completion/assembly contracts before entering decision evaluation.
 
 ## Validation
 
-The implementation includes regression coverage for canonical round-trip, unknown
-or noncanonical fields, unsupported schemas, stale lexicographic selections, stale
-Pareto fronts, duplicate provenance sources, replay-mismatch classification and
-baseline exact-tie behavior.
+The implementation includes regression coverage for canonical round-trip, recursively
+canonicalized nested `HashMap` rejection reasons, unknown or noncanonical fields,
+unsupported schemas, stale lexicographic selections, stale Pareto fronts, duplicate
+provenance sources, replay-mismatch classification and baseline exact-tie behavior.
 
 All current tests use software fixtures. They do not constitute CUDA, model-quality,
 physical-memory, latency, throughput or safety evidence.
