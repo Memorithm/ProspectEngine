@@ -29,27 +29,32 @@ Whole-suite rereads share the same budget. See
 process-RSS, child-output or hard I/O-deadline limits. Historical pinned
 verifiers still execute their historical code.
 
-## Current engineering slice: controlled scenario evaluation
+## Completed cooperative evaluation foundation
 
-Add cooperative control to the existing generic and registered typed engine
-boundaries. Preserve successful baseline/candidate work on interruption or
-failure; identify the failed candidate separately from never-started input.
-Resolve all typed bundle requirements before any engine call. Reject
-duplicate direct-batch IDs and prevent incomplete reports from entering the
-existing rankable BatchResult path. The new registered API evaluates only;
-it does not automatically score or select a policy winner.
+ProspectEngine #45 is merged at `5098bcbb7a45de323c4594d63dd360fd017a78be`.
+Generic/registered evaluation now has explicit quotas, cancellation,
+deadline checkpoints, terminal states and retained partial work. Existing
+batch and full execution APIs are unchanged. See
+[controlled evaluation](CONTROLLED-EVALUATION.md).
 
-Acceptance requires Rust 1.89 formatting, locked workspace Clippy/tests,
-executable examples and the existing R2 producer/consumer/publication
-integration. Regression coverage must include a control request after the
-last successful call, not just before the next candidate. Deadlines and
-cancellation are checkpoints, not preemption or physical rollback.
-See [controlled evaluation](CONTROLLED-EVALUATION.md).
+## Current engineering slice: persistent input-bound terminal records
 
-Persistent evidence/checkpoints, run-bound input identities, safe restart
-and explicit retry/idempotency rules are the next distinct functional
-slice. An in-memory partial report is not a durable resumable experiment.
-Existing evaluate_batch and execute_registered_bundle are not rewritten.
+Bind the exact canonical bundle before engine calls, preserve terminal
+execution with explicitly named payload codecs and independently validate
+record/input identity and the ordered lifecycle partition. Capture and
+persistence errors must not destroy the in-memory report or retry engines.
+Publish to a new path without overwriting existing records. File verification
+reuses bounded input loading. See [execution records](EXECUTION-RECORDS.md).
+
+Acceptance requires final-head Rust 1.89 format, locked Clippy/workspace
+tests, real producer-example to release-CLI verification, filesystem
+no-clobber/negative tests and unchanged R2 interoperability. Software
+fixtures and checksums do not authenticate scientific or GPU observations.
+
+Safe resume remains a separate functional slice: live checkpoint/event
+capture, exact implementation/input binding across restart, explicit
+idempotency and unknown-side-effect handling. Terminal records are not
+resumable engine state; loading one never authorizes re-execution.
 
 ## Next empirical slice: exact R2 CUDA qualification
 

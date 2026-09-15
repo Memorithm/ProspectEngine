@@ -271,10 +271,12 @@ dependencies = [
  "prospect-adapter",
  "prospect-bundle",
  "prospect-core",
+ "prospect-evidence",
  "prospect-registry",
  "prospect-scenario",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]

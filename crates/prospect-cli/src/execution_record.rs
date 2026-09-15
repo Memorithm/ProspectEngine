@@ -6,8 +6,10 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use prospect_dispatch::execution::record::{ExecutionRecord, ExecutionRecordError, ExecutionRecordSummary};
 use crate::input::TextReadBudget;
+use prospect_dispatch::execution::record::{
+    ExecutionRecord, ExecutionRecordError, ExecutionRecordSummary,
+};
 
 #[derive(Debug)]
 pub enum ExecutionRecordFileError {
@@ -17,14 +19,19 @@ pub enum ExecutionRecordFileError {
 impl fmt::Display for ExecutionRecordFileError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Io { path, source } => write!(f, "execution record input {}: {source}", path.display()),
+            Self::Io { path, source } => {
+                write!(f, "execution record input {}: {source}", path.display())
+            }
             Self::Record(error) => error.fmt(f),
         }
     }
 }
 impl std::error::Error for ExecutionRecordFileError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self { Self::Io { source, .. } => Some(source), Self::Record(e) => Some(e) }
+        match self {
+            Self::Io { source, .. } => Some(source),
+            Self::Record(e) => Some(e),
+        }
     }
 }
 
@@ -45,19 +52,27 @@ pub fn verify_execution_record_files(
     bundle_path: impl AsRef<Path>,
 ) -> Result<ExecutionRecordSummary, ExecutionRecordFileError> {
     let mut budget = TextReadBudget::default();
-    let mut read = |path: &Path| budget.read_text(path).map_err(|source| ExecutionRecordFileError::Io {
-        path: path.to_path_buf(), source,
-    });
+    let mut read = |path: &Path| {
+        budget
+            .read_text(path)
+            .map_err(|source| ExecutionRecordFileError::Io {
+                path: path.to_path_buf(),
+                source,
+            })
+    };
     let record = read(record_path.as_ref())?;
     let bundle = read(bundle_path.as_ref())?;
     Ok(ExecutionRecord::verify_against_bundle(&record, &bundle)
-        .map_err(ExecutionRecordFileError::Record)?.summary())
+        .map_err(ExecutionRecordFileError::Record)?
+        .summary())
 }
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 struct Temporary(PathBuf);
 impl Drop for Temporary {
-    fn drop(&mut self) { let _ = fs::remove_file(&self.0); }
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
 }
 
 /// Publish a verified terminal record to a NEW path, without replacing anything.
@@ -82,11 +97,20 @@ impl Drop for Temporary {
 ///     publish_execution_record(record, "new-run.record.json")
 /// }
 /// ```
-pub fn publish_execution_record(record: &ExecutionRecord, destination: impl AsRef<Path>) -> io::Result<()> {
+pub fn publish_execution_record(
+    record: &ExecutionRecord,
+    destination: impl AsRef<Path>,
+) -> io::Result<()> {
     let destination = destination.as_ref();
-    let parent = destination.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    let parent = destination
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
     if destination.file_name().is_none() {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "record destination must name a file"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "record destination must name a file",
+        ));
     }
     for _ in 0..32 {
         let id = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
@@ -104,11 +128,17 @@ pub fn publish_execution_record(record: &ExecutionRecord, destination: impl AsRe
             Err(error) => return Err(error),
         };
         let temporary = Temporary(path);
-        file.write_all(record.canonical_json().as_bytes())?;
-        file.sync_all()?;
+        let written = (|| {
+            file.write_all(record.canonical_json().as_bytes())?;
+            file.sync_all()
+        })();
         drop(file);
+        written?;
         fs::hard_link(&temporary.0, destination)?;
         return Ok(());
     }
-    Err(io::Error::new(io::ErrorKind::AlreadyExists, "temporary record name collisions"))
+    Err(io::Error::new(
+        io::ErrorKind::AlreadyExists,
+        "temporary record name collisions",
+    ))
 }
