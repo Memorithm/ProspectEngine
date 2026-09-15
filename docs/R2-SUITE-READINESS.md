@@ -1,80 +1,91 @@
-# R2 suite readiness qualification
+# R2 suite readiness and publication qualification
 
-This check exercises the actual no-CUDA path of the R2 launcher introduced by
-KVLab PR #95. It is separate from unit tests that replace compilation or model
-execution with test doubles. An input parser passing does not establish that a
-pinned end-to-end launch command can build.
+The CPU readiness workflow exercises the actual no-CUDA path of the globally
+gated launcher introduced by KVLab #100. It is distinct from tests replacing
+model execution or compilation with fixtures. Merely parsing a campaign does
+not establish that its pinned tools can build.
 
 ## Exact components
 
-- KVLab launcher source: `e21289bcdcf8bc01dafc6873015b15552cf1091c` (PR #95 head).
-- Frozen R2 campaign inputs: KVLab `216b49ae4d62ed4c4c2edfd1e88f929d0a0fd9e5`.
+- KVLab launcher source: `0318e4fc09b17eea3705534927917c4d34818258` (reviewed #100 head).
+- Frozen R2 inputs: KVLab `216b49ae4d62ed4c4c2edfd1e88f929d0a0fd9e5`.
 - Actual campaign executor: KVLab `404577ce939093767dc75d2d67de2fe3c16fa4dc`.
 - Repaired NNIS F32 backend: `091aabbb3e132627cf64716720aae530442d2a32`.
-- Launch-time ProspectEngine verifier with Cargo.lock:
+- Historical per-campaign verifier: ProspectEngine
   `298acdc91682ef1d09914b6f964e8934828825c0`.
-- Rust build toolchain: `1.89.0`; both binaries use `--locked --release`.
+- Additional whole-suite publication verifier: ProspectEngine
+  `ca9685cd98f3a0a23e8c4f7e368736bb3aa28d0c`.
+- Rust: `1.89.0`; all three binaries use `--locked --release`.
 
-The workflow checks out only explicit repository revisions, installs the explicit
-Rust toolchain, and downloads the frozen SmolLM2 weights with a 512 MiB upper
-bound and the exact source SHA-256. It then calls the real launcher with
-`--preflight-only`, rather than approximating its steps with mock commands.
-The launcher builds NNIS and the frozen ProspectEngine verifier in detached
-worktrees and runs all three input specifications through the pinned KVLab and
-ProspectEngine preflights. No model backend is invoked.
+The additional verifier is a separate checkout, not a replacement for the
+historical verifier named in each v1 suite manifest. Frozen R1/R2 campaign bytes,
+model/runtime pins and output schemas remain unchanged. Old launcher revisions
+are not retrospectively repaired.
 
-The workflow uses read-only repository permissions and does not commit generated
-patches. It runs for changes to the readiness workflow, checker, tests or this
-document, and supports manual dispatch. It does not run on an hourly schedule or
-silently create another research automation.
+## Real build/readiness check
 
-## Receipt verification
+The read-only workflow `.github/workflows/r2-suite-readiness.yml` downloads the
+frozen SmolLM2 weight artifact within a 512 MiB bound and verifies its SHA-256.
+It calls the actual launcher with `--preflight-only`: the launcher builds NNIS,
+the historical per-campaign verifier and the additional publication verifier in
+separate detached worktrees, then preflights all three frozen inputs. The model
+backend and observed-suite publication gate are not invoked in preflight mode.
+The requested output directory must remain absent.
 
-The new `scripts/verify_r2_preflight_receipt.py` accepts only the canonical
-`kvlab.smollm2-r2-position-suite-preflight/v1` receipt, optionally followed by one
-CLI newline. It checks all declared repository/model identities, the three exact
-input digests, their common trace and policy ordering. Unknown fields, duplicate
-JSON keys, drifted values, oversized input, non-finite numbers, invalid device
-ordinals, and float-valued retained counts fail closed.
-
-Run its contract tests from the ProspectEngine repository root:
+The original v1 preflight receipt stays compatible with
+`scripts/verify_r2_preflight_receipt.py`. That checker rejects noncanonical JSON,
+duplicate/unknown fields, changed identities, numeric type drift and oversized
+input. The workflow also records the launcher source revision and additional
+publication-verifier revision in `r2-publication-tools.json`, outside the receipt.
+Successful runs retain these two identity records, the checker summary and
+`rustc -Vv` as seven-day CI artifacts. No weights or credentials are uploaded.
 
 ```bash
 python3 -m unittest discover -s scripts/tests -v
-```
-
-Verify a receipt using:
-
-```bash
 python3 scripts/verify_r2_preflight_receipt.py /path/to/r2-preflight.json
 ```
 
-The check hashes the exact supplied receipt bytes, including its final newline
-when present. A successful workflow preserves the launcher receipt, the checker's
-summary and `rustc -Vv` output as a seven-day CI artifact. It never uploads model
-weights, credentials or an invented observed campaign directory.
+A green readiness run establishes actual pinned builds and input preflight on
+that CI host, not decoder startup, complete model-directory admission or CUDA
+execution. The stored receipt is a declaration tied to the executed workflow
+steps, not independent hardware or executable authentication.
 
-## What a green run establishes
+## Real global verifier at the publication boundary
 
-A green run establishes that this exact launcher can verify its source weight
-file, build the two pinned binaries and validate the frozen input specifications
-on that CPU CI environment, while leaving the requested result directory absent.
-The stored receipt alone is an internally checked declaration, not independent
-execution authentication; the workflow logs provide the corresponding executed
-steps. CI green is not inferred merely because the workflow exists.
+The separate `.github/workflows/r2-suite-interop.yml` retains the original
+Python-producer/current-Rust-consumer test. It additionally builds the exact
+publication verifier at `ca9685cd98f3a0a23e8c4f7e368736bb3aa28d0c` and runs
+`scripts/check_r2_publication_gate.py` through the existing producer-fixture harness.
 
-This does not validate decoder startup or CUDA execution, local model-directory
-completeness beyond the checked weights, numerical parity, representative model
-quality, policy superiority, latency, throughput, HBM release or physical traffic.
-The seven scored targets in each short R2 campaign cannot establish general
-quality. Real GPU observations and representative evaluation remain separate
-uncompleted gates until their actual evidence is available.
+The fixture producer is the real frozen KVLab executor, supplied with explicitly
+synthetic backend outcomes. The publication test replaces Git/model probes,
+compilation and numerical backend execution with test doubles. It does **not**
+replace the global Rust subprocess, staging, manifest writing, final rename,
+publication-lock cleanup or failure handling.
 
-The historical R1 inputs and tools are unchanged. The fixed
-`prospect verify-kv-campaign-suite` is still an R1 consumer. R2 execution uses the
-generic per-campaign verifier at its historical pinned revision. The separate
-`prospect verify-kv-campaign-suite-r2` command now provides independent R2 whole-suite
-consistency checks; see [R2-SUITE-VERIFICATION.md](R2-SUITE-VERIFICATION.md).
-That consumer does not change any launcher or experiment pin and is not invoked
-by this historical readiness workflow. Its synthetic producer/consumer tests are
-separate from readiness, and neither kind of test proves a CUDA model run.
+A valid synthetic suite must publish. In the negative case, both policy records
+of the 20/27 budget are changed to claim a different baseline output, and their
+checksums and published summary are recomputed. Every campaign must still pass
+individual Rust verification. The actual global gate must reject the cross-budget
+baseline mismatch, leave no result directory and remove its temporary stage and
+lock. No synthetic output suite is retained as scientific evidence.
+
+On success, the launcher emits a separate canonical stderr receipt with
+`phase=stage_verified`, the publication-verifier revision, binary SHA-256,
+manifest SHA-256 and exact verifier-stdout SHA-256. stdout and the strict v1 suite
+file set remain unchanged. Preserve the launch log outside the suite to retain
+that receipt; receipt emission alone does not prove final publication succeeded.
+
+## Boundaries and remaining gates
+
+A passing unit, interoperability or readiness check does not establish an actual
+model run. No new CUDA quality, HBM, traffic, latency or throughput result is
+created by these workflows. Each short R2 campaign has seven scored targets and
+cannot establish representative quality or general policy superiority.
+
+The binary and directories must be trusted and unmodified. Static file-type
+checks are not race-free filesystem isolation. The gate's stdout size check is
+after capture, not a hard subprocess-memory limit. Its receipt is not a GPU
+attestation or a crash-durability guarantee. See
+[R2-SUITE-VERIFICATION.md](R2-SUITE-VERIFICATION.md) and the current
+[next milestone](NEXT_MILESTONE.md).
