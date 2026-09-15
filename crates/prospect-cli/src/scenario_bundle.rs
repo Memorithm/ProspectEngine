@@ -1,5 +1,4 @@
 use std::fmt;
-use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -36,10 +35,11 @@ pub fn verify_scenario_bundle_file(
     path: impl AsRef<Path>,
 ) -> Result<ScenarioBundleVerificationSummary, ScenarioBundleFileError> {
     let path = path.as_ref();
-    let payload = fs::read_to_string(path).map_err(|source| ScenarioBundleFileError::Io {
-        path: path.to_path_buf(),
-        source,
-    })?;
+    let payload =
+        prospect_cli::input::read_text(path).map_err(|source| ScenarioBundleFileError::Io {
+            path: path.to_path_buf(),
+            source,
+        })?;
     let bundle = ScenarioBundle::<Value, Value>::from_canonical_json(&payload)
         .map_err(ScenarioBundleFileError::Bundle)?;
     let sha256 = bundle.sha256().map_err(ScenarioBundleFileError::Bundle)?;

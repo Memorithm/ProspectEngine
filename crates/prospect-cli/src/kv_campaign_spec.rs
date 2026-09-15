@@ -1,6 +1,5 @@
 use std::collections::BTreeSet;
 use std::fmt;
-use std::fs;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -83,7 +82,7 @@ struct SelectionWire {
 pub fn verify_kv_campaign_spec_file(
     path: impl AsRef<Path>,
 ) -> Result<CampaignSpecSummary, CampaignSpecError> {
-    let payload = fs::read_to_string(path).map_err(CampaignSpecError::Io)?;
+    let payload = prospect_cli::input::read_text(path).map_err(CampaignSpecError::Io)?;
     verify_kv_campaign_spec(&payload)
 }
 

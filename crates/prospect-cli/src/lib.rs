@@ -1,5 +1,9 @@
 #![forbid(unsafe_code)]
 
+pub mod input;
+
+use input::{MAX_CAMPAIGN_ENTRIES, TextReadBudget};
+
 use std::fmt;
 use std::fs;
 use std::io;
@@ -126,21 +130,57 @@ impl CampaignMetricObservationSummary {
         self.delta
     }
 }
+/// Verify a persisted campaign using the default bounded file-read policy.
+///
+/// Accepted inputs are not normalized. This reads evidence; it executes no model.
 pub fn verify_kv_campaign_directory(
     directory: impl AsRef<Path>,
+) -> Result<CampaignVerificationSummary, CampaignDirectoryError> {
+    verify_kv_campaign_directory_with_budget(directory, &mut TextReadBudget::default())
+}
+
+/// Verify one campaign while sharing an input-byte budget with other verifiers.
+///
+/// Manifests and evidence all consume the supplied budget, including repeated
+/// reads. A directory contains at most `input::MAX_CAMPAIGN_ENTRIES` entries.
+/// The caller must abort the composed operation on any error and keep inputs
+/// trusted and unmodified. This is not an overall process-memory limit.
+///
+/// # Examples
+///
+/// ```no_run
+/// use prospect_cli::{input::TextReadBudget, verify_kv_campaign_directory_with_budget};
+/// let mut budget = TextReadBudget::default();
+/// let first = verify_kv_campaign_directory_with_budget("campaign-a", &mut budget)?;
+/// let second = verify_kv_campaign_directory_with_budget("campaign-b", &mut budget)?;
+/// assert!(!first.policies().is_empty() && !second.policies().is_empty());
+/// # Ok::<(), prospect_cli::CampaignDirectoryError>(())
+/// ```
+pub fn verify_kv_campaign_directory_with_budget(
+    directory: impl AsRef<Path>,
+    budget: &mut TextReadBudget,
 ) -> Result<CampaignVerificationSummary, CampaignDirectoryError> {
     let directory = directory.as_ref();
     let manifest_path = directory.join("manifest.json");
     let campaign_path = directory.join("campaign.json");
-    let manifest_json = read_text(&manifest_path)?;
-    let campaign_json = read_text(&campaign_path)?;
+    let manifest_json = read_text(&manifest_path, budget)?;
+    let campaign_json = read_text(&campaign_path, budget)?;
 
     let mut owned_evidence = Vec::<(String, String)>::new();
     let entries = fs::read_dir(directory).map_err(|source| CampaignDirectoryError::Io {
         path: directory.to_path_buf(),
         source,
     })?;
-    for entry in entries {
+    for (entry_index, entry) in entries.enumerate() {
+        if entry_index >= MAX_CAMPAIGN_ENTRIES {
+            return Err(CampaignDirectoryError::Io {
+                path: directory.to_path_buf(),
+                source: io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("campaign entry limit exceeded ({MAX_CAMPAIGN_ENTRIES})"),
+                ),
+            });
+        }
         let entry = entry.map_err(|source| CampaignDirectoryError::Io {
             path: directory.to_path_buf(),
             source,
@@ -162,7 +202,7 @@ pub fn verify_kv_campaign_directory(
         if !file_type.is_file() {
             return Err(CampaignDirectoryError::NonFileEntry(path));
         }
-        owned_evidence.push((name, read_text(&path)?));
+        owned_evidence.push((name, read_text(&path, budget)?));
     }
     owned_evidence.sort_by(|left, right| left.0.cmp(&right.0));
 
@@ -210,11 +250,13 @@ pub fn verify_kv_campaign_directory(
     })
 }
 
-fn read_text(path: &Path) -> Result<String, CampaignDirectoryError> {
-    fs::read_to_string(path).map_err(|source| CampaignDirectoryError::Io {
-        path: path.to_path_buf(),
-        source,
-    })
+fn read_text(path: &Path, budget: &mut TextReadBudget) -> Result<String, CampaignDirectoryError> {
+    budget
+        .read_text(path)
+        .map_err(|source| CampaignDirectoryError::Io {
+            path: path.to_path_buf(),
+            source,
+        })
 }
 
 impl fmt::Display for CampaignDirectoryError {
@@ -342,6 +384,55 @@ mod tests {
             verify_kv_campaign_directory(directory.path()),
             Err(CampaignDirectoryError::NonFileEntry(path)) if path.ends_with("extra")
         ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn input_limits_rejects_symlinked_reserved_campaign_files() {
+        use std::os::unix::fs::symlink;
+        for name in ["campaign.json", "manifest.json"] {
+            let directory = TempDirectory::new("reserved-symlink");
+            let outside = TempDirectory::new("reserved-target");
+            write_fixture(directory.path());
+            let path = directory.path().join(name);
+            let target = outside.path().join(name);
+            fs::rename(&path, &target).unwrap();
+            symlink(&target, &path).unwrap();
+            assert!(
+                verify_kv_campaign_directory(directory.path()).is_err(),
+                "reserved symlink was accepted: {name}"
+            );
+        }
+    }
+
+    #[test]
+    fn input_limits_shared_budget_covers_manifests_and_evidence() {
+        let directory = TempDirectory::new("shared-budget");
+        write_fixture(directory.path());
+        let total = ["campaign.json", "manifest.json", "selection-000.json"]
+            .iter()
+            .map(|name| fs::read(directory.path().join(name)).unwrap().len())
+            .sum::<usize>();
+        let mut exact = super::TextReadBudget::new(total, total).unwrap();
+        let summary =
+            super::verify_kv_campaign_directory_with_budget(directory.path(), &mut exact).unwrap();
+        assert_eq!(summary.record_count(), 1);
+        assert_eq!(exact.remaining_bytes(), 0);
+        let mut short = super::TextReadBudget::new(total, total - 1).unwrap();
+        assert!(
+            super::verify_kv_campaign_directory_with_budget(directory.path(), &mut short).is_err()
+        );
+    }
+
+    #[test]
+    fn input_limits_rejects_too_many_directory_entries() {
+        let directory = TempDirectory::new("entry-budget");
+        write_fixture(directory.path());
+        for index in 0..super::MAX_CAMPAIGN_ENTRIES {
+            fs::write(directory.path().join(format!("extra-{index:04}.json")), "").unwrap();
+        }
+        let error = verify_kv_campaign_directory(directory.path()).unwrap_err();
+        assert!(error.to_string().contains("entry limit exceeded"));
     }
 
     fn write_fixture(directory: &Path) {

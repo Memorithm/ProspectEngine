@@ -2,6 +2,10 @@
 
 The CLI surface is intentionally verification-first. It exposes deterministic replay, provenance checks, adapter discovery, and non-executing dispatch preflight without introducing a new scientific model or policy layer.
 
+## File input limits
+
+File-based commands share bounded exact-byte reads: 16 MiB per file, 128 MiB cumulative text per operation (including rereads), and at most 1,024 entries per generic campaign directory. Static input symlinks and non-regular files are rejected. Inputs over the limits fail with status 1 and no success JSON; they are never truncated. See [the input policy and trust boundary](VERIFICATION-INPUT-LIMITS.md).
+
 ## List built-in adapters
 
 Run:
