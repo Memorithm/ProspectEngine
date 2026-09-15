@@ -9,6 +9,7 @@ use core::fmt;
 
 use prospect_bundle::ScenarioBundle;
 use prospect_core::Scenario;
+use prospect_evidence::RunId;
 use prospect_scenario::{BatchResult, ScenarioOutcome};
 use serde::Serialize;
 
@@ -18,6 +19,49 @@ use super::{
     prepare_typed_continuation,
 };
 use crate::execution::record::{ExecutionRecordError, digest};
+
+/// Separately retained identity of the exact child journal admitted for assembly.
+///
+/// This anchor must come from a trust boundary independent of the mutable child
+/// journal bytes being inspected. Constructing it from those same untrusted bytes
+/// immediately before assembly defeats its purpose.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ContinuationChildAnchor {
+    run_id: RunId,
+    journal_sha256: String,
+}
+
+impl ContinuationChildAnchor {
+    pub fn new(
+        run_id: RunId,
+        journal_sha256: impl Into<String>,
+    ) -> Result<Self, ExecutionRecordError> {
+        let journal_sha256 = journal_sha256.into();
+        if journal_sha256.len() != 64
+            || !journal_sha256
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err(ExecutionRecordError::Invalid(
+                "invalid continuation child SHA-256",
+            ));
+        }
+        Ok(Self {
+            run_id,
+            journal_sha256,
+        })
+    }
+
+    #[must_use]
+    pub const fn run_id(&self) -> &RunId {
+        &self.run_id
+    }
+
+    #[must_use]
+    pub fn journal_sha256(&self) -> &str {
+        &self.journal_sha256
+    }
+}
 
 /// Complete parent/child software reconstruction and its exact source identities.
 ///
@@ -84,6 +128,7 @@ impl<I, S> AssembledContinuation<I, S> {
 pub enum ContinuationAssemblyError {
     Contract(ExecutionRecordError),
     Parent(ContinuationError),
+    ChildAnchorMismatch,
     ChildNotCompleted(&'static str),
     Decode(String),
     ScenarioPartitionMismatch,
@@ -94,6 +139,8 @@ impl fmt::Display for ContinuationAssemblyError {
         match self {
             Self::Contract(error) => error.fmt(formatter),
             Self::Parent(error) => error.fmt(formatter),
+            Self::ChildAnchorMismatch => formatter
+                .write_str("continuation child does not match the separately retained anchor"),
             Self::ChildNotCompleted(state) => {
                 write!(formatter, "continuation child is not completed: {state}")
             }
@@ -112,7 +159,10 @@ impl std::error::Error for ContinuationAssemblyError {
         match self {
             Self::Contract(error) => Some(error),
             Self::Parent(error) => Some(error),
-            Self::ChildNotCompleted(_) | Self::Decode(_) | Self::ScenarioPartitionMismatch => None,
+            Self::ChildAnchorMismatch
+            | Self::ChildNotCompleted(_)
+            | Self::Decode(_)
+            | Self::ScenarioPartitionMismatch => None,
         }
     }
 }
@@ -128,8 +178,10 @@ impl From<ExecutionRecordError> for ContinuationAssemblyError {
 /// This function does **not** use an in-memory `ContinuationRun`: it re-verifies the
 /// persisted parent/child byte contracts. The parent is admitted again through the
 /// same external expectations + implementation-artifact digest used for restart.
-/// The child must pass `inspect_continuation_journal` with state `completed`, a
-/// recorded terminal, no failed/unknown/never-started suffix calls, and exactly the
+/// Before either journal is decoded, the exact child bytes must match the separately
+/// retained [`ContinuationChildAnchor`]. The child must then pass
+/// `inspect_continuation_journal` with the anchored child run ID, state `completed`,
+/// a recorded terminal, no failed/unknown/never-started suffix calls, and exactly the
 /// remaining candidate count from the reconstructed parent plan.
 ///
 /// The caller-supplied decoder owns the semantics of the trusted signature codec.
@@ -139,6 +191,7 @@ impl From<ExecutionRecordError> for ContinuationAssemblyError {
 pub fn assemble_completed_continuation<State, I, S, D>(
     parent_journal: &str,
     child_journal: &str,
+    child_anchor: &ContinuationChildAnchor,
     bundle: &ScenarioBundle<State, I>,
     expected: &RestartExpectations,
     actual_artifact_sha256: &str,
@@ -149,6 +202,10 @@ where
     I: Clone + Serialize,
     D: FnMut(&str) -> Result<S, String>,
 {
+    if digest(child_journal.as_bytes()) != child_anchor.journal_sha256() {
+        return Err(ContinuationAssemblyError::ChildAnchorMismatch);
+    }
+
     let bundle_json = bundle.canonical_json().map_err(|_| {
         ContinuationAssemblyError::Contract(ExecutionRecordError::Invalid(
             "continuation assembly bundle serialization failed",
@@ -166,6 +223,9 @@ where
 
     let summary =
         inspect_continuation_journal(child_journal, parent_journal, &bundle_json, expected)?;
+    if summary.child_run_id != child_anchor.run_id().as_str() {
+        return Err(ContinuationAssemblyError::ChildAnchorMismatch);
+    }
     if summary.state != "completed"
         || !summary.terminal_recorded
         || summary.failed_candidate.is_some()

@@ -115,6 +115,7 @@ fn registry(
 struct Chain {
     parent: String,
     child: String,
+    child_anchor: ContinuationChildAnchor,
     expected: RestartExpectations,
     baseline_calls: Arc<AtomicUsize>,
     candidate_calls: Arc<AtomicUsize>,
@@ -188,9 +189,17 @@ fn chain(child_quota: usize) -> Chain {
     .unwrap();
     assert!(child_run.journal_error().is_none());
 
+    let child = child_sink.text();
+    let child_anchor = ContinuationChildAnchor::new(
+        RunId::new("assembly-child").unwrap(),
+        digest(child.as_bytes()),
+    )
+    .unwrap();
+
     Chain {
         parent,
-        child: child_sink.text(),
+        child,
+        child_anchor,
         expected,
         baseline_calls,
         candidate_calls,
@@ -201,6 +210,7 @@ fn assemble(chain: &Chain) -> Result<AssembledContinuation<i32, i32>, Continuati
     assemble_completed_continuation(
         &chain.parent,
         &chain.child,
+        &chain.child_anchor,
         &bundle_with_state(10),
         &chain.expected,
         &"b".repeat(64),
@@ -258,6 +268,78 @@ fn interrupted_child_never_constructs_a_batch() {
     ));
 }
 
+fn coherently_rehash_child_with_payload(child: &str, from: &str, to: &str) -> String {
+    let mut previous = None;
+    let mut output = String::new();
+    for (index, raw) in child.split_terminator('\n').enumerate() {
+        let mut entry: ContinuationEntry = serde_json::from_str(raw).unwrap();
+        entry.sequence = index;
+        entry.previous_sha256 = previous.clone();
+        if let ContinuationEvent::CallSucceeded { payload, .. } = &mut entry.event
+            && payload == from
+        {
+            *payload = to.to_owned();
+        }
+        let line = canonical(&entry).unwrap();
+        previous = Some(digest(line.as_bytes()));
+        output.push_str(&line);
+        output.push('\n');
+    }
+    output
+}
+
+#[test]
+fn coherent_child_rehash_is_rejected_by_external_anchor_before_decode() {
+    let mut chain = chain(2);
+    chain.child = coherently_rehash_child_with_payload(&chain.child, "12", "99");
+    let mut decode_calls = 0usize;
+    let result = assemble_completed_continuation(
+        &chain.parent,
+        &chain.child,
+        &chain.child_anchor,
+        &bundle_with_state(10),
+        &chain.expected,
+        &"b".repeat(64),
+        |payload| {
+            decode_calls += 1;
+            payload.parse::<i32>().map_err(|error| error.to_string())
+        },
+    );
+    assert!(matches!(
+        result,
+        Err(ContinuationAssemblyError::ChildAnchorMismatch)
+    ));
+    assert_eq!(decode_calls, 0);
+}
+
+#[test]
+fn wrong_trusted_child_run_id_is_rejected() {
+    let chain = chain(2);
+    let wrong_anchor = ContinuationChildAnchor::new(
+        RunId::new("other-child").unwrap(),
+        digest(chain.child.as_bytes()),
+    )
+    .unwrap();
+    let result = assemble_completed_continuation(
+        &chain.parent,
+        &chain.child,
+        &wrong_anchor,
+        &bundle_with_state(10),
+        &chain.expected,
+        &"b".repeat(64),
+        |payload| payload.parse::<i32>().map_err(|error| error.to_string()),
+    );
+    assert!(matches!(
+        result,
+        Err(ContinuationAssemblyError::ChildAnchorMismatch)
+    ));
+}
+
+#[test]
+fn malformed_child_anchor_digest_is_rejected_at_construction() {
+    assert!(ContinuationChildAnchor::new(RunId::new("assembly-child").unwrap(), "ABC").is_err());
+}
+
 #[test]
 fn altered_child_bytes_fail_before_decoding_a_batch() {
     let mut chain = chain(2);
@@ -266,7 +348,7 @@ fn altered_child_bytes_fail_before_decoding_a_batch() {
         .replacen("\"payload\":\"12\"", "\"payload\":\"99\"", 1);
     assert!(matches!(
         assemble(&chain),
-        Err(ContinuationAssemblyError::Contract(_))
+        Err(ContinuationAssemblyError::ChildAnchorMismatch)
     ));
 }
 
@@ -276,6 +358,11 @@ fn missing_child_terminal_is_not_promoted_to_complete() {
     chain.child.pop();
     let last_line_start = chain.child.rfind('\n').unwrap() + 1;
     chain.child.truncate(last_line_start);
+    chain.child_anchor = ContinuationChildAnchor::new(
+        RunId::new("assembly-child").unwrap(),
+        digest(chain.child.as_bytes()),
+    )
+    .unwrap();
     assert!(matches!(
         assemble(&chain),
         Err(ContinuationAssemblyError::ChildNotCompleted(
@@ -290,6 +377,7 @@ fn changed_bundle_or_wrong_artifact_rejects_at_parent_admission() {
     let changed = assemble_completed_continuation(
         &chain.parent,
         &chain.child,
+        &chain.child_anchor,
         &bundle_with_state(11),
         &chain.expected,
         &"b".repeat(64),
@@ -300,6 +388,7 @@ fn changed_bundle_or_wrong_artifact_rejects_at_parent_admission() {
     let wrong_artifact = assemble_completed_continuation(
         &chain.parent,
         &chain.child,
+        &chain.child_anchor,
         &bundle_with_state(10),
         &chain.expected,
         &"c".repeat(64),
@@ -317,6 +406,7 @@ fn child_decode_failure_returns_no_structural_batch() {
     let result = assemble_completed_continuation(
         &chain.parent,
         &chain.child,
+        &chain.child_anchor,
         &bundle_with_state(10),
         &chain.expected,
         &"b".repeat(64),
