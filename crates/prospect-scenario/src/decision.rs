@@ -176,7 +176,10 @@ impl fmt::Display for DecisionSetError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::DuplicateAlternativeId { alternative } => {
-                write!(formatter, "decision set repeats alternative id {alternative}")
+                write!(
+                    formatter,
+                    "decision set repeats alternative id {alternative}"
+                )
             }
             Self::EmptyObjectiveVector { alternative } => {
                 write!(
