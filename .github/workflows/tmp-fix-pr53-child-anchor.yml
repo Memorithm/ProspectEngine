@@ -16,7 +16,9 @@ jobs:
       - name: Install Rust 1.89
         run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt --component clippy
       - name: Apply trusted child anchor contract
-        run: python3 .github/scripts/fix_pr53_child_anchor.py
+        run: |
+          python3 .github/scripts/fix_pr53_child_anchor.py
+          python3 .github/scripts/fix_pr53_child_anchor_followup.py
       - name: Validate child anchoring and workspace
         run: |
           cargo +1.89.0 fmt --all
@@ -24,7 +26,7 @@ jobs:
           cargo +1.89.0 test --locked --workspace
       - name: Commit source-only hardening
         run: |
-          git rm -f .github/workflows/tmp-fix-pr53-child-anchor.yml .github/scripts/fix_pr53_child_anchor.py
+          git rm -f .github/workflows/tmp-fix-pr53-child-anchor.yml .github/scripts/fix_pr53_child_anchor.py .github/scripts/fix_pr53_child_anchor_followup.py
           git add crates/prospect-dispatch/src/execution/record/journal/recovery/continuation/assembly.rs
           git add crates/prospect-dispatch/src/execution/record/journal/recovery/continuation/assembly/tests.rs
           git -c user.name='MEMOPERF' -c user.email='contact@checkupauto.fr' commit -m 'fix(recovery): externally anchor continuation child journal'
