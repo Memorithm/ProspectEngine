@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod controlled;
+pub mod decision;
 
 use prospect_core::{DecisionPolicy, ProspectiveEngine, Scenario, ScenarioId, SignatureMetric};
 
