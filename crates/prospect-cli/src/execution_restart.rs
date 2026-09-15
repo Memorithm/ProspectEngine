@@ -31,7 +31,10 @@ impl std::fmt::Display for RestartFileError {
 }
 impl std::error::Error for RestartFileError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self { Self::Io { source, .. } => Some(source), Self::Contract(e) => Some(e) }
+        match self {
+            Self::Io { source, .. } => Some(source),
+            Self::Contract(e) => Some(e),
+        }
     }
 }
 
@@ -61,19 +64,31 @@ pub fn preflight_execution_restart_files(
     expectations: impl AsRef<Path>,
     artifact: impl AsRef<Path>,
 ) -> Result<RestartPreflight, RestartFileError> {
-    let mut policy_budget = TextReadBudget::new(MAX_RESTART_EXPECTATION_BYTES, MAX_RESTART_EXPECTATION_BYTES)
-        .map_err(|source| RestartFileError::Io { path: expectations.as_ref().into(), source })?;
+    let mut policy_budget =
+        TextReadBudget::new(MAX_RESTART_EXPECTATION_BYTES, MAX_RESTART_EXPECTATION_BYTES).map_err(
+            |source| RestartFileError::Io {
+                path: expectations.as_ref().into(),
+                source,
+            },
+        )?;
     let policy = read(&mut policy_budget, expectations.as_ref())?;
-    let policy = RestartExpectations::from_canonical_json(&policy).map_err(RestartFileError::Contract)?;
+    let policy =
+        RestartExpectations::from_canonical_json(&policy).map_err(RestartFileError::Contract)?;
     let mut budget = TextReadBudget::default();
     let journal = read(&mut budget, journal.as_ref())?;
     let bundle = read(&mut budget, bundle.as_ref())?;
     let artifact_sha = hash_implementation_artifact(artifact)?;
-    preflight_journal_restart(&journal, &bundle, &policy, &artifact_sha).map_err(RestartFileError::Contract)
+    preflight_journal_restart(&journal, &bundle, &policy, &artifact_sha)
+        .map_err(RestartFileError::Contract)
 }
 
 fn read(budget: &mut TextReadBudget, path: &Path) -> Result<String, RestartFileError> {
-    budget.read_text(path).map_err(|source| RestartFileError::Io { path: path.into(), source })
+    budget
+        .read_text(path)
+        .map_err(|source| RestartFileError::Io {
+            path: path.into(),
+            source,
+        })
 }
 
 /// Stream-hash a nonempty regular implementation artifact without loading/running it.
@@ -83,25 +98,35 @@ fn read(budget: &mut TextReadBudget, path: &Path) -> Result<String, RestartFileE
 /// trusted-file contract. A blocked filesystem can still block a read.
 pub fn hash_implementation_artifact(path: impl AsRef<Path>) -> Result<String, RestartFileError> {
     let path = path.as_ref();
-    hash_file_with_limit(path, MAX_RESTART_ARTIFACT_BYTES)
-        .map_err(|source| RestartFileError::Io { path: path.into(), source })
+    hash_file_with_limit(path, MAX_RESTART_ARTIFACT_BYTES).map_err(|source| RestartFileError::Io {
+        path: path.into(),
+        source,
+    })
 }
 
 fn hash_file_with_limit(path: &Path, limit: u64) -> io::Result<String> {
     let link_metadata = fs::symlink_metadata(path)?;
     if !link_metadata.is_file() {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "implementation artifact must be a regular non-symlink file"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "implementation artifact must be a regular non-symlink file",
+        ));
     }
     let file = File::open(path)?;
     let metadata = file.metadata()?;
     if !metadata.is_file() || metadata.len() > limit {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "implementation artifact type or size rejected"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "implementation artifact type or size rejected",
+        ));
     }
     hash_stream(file, limit)
 }
 
 fn hash_stream(reader: impl Read, limit: u64) -> io::Result<String> {
-    let cap = limit.checked_add(1).ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "artifact limit overflow"))?;
+    let cap = limit
+        .checked_add(1)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "artifact limit overflow"))?;
     let mut reader = reader.take(cap);
     let mut hash = Sha256::new();
     let mut buffer = [0_u8; 64 * 1024];
@@ -111,14 +136,24 @@ fn hash_stream(reader: impl Read, limit: u64) -> io::Result<String> {
             Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
             other => other?,
         };
-        if n == 0 { break; }
+        if n == 0 {
+            break;
+        }
         total += n as u64;
         if total > limit {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "implementation artifact exceeds streaming byte limit"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "implementation artifact exceeds streaming byte limit",
+            ));
         }
         hash.update(&buffer[..n]);
     }
-    if total == 0 { return Err(io::Error::new(io::ErrorKind::InvalidData, "empty implementation artifact")); }
+    if total == 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "empty implementation artifact",
+        ));
+    }
     Ok(format!("{:x}", hash.finalize()))
 }
 
@@ -129,7 +164,10 @@ mod tests {
     #[test]
     fn artifact_stream_exact_boundary_and_binary_bytes() {
         let bytes = [0, 255, 1, 128];
-        assert_eq!(hash_stream(&bytes[..], 4).unwrap(), format!("{:x}", Sha256::digest(bytes)));
+        assert_eq!(
+            hash_stream(&bytes[..], 4).unwrap(),
+            format!("{:x}", Sha256::digest(bytes))
+        );
         assert!(hash_stream(&bytes[..], 3).is_err());
     }
 
@@ -138,7 +176,9 @@ mod tests {
         struct Endless(usize);
         impl Read for Endless {
             fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
-                self.0 += out.len(); out.fill(0); Ok(out.len())
+                self.0 += out.len();
+                out.fill(0);
+                Ok(out.len())
             }
         }
         let mut stream = Endless(0);
@@ -157,8 +197,13 @@ mod tests {
         struct Broken(bool);
         impl Read for Broken {
             fn read(&mut self, out: &mut [u8]) -> io::Result<usize> {
-                if self.0 { Err(io::Error::other("injected failure")) }
-                else { self.0 = true; out[0] = 1; Ok(1) }
+                if self.0 {
+                    Err(io::Error::other("injected failure"))
+                } else {
+                    self.0 = true;
+                    out[0] = 1;
+                    Ok(1)
+                }
             }
         }
         assert!(hash_stream(Broken(false), 10).is_err());

@@ -59,7 +59,7 @@ fn version() -> ContractVersion {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = std::env::args_os().skip(1).collect::<Vec<_>>();
     if args.len() < 3 || args.len() > 4 {
-        return Err("usage: journal_fixture <new-journal> <new-bundle> <declared-git-sha> [--exit-during-second|--fail-second]".into());
+        return Err("usage: journal_fixture <new-journal> <new-bundle> <declared-git-sha> [--exit-during-second|--fail-second|--quota-one]".into());
     }
     let journal_path = PathBuf::from(&args[0]);
     let bundle_path = PathBuf::from(&args[1]);
@@ -69,7 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|v| v.to_str().ok_or("mode is not UTF-8"))
         .transpose()?
         .unwrap_or("");
-    if !["", "--exit-during-second", "--fail-second"].contains(&mode) {
+    if !["", "--exit-during-second", "--fail-second", "--quota-one"].contains(&mode) {
         return Err("unknown fixture mode".into());
     }
     // Hash the actual executable. Git revision is supplied explicitly, not inferred.
@@ -119,7 +119,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &adapters,
         &MetricRegistry::<i32, i32>::new(),
         &DecisionPolicyRegistry::<i32, i32>::new(),
-        &EvaluationControl::new(3),
+        &EvaluationControl::new(if mode == "--quota-one" { 1 } else { 3 }),
         JournalCapture::new(
             &mut journal,
             RunId::new("fixture-run")?,

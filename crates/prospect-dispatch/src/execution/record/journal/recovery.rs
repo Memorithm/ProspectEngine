@@ -6,8 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{EngineIdentity, Entry, Event, inspect_execution_journal};
 use super::super::{ExecutionRecordError, PayloadCodecs, canonical, digest, invalid, parse_bundle};
+use super::{EngineIdentity, Entry, Event, inspect_execution_journal};
 
 /// Admission bound for the separate trusted expectations file, before parsing.
 pub const MAX_RESTART_EXPECTATION_BYTES: usize = 16 * 1024;
@@ -57,7 +57,11 @@ impl RestartAnchors {
     fn validate(&self) -> Result<(), ExecutionRecordError> {
         prospect_evidence::RunId::new(&self.run_id)
             .map_err(|_| ExecutionRecordError::Invalid("invalid restart run ID"))?;
-        for value in [&self.journal_sha256, &self.bundle_sha256, &self.adapter_sha256] {
+        for value in [
+            &self.journal_sha256,
+            &self.bundle_sha256,
+            &self.adapter_sha256,
+        ] {
             validate_sha256(value)?;
         }
         Ok(())
@@ -104,7 +108,11 @@ impl RestartExpectations {
         semantics: RestartSemantics,
     ) -> Result<Self, ExecutionRecordError> {
         Self::validated(ExpectationsWire {
-            schema: EXPECTATION_SCHEMA.into(), anchors, implementation, codecs, semantics,
+            schema: EXPECTATION_SCHEMA.into(),
+            anchors,
+            implementation,
+            codecs,
+            semantics,
         })
     }
 
@@ -131,16 +139,23 @@ impl RestartExpectations {
         if canonical_json.len() > MAX_RESTART_EXPECTATION_BYTES {
             return invalid("restart expectations exceed byte limit");
         }
-        Ok(Self { wire, canonical_json })
+        Ok(Self {
+            wire,
+            canonical_json,
+        })
     }
 
     /// Exact bytes to retain in a separate trusted registry or file.
     #[must_use]
-    pub fn canonical_json(&self) -> &str { &self.canonical_json }
+    pub fn canonical_json(&self) -> &str {
+        &self.canonical_json
+    }
 
     /// Content identity of this policy; this is not a signature or trust root.
     #[must_use]
-    pub fn sha256(&self) -> String { digest(self.canonical_json.as_bytes()) }
+    pub fn sha256(&self) -> String {
+        digest(self.canonical_json.as_bytes())
+    }
 }
 
 /// Reasons which forbid preparing a continuation, even for a structurally valid log.
@@ -196,13 +211,19 @@ pub fn preflight_journal_restart(
     expected: &RestartExpectations,
     actual_artifact_sha256: &str,
 ) -> Result<RestartPreflight, ExecutionRecordError> {
+    if journal.len() > super::MAX_JOURNAL_BYTES
+        || expected_bundle.len() > super::super::MAX_RECORD_BYTES
+    {
+        return invalid("restart journal or input exceeds byte limit");
+    }
     validate_sha256(actual_artifact_sha256)?;
     let wire = &expected.wire;
     if actual_artifact_sha256 != wire.implementation.artifact_sha256() {
         return invalid("restart implementation artifact mismatch");
     }
     if digest(journal.as_bytes()) != wire.anchors.journal_sha256
-        || digest(expected_bundle.as_bytes()) != wire.anchors.bundle_sha256 {
+        || digest(expected_bundle.as_bytes()) != wire.anchors.bundle_sha256
+    {
         return invalid("restart external journal or input digest mismatch");
     }
     let summary = inspect_execution_journal(journal, expected_bundle)?;
@@ -211,9 +232,14 @@ pub fn preflight_journal_restart(
     }
     // The inspector already validated this entire complete entry. Read only its
     // header here; do not introduce a second, divergent lifecycle implementation.
-    let first = journal.split('\n').next().ok_or(ExecutionRecordError::Invalid("missing header"))?;
+    let first = journal
+        .split('\n')
+        .next()
+        .ok_or(ExecutionRecordError::Invalid("missing header"))?;
     let entry: Entry = serde_json::from_str(first)?;
-    let Event::Initialized { header } = entry.event else { return invalid("missing restart header") };
+    let Event::Initialized { header } = entry.event else {
+        return invalid("missing restart header");
+    };
     if canonical(&header.codecs)? != canonical(&wire.codecs)? {
         return invalid("restart payload codec mismatch");
     }
@@ -221,17 +247,36 @@ pub fn preflight_journal_restart(
         return invalid("restart adapter metadata mismatch");
     }
     let bundle = parse_bundle(expected_bundle)?;
-    let started = bundle.scenarios().len().checked_sub(summary.never_started_candidates)
-        .ok_or(ExecutionRecordError::Invalid("invalid recovered candidate count"))?;
-    let never_started_scenario_ids = bundle.scenarios()[started..].iter()
-        .map(|scenario| scenario.id().as_str().to_owned()).collect::<Vec<_>>();
+    let started = bundle
+        .scenarios()
+        .len()
+        .checked_sub(summary.never_started_candidates)
+        .ok_or(ExecutionRecordError::Invalid(
+            "invalid recovered candidate count",
+        ))?;
+    let never_started_scenario_ids = bundle.scenarios()[started..]
+        .iter()
+        .map(|scenario| scenario.id().as_str().to_owned())
+        .collect::<Vec<_>>();
     let mut blockers = Vec::new();
-    if summary.incomplete_tail_bytes != 0 { blockers.push(RestartBlocker::IncompleteTail); }
-    if summary.unknown_call_result.is_some() { blockers.push(RestartBlocker::UnknownCallResult); }
-    if summary.failed_call.is_some() { blockers.push(RestartBlocker::FailedCallRequiresReconciliation); }
-    if wire.semantics != RestartSemantics::PureIndependent { blockers.push(RestartBlocker::StatefulOrEffectfulEngine); }
-    if summary.state == "completed" { blockers.push(RestartBlocker::AlreadyCompleted); }
-    if never_started_scenario_ids.is_empty() { blockers.push(RestartBlocker::NoNeverStartedCandidates); }
+    if summary.incomplete_tail_bytes != 0 {
+        blockers.push(RestartBlocker::IncompleteTail);
+    }
+    if summary.unknown_call_result.is_some() {
+        blockers.push(RestartBlocker::UnknownCallResult);
+    }
+    if summary.failed_call.is_some() {
+        blockers.push(RestartBlocker::FailedCallRequiresReconciliation);
+    }
+    if wire.semantics != RestartSemantics::PureIndependent {
+        blockers.push(RestartBlocker::StatefulOrEffectfulEngine);
+    }
+    if summary.state == "completed" {
+        blockers.push(RestartBlocker::AlreadyCompleted);
+    }
+    if never_started_scenario_ids.is_empty() {
+        blockers.push(RestartBlocker::NoNeverStartedCandidates);
+    }
     Ok(RestartPreflight {
         schema: "prospect.restart-preflight/v1",
         expectation_sha256: expected.sha256(),
@@ -252,7 +297,11 @@ pub fn preflight_journal_restart(
 }
 
 fn validate_sha256(value: &str) -> Result<(), ExecutionRecordError> {
-    if value.len() != 64 || !value.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) {
+    if value.len() != 64
+        || !value
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    {
         return invalid("invalid restart SHA-256");
     }
     Ok(())

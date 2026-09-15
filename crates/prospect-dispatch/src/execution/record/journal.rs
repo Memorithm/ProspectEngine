@@ -4,6 +4,8 @@
 //! call events. Hash chaining checks consistency, NOT execution authenticity.
 //! An unmatched call intent means an unknown result, never permission to retry.
 
+pub mod recovery;
+
 mod evaluation;
 pub use evaluation::{
     JournalCapture, JournalRun, JournalRunState, evaluate_registered_bundle_journaled,

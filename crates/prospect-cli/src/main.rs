@@ -18,7 +18,7 @@ use prospect_adapter::built_in_adapter_catalog;
 use prospect_cli::verify_kv_campaign_directory;
 use scenario_bundle::verify_scenario_bundle_file;
 
-const USAGE: &str = "Usage:\n  prospect inspect-execution-journal <journal.jsonl> <bundle.json>\n  prospect verify-execution-record <record.json> <bundle.json>\n  prospect list-adapters\n  prospect preflight-scenario-bundle <bundle.json> <catalog.json>\n  prospect verify-kv-campaign-spec <campaign.json>\n  prospect verify-kv-campaign <campaign-directory>\n  prospect verify-kv-campaign-suite <suite-directory>\n  prospect verify-kv-campaign-suite-r2 <suite-directory>\n  prospect verify-scenario-bundle <bundle.json>";
+const USAGE: &str = "Usage:\n  prospect preflight-execution-restart <journal.jsonl> <bundle.json> <trusted-expectations.json> <implementation-artifact>\n  prospect inspect-execution-journal <journal.jsonl> <bundle.json>\n  prospect verify-execution-record <record.json> <bundle.json>\n  prospect list-adapters\n  prospect preflight-scenario-bundle <bundle.json> <catalog.json>\n  prospect verify-kv-campaign-spec <campaign.json>\n  prospect verify-kv-campaign <campaign-directory>\n  prospect verify-kv-campaign-suite <suite-directory>\n  prospect verify-kv-campaign-suite-r2 <suite-directory>\n  prospect verify-scenario-bundle <bundle.json>";
 
 fn main() -> ExitCode {
     match run(env::args_os()) {
@@ -71,6 +71,24 @@ where
             let summary =
                 prospect_cli::execution_record::verify_execution_record_files(record, bundle)
                     .map_err(|error| CliError::Verification(error.to_string()))?;
+            serde_json::to_string(&summary)
+                .map_err(|error| CliError::Verification(error.to_string()))
+        }
+        Some("preflight-execution-restart") => {
+            let paths = arguments.by_ref().take(5).collect::<Vec<_>>();
+            let [journal, bundle, expectations, artifact]: [OsString; 4] =
+                paths.try_into().map_err(|_| {
+                    CliError::Usage(
+                        "preflight-execution-restart requires exactly four file paths".into(),
+                    )
+                })?;
+            let summary = prospect_cli::execution_restart::preflight_execution_restart_files(
+                journal,
+                bundle,
+                expectations,
+                artifact,
+            )
+            .map_err(|error| CliError::Verification(error.to_string()))?;
             serde_json::to_string(&summary)
                 .map_err(|error| CliError::Verification(error.to_string()))
         }

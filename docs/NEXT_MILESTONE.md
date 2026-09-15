@@ -45,26 +45,32 @@ preserve the successful/failed/unstarted partition, and support no-clobber
 persistence and independent CLI readback. See [execution records](EXECUTION-RECORDS.md).
 They remain terminal records, not engine snapshots or automatic-resume tokens.
 
-## Current engineering slice: live execution journaling
+## Completed live-journal foundation
 
-Record and acknowledge each call intent before invoking the engine, followed by
-its actual return, under the existing cooperative evaluator. Keep journal errors
-separate from actual domain errors and preserve returned work in memory. The file
-sink synchronizes each append and never reopens existing journals for writing.
-Inspection validates canonical input binding and ordered chained events; an
-unmatched intent remains an unknown result, never presumed unexecuted or retryable.
-Incomplete tails must be explicit, never silently repaired or marked complete.
-See [live execution journals](LIVE-EXECUTION-JOURNAL.md).
+ProspectEngine #47 is merged at `3a48d4e12d4c2c1bfa0ed8fa4174d069b65e20a5`.
+Call intentions are acknowledged before invocation and actual returns afterward.
+Storage/encoding failures preserve in-memory work and block further domain calls.
+The bounded inspector reports unknown outcomes and never authorizes replay.
+See [live journals](LIVE-EXECUTION-JOURNAL.md).
 
-Acceptance requires final-head Rust CI, storage-failure injection at every append,
-actual file-backed process-exit tests, no implicit replay, and unchanged terminal
-record/R2 interoperability. A storage acknowledgement or hash does not authenticate
-engine/GPU execution or guarantee power-loss survival.
+## Current engineering slice: external restart admission
 
-Safe restart remains separate: compare implementation/codec identities to trusted
-expectations, restore appropriate typed state, define purity/idempotency and
-explicitly reconcile unknown-side-effect calls. No current reader issues resume
-authorization or reconstructs a rankable batch from an untrusted stored record.
+Compare journal/input/run/adapter/implementation/codec identities against a separate
+trusted expectations contract and stream-hash the actual supplied artifact. Identify
+only never-started candidates. Unknown outcomes, torn tails, failures, already-complete
+runs and stateful/effectful contracts block continuation preparation.
+All results retain `resume_authorized=false`; no replay or mutation is performed.
+See [restart preflight](RESTART-PREFLIGHT.md).
+
+Acceptance requires final-head Rust CI, actual-file/process-exit preflight tests,
+identity/substitution/size/arity failures and unchanged R2 interoperability. A
+self-consistent log and an expectation derived from that log are not independent
+attestation. The harness uses controlled software fixtures, not models.
+
+The next functional slice must restore typed values under explicit codec semantics,
+link a new run to its parent, and execute only approved never-started work. Unknown
+effects need reconciliation; no reader currently reconstructs a rankable full batch
+or implements exactly-once actuation or automatic stateful resume.
 
 ## Next empirical slice: exact R2 CUDA qualification
 
