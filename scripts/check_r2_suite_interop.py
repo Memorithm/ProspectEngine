@@ -43,6 +43,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--producer", type=Path, required=True)
     parser.add_argument("--prospect", type=Path, required=True)
+    parser.add_argument("--publication-launcher", type=Path,
+                        help="also exercise this launcher's actual global gate and publication path")
     args = parser.parse_args()
     producer, prospect = args.producer.resolve(), args.prospect.resolve()
     require(run("git", "-C", producer, "rev-parse", "HEAD").strip() == EXECUTION, "producer revision drifted")
@@ -102,6 +104,10 @@ def main():
         require(verified["schema"] == "prospect.kv-campaign-suite-r2-verification/v1", "wrong summary schema")
         require([c["retained_count"] for c in verified["campaigns"]] == [7, 14, 20], "budget order mismatch")
         require(verified["trace_sha256"] == TRACE, "suite trace mismatch")
+        if args.publication_launcher is not None:
+            print(run(sys.executable, Path(__file__).with_name("check_r2_publication_gate.py"),
+                      "--launcher", args.publication_launcher.resolve(),
+                      "--prospect", prospect, "--fixtures", root).strip())
         old = subprocess.run([str(prospect), "verify-kv-campaign-suite", str(root)], capture_output=True, timeout=30)
         require(old.returncode == 1 and not old.stdout, "R1 accepted an R2 suite")
         # A substituted published report must not override independently replayed values.
