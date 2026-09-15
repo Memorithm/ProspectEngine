@@ -26,6 +26,7 @@ use super::super::super::{
 use super::super::{
     CallTarget as ParentCallTarget, EngineIdentity, Entry as ParentEntry, Event as ParentEvent,
     JournalError, JournalSink, MAX_JOURNAL_BYTES, MAX_JOURNAL_ENTRY_BYTES,
+    inspect_execution_journal,
 };
 use super::{RestartBlocker, RestartExpectations, RestartSemantics, preflight_journal_restart};
 use crate::resolve_bundle_requirements;
@@ -761,6 +762,17 @@ pub fn inspect_continuation_journal(
         return invalid("continuation parent anchors mismatch");
     }
     let bundle = super::super::super::parse_bundle(bundle_json)?;
+    let parent_summary = inspect_execution_journal(parent, bundle_json)?;
+    if parent_summary.incomplete_tail_bytes != 0
+        || parent_summary.failed_call.is_some()
+        || parent_summary.unknown_call_result.is_some()
+        || !parent_summary.baseline_succeeded
+        || parent_summary.never_started_candidates == 0
+        || parent_summary.successful_candidates + parent_summary.never_started_candidates
+            != bundle.scenarios().len()
+    {
+        return invalid("continuation parent lifecycle is not admissible");
+    }
     let mut previous = None;
     let mut header = None;
     let mut active = None::<String>;
@@ -806,7 +818,10 @@ pub fn inspect_continuation_journal(
                     return invalid("continuation header identity mismatch");
                 }
                 let restored = value.restored_candidate_ids.len();
-                if restored > bundle.scenarios().len()
+                if restored != parent_summary.successful_candidates
+                    || value.remaining_candidate_ids.len()
+                        != parent_summary.never_started_candidates
+                    || restored > bundle.scenarios().len()
                     || bundle.scenarios()[..restored]
                         .iter()
                         .map(|s| s.id().as_str())
@@ -875,10 +890,17 @@ pub fn inspect_continuation_journal(
                         if failed.is_none() && successful == h.remaining_candidate_ids.len() => {}
                     ContinuationTerminal::Interrupted {
                         reason: RecordInterruption::EvaluationLimitReached,
-                    } if failed.is_none() && successful < h.remaining_candidate_ids.len() => {}
+                    } if failed.is_none()
+                        && successful == h.max_evaluations
+                        && successful < h.remaining_candidate_ids.len() => {}
                     ContinuationTerminal::Interrupted {
-                        reason: RecordInterruption::Cancelled | RecordInterruption::DeadlineReached,
+                        reason: RecordInterruption::Cancelled,
                     } if failed.is_none() && successful <= h.remaining_candidate_ids.len() => {}
+                    ContinuationTerminal::Interrupted {
+                        reason: RecordInterruption::DeadlineReached,
+                    } if failed.is_none()
+                        && h.deadline_configured
+                        && successful <= h.remaining_candidate_ids.len() => {}
                     ContinuationTerminal::Failed if failed.is_some() => {}
                     _ => return invalid("continuation terminal disagrees with lifecycle"),
                 }

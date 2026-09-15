@@ -166,6 +166,87 @@ fn plan(journal: &str, expected: &RestartExpectations) -> TypedContinuationPlan<
     .unwrap()
 }
 
+fn completed_child(journal: &str, expected: &RestartExpectations) -> String {
+    let plan = plan(journal, expected);
+    let baseline_calls = Arc::new(AtomicUsize::new(0));
+    let candidate_calls = Arc::new(AtomicUsize::new(0));
+    let registry = registry(&baseline_calls, &candidate_calls, None);
+    let mut child = Memory::default();
+    let run = execute_typed_continuation(
+        plan,
+        &bundle(),
+        &registry,
+        &MetricRegistry::<i32, i32>::new(),
+        &DecisionPolicyRegistry::<i32, i32>::new(),
+        &EvaluationControl::new(2),
+        ContinuationCapture::new(
+            &mut child,
+            RunId::new("child-run").unwrap(),
+            implementation(),
+            codecs(),
+            |value: &i32| Ok(value.to_string()),
+            |error: &&str| Ok((*error).to_owned()),
+        ),
+    )
+    .unwrap();
+    assert_eq!(run.state(), ContinuationRunState::Completed);
+    child.text()
+}
+
+fn quota_child(journal: &str, expected: &RestartExpectations) -> String {
+    let plan = plan(journal, expected);
+    let baseline_calls = Arc::new(AtomicUsize::new(0));
+    let candidate_calls = Arc::new(AtomicUsize::new(0));
+    let registry = registry(&baseline_calls, &candidate_calls, None);
+    let mut child = Memory::default();
+    let run = execute_typed_continuation(
+        plan,
+        &bundle(),
+        &registry,
+        &MetricRegistry::<i32, i32>::new(),
+        &DecisionPolicyRegistry::<i32, i32>::new(),
+        &EvaluationControl::new(1),
+        ContinuationCapture::new(
+            &mut child,
+            RunId::new("child-run").unwrap(),
+            implementation(),
+            codecs(),
+            |value: &i32| Ok(value.to_string()),
+            |error: &&str| Ok((*error).to_owned()),
+        ),
+    )
+    .unwrap();
+    assert_eq!(run.state(), ContinuationRunState::Interrupted);
+    child.text()
+}
+
+fn parse_child_events(payload: &str) -> Vec<ContinuationEvent> {
+    payload
+        .split_terminator('\n')
+        .map(|line| {
+            serde_json::from_str::<ContinuationEntry>(line)
+                .unwrap()
+                .event
+        })
+        .collect()
+}
+
+fn emit_child_events(events: Vec<ContinuationEvent>) -> String {
+    let mut memory = Memory::default();
+    {
+        let mut emitter = ContinuationEmitter {
+            sink: &mut memory,
+            sequence: 0,
+            previous: None,
+            bytes: 0,
+        };
+        for event in events {
+            emitter.append(event).unwrap();
+        }
+    }
+    memory.text()
+}
+
 #[test]
 fn restores_acknowledged_prefix_and_exact_never_started_suffix() {
     let (journal, expected, baseline_calls, candidate_calls) = parent_fixture(1);
@@ -550,6 +631,78 @@ fn inspector_accepts_cancelled_terminal_after_last_success_without_relabeling_co
     assert_eq!(summary.never_started_candidates, 0);
     assert!(summary.terminal_recorded);
     assert!(!summary.resume_authorized);
+}
+
+#[test]
+fn inspector_rejects_coherently_rehashed_child_that_invents_restored_parent_success() {
+    let (journal, expected, _, _) = parent_fixture(1);
+    let mut events = parse_child_events(&completed_child(&journal, &expected));
+    match &mut events[0] {
+        ContinuationEvent::Initialized { header } => {
+            header.restored_candidate_ids = vec!["s1".into(), "s2".into()];
+            header.remaining_candidate_ids = vec!["s3".into()];
+        }
+        _ => panic!("first child event must be initialized"),
+    }
+    events.retain(|event| {
+        !matches!(event,
+            ContinuationEvent::CallStarted { scenario_id }
+                | ContinuationEvent::CallSucceeded { scenario_id, .. }
+                if scenario_id == "s2"
+        )
+    });
+    let forged = emit_child_events(events);
+    assert!(
+        inspect_continuation_journal(
+            &forged,
+            &journal,
+            &bundle().canonical_json().unwrap(),
+            &expected,
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn inspector_rejects_quota_interruption_before_recorded_limit() {
+    let (journal, expected, _, _) = parent_fixture(1);
+    let mut events = parse_child_events(&quota_child(&journal, &expected));
+    match &mut events[0] {
+        ContinuationEvent::Initialized { header } => header.max_evaluations = 2,
+        _ => panic!("first child event must be initialized"),
+    }
+    let forged = emit_child_events(events);
+    assert!(
+        inspect_continuation_journal(
+            &forged,
+            &journal,
+            &bundle().canonical_json().unwrap(),
+            &expected,
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn inspector_rejects_deadline_terminal_without_configured_deadline() {
+    let (journal, expected, _, _) = parent_fixture(1);
+    let mut events = parse_child_events(&quota_child(&journal, &expected));
+    let last = events.last_mut().expect("terminal event");
+    *last = ContinuationEvent::Finished {
+        terminal: ContinuationTerminal::Interrupted {
+            reason: RecordInterruption::DeadlineReached,
+        },
+    };
+    let forged = emit_child_events(events);
+    assert!(
+        inspect_continuation_journal(
+            &forged,
+            &journal,
+            &bundle().canonical_json().unwrap(),
+            &expected,
+        )
+        .is_err()
+    );
 }
 
 #[test]
