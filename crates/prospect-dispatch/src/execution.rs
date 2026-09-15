@@ -1,3 +1,6 @@
+pub mod controlled;
+pub use controlled::{RegisteredBatchExecution, evaluate_registered_bundle_controlled};
+
 use core::fmt;
 use std::collections::BTreeMap;
 

@@ -6,7 +6,7 @@
 
 use prospect_adapter::AdapterMetadata;
 use prospect_bundle::ScenarioBundle;
-use prospect_core::{Scenario, ScenarioId};
+use prospect_core::Scenario;
 use prospect_registry::{DecisionPolicyRegistry, MetricRegistry};
 use prospect_scenario::controlled::{
     BatchExecution, EvaluationControl, ExecutionState, ProgressUpdate, evaluate_batch_controlled,
@@ -47,7 +47,6 @@ impl<I, S, E> RegisteredBatchExecution<I, S, E> {
     }
 
     /// Inspect actual successful work, unstarted inputs and any engine failure.
-    #[must_use]
     pub const fn evaluation(&self) -> &BatchExecution<I, S, E> {
         &self.evaluation
     }
@@ -62,7 +61,6 @@ impl<I, S, E> RegisteredBatchExecution<I, S, E> {
     ///
     /// Read or record bundle metadata first when it is needed downstream. Calling
     /// `into_completed_batch` on the returned report still rejects incomplete work.
-    #[must_use]
     pub fn into_evaluation(self) -> BatchExecution<I, S, E> {
         self.evaluation
     }
@@ -77,7 +75,9 @@ impl<I, S, E> RegisteredBatchExecution<I, S, E> {
 /// Metrics and policies are resolved but never invoked. To score a completed
 /// batch, the application must explicitly accept/convert the returned evaluation
 /// and use the existing scoring functions. This function never auto-ranks a prefix,
-/// retries an intervention, actuates a physical system or claims GPU execution.
+/// retries an intervention or implements independent physical actuation. Registered
+/// engines retain responsibility for any effects of their calls; no GPU qualification
+/// or rollback is inferred from this report.
 ///
 /// Cancellation/deadline checks govern engine-call boundaries only; they do not
 /// preempt requirement resolution, intervention cloning, callbacks or an in-flight
@@ -124,12 +124,16 @@ where
         .map_err(BundleExecutionError::Dispatch)?;
     let adapter = resolved.adapter().clone();
     let adapter_id = adapter.adapter_id().as_str();
-    let engine = adapters.engine(adapter_id)
+    let engine = adapters
+        .engine(adapter_id)
         .ok_or_else(|| BundleExecutionError::RegistryInvariant(adapter_id.to_owned()))?;
-    let scenarios = bundle.scenarios().iter().map(|scenario| {
-        Scenario::new(scenario.id().clone(), scenario.intervention().clone())
-    }).collect();
-    let evaluation = evaluate_batch_controlled(engine, bundle.state(), scenarios, control, progress);
+    let scenarios = bundle
+        .scenarios()
+        .iter()
+        .map(|scenario| Scenario::new(scenario.id().clone(), scenario.intervention().clone()))
+        .collect();
+    let evaluation =
+        evaluate_batch_controlled(engine, bundle.state(), scenarios, control, progress);
     Ok(RegisteredBatchExecution {
         bundle_id: bundle.bundle_id().as_str().to_owned(),
         seed: bundle.seed(),

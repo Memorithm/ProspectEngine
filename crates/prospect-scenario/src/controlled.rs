@@ -150,7 +150,10 @@ pub enum ExecutionState {
 pub enum BatchStatus<I, E> {
     Completed,
     Interrupted(InterruptionReason),
-    EngineFailed { scenario: Option<Scenario<I>>, error: E },
+    EngineFailed {
+        scenario: Option<Scenario<I>>,
+        error: E,
+    },
     DuplicateScenarioId(ScenarioId),
 }
 
@@ -218,9 +221,12 @@ impl<I, S, E> BatchExecution<I, S, E> {
     /// scoring/ranking APIs accidentally. It does not establish scientific validity.
     pub fn into_completed_batch(self) -> Result<BatchResult<I, S>, Self> {
         match self {
-            Self { baseline: Some(baseline), outcomes, status: BatchStatus::Completed, .. } => {
-                Ok(BatchResult { baseline, outcomes })
-            }
+            Self {
+                baseline: Some(baseline),
+                outcomes,
+                status: BatchStatus::Completed,
+                ..
+            } => Ok(BatchResult { baseline, outcomes }),
             incomplete => Err(incomplete),
         }
     }
@@ -234,7 +240,10 @@ impl<I, S, E> BatchExecution<I, S, E> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProgressEvent<'a> {
     BaselineCompleted,
-    ScenarioCompleted { index: usize, scenario_id: &'a ScenarioId },
+    ScenarioCompleted {
+        index: usize,
+        scenario_id: &'a ScenarioId,
+    },
     Finished(ExecutionState),
 }
 
@@ -307,9 +316,9 @@ where
     let total = scenarios.len();
     let duplicate = {
         let mut seen = BTreeSet::new();
-        scenarios.iter().find_map(|scenario| {
-            (!seen.insert(scenario.id())).then(|| scenario.id().clone())
-        })
+        scenarios
+            .iter()
+            .find_map(|scenario| (!seen.insert(scenario.id())).then(|| scenario.id().clone()))
     };
     let mut report = BatchExecution {
         total_scenarios: total,
@@ -323,7 +332,9 @@ where
         report.status = BatchStatus::DuplicateScenarioId(id);
     } else {
         loop {
-            if let Some(reason) = control.interruption_at(now(), report.outcomes.len(), pending.len()) {
+            if let Some(reason) =
+                control.interruption_at(now(), report.outcomes.len(), pending.len())
+            {
                 report.status = BatchStatus::Interrupted(reason);
                 break;
             }
@@ -331,7 +342,10 @@ where
                 match engine.baseline(state) {
                     Ok(baseline) => report.baseline = Some(baseline),
                     Err(error) => {
-                        report.status = BatchStatus::EngineFailed { scenario: None, error };
+                        report.status = BatchStatus::EngineFailed {
+                            scenario: None,
+                            error,
+                        };
                         break;
                     }
                 }
@@ -342,11 +356,16 @@ where
                 });
                 continue;
             }
-            let Some(scenario) = pending.next() else { break };
+            let Some(scenario) = pending.next() else {
+                break;
+            };
             match engine.evaluate(state, scenario.intervention()) {
                 Ok(signature) => {
                     let index = report.outcomes.len();
-                    report.outcomes.push(ScenarioOutcome { scenario, signature });
+                    report.outcomes.push(ScenarioOutcome {
+                        scenario,
+                        signature,
+                    });
                     progress(ProgressUpdate {
                         event: ProgressEvent::ScenarioCompleted {
                             index,
@@ -357,7 +376,10 @@ where
                     });
                 }
                 Err(error) => {
-                    report.status = BatchStatus::EngineFailed { scenario: Some(scenario), error };
+                    report.status = BatchStatus::EngineFailed {
+                        scenario: Some(scenario),
+                        error,
+                    };
                     break;
                 }
             }

@@ -19,25 +19,37 @@ pinned separately at `ca9685cd98f3a0a23e8c4f7e368736bb3aa28d0c`. Experiment byte
 KVLab/NNIS execution pins and v1 suite manifests remain unchanged. See
 [readiness and publication qualification](R2-SUITE-READINESS.md).
 
-## Current engineering slice: bounded verification inputs
+## Completed input-boundary foundation
 
-ProspectEngine #44 introduces a shared exact-byte reader for every file-based
-CLI entry point: 16 MiB per file, 128 MiB of cumulative text per operation, and
-at most 1,024 entries per generic campaign directory. Whole-suite context and
-baseline rereads consume that same budget, rather than starting a new one.
-Oversized streams fail without accepting a truncated prefix; accepted UTF-8
-bytes and canonical evidence identities remain unchanged. Reserved campaign
-inputs now receive static symlink and regular-file checks as well.
+ProspectEngine #44 is merged at `fc69820e6e50f3b8e9d4a9e5a3565337d3ce598c`.
+Every file-based CLI input now uses an exact-byte shared read budget: 16 MiB
+per file and 128 MiB cumulative, with a 1,024-entry generic campaign cap.
+Whole-suite rereads share the same budget. See
+[input limits](VERIFICATION-INPUT-LIMITS.md). These limits are not parser,
+process-RSS, child-output or hard I/O-deadline limits. Historical pinned
+verifiers still execute their historical code.
 
-The public shared-budget API can compose campaign verifiers under one explicit
-policy. Final-head Rust CI and the existing Python/Rust publication integration
-must pass before this slice is considered merged and complete. See the precise
-[input limits and trust boundary](VERIFICATION-INPUT-LIMITS.md).
+## Current engineering slice: controlled scenario evaluation
 
-This slice does not cap parser/node allocations, process RSS, child-process
-output or I/O time, and it does not provide race-free filesystem isolation.
-Historical pinned verifier binaries still execute their original code. Updating
-a launcher's verifier requires a separate explicit, reviewed successor pin.
+Add cooperative control to the existing generic and registered typed engine
+boundaries. Preserve successful baseline/candidate work on interruption or
+failure; identify the failed candidate separately from never-started input.
+Resolve all typed bundle requirements before any engine call. Reject
+duplicate direct-batch IDs and prevent incomplete reports from entering the
+existing rankable BatchResult path. The new registered API evaluates only;
+it does not automatically score or select a policy winner.
+
+Acceptance requires Rust 1.89 formatting, locked workspace Clippy/tests,
+executable examples and the existing R2 producer/consumer/publication
+integration. Regression coverage must include a control request after the
+last successful call, not just before the next candidate. Deadlines and
+cancellation are checkpoints, not preemption or physical rollback.
+See [controlled evaluation](CONTROLLED-EVALUATION.md).
+
+Persistent evidence/checkpoints, run-bound input identities, safe restart
+and explicit retry/idempotency rules are the next distinct functional
+slice. An in-memory partial report is not a durable resumable experiment.
+Existing evaluate_batch and execute_registered_bundle are not rewritten.
 
 ## Next empirical slice: exact R2 CUDA qualification
 

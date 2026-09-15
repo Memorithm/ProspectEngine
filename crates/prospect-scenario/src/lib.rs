@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+pub mod controlled;
+
 use prospect_core::{DecisionPolicy, ProspectiveEngine, Scenario, ScenarioId, SignatureMetric};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
