@@ -42,6 +42,8 @@ This module does not compute a mean, median, quantile, variance, confidence inte
 
 Those operations require an explicit protocol because their validity depends on sampling assumptions, independence, weighting, units, censoring and experiment design. Adding them generically would fabricate scientific semantics that ProspectEngine does not possess.
 
+The canonical constrained-decision evidence layer records decisions over one completed decision set; it does not convert a `MultiTraceScoreMatrix` into a cross-trace winner. Any such bridge must first define an explicit, versioned aggregation/decision protocol rather than reusing single-trace evidence semantics implicitly.
+
 ## Intended next layers
 
 A later protocol layer may bind a frozen set of trace identities and define explicit aggregation/statistical rules. A later evidence layer may canonically record the resulting matrix and protocol identity. Neither should alter the raw per-trace values.
