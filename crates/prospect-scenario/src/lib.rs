@@ -11,6 +11,16 @@ pub struct ScenarioOutcome<I, S> {
 }
 
 impl<I, S> ScenarioOutcome<I, S> {
+    /// Construct one structural scenario/signature pair.
+    ///
+    /// This constructor performs no scientific, provenance, or execution check.
+    /// Callers rebuilding persisted runs must establish those guarantees before
+    /// constructing an outcome.
+    #[must_use]
+    pub const fn from_parts(scenario: Scenario<I>, signature: S) -> Self {
+        Self { scenario, signature }
+    }
+
     #[must_use]
     pub const fn scenario(&self) -> &Scenario<I> {
         &self.scenario
@@ -29,6 +39,16 @@ pub struct BatchResult<I, S> {
 }
 
 impl<I, S> BatchResult<I, S> {
+    /// Construct a structural complete-batch container from already validated parts.
+    ///
+    /// No completeness, uniqueness, provenance, metric, or execution validation is
+    /// implied. Normal evaluation and verified persistence assemblers are responsible
+    /// for establishing those properties before this constructor is used.
+    #[must_use]
+    pub fn from_parts(baseline: S, outcomes: Vec<ScenarioOutcome<I, S>>) -> Self {
+        Self { baseline, outcomes }
+    }
+
     #[must_use]
     pub const fn baseline(&self) -> &S {
         &self.baseline
@@ -59,13 +79,10 @@ where
 
     for scenario in scenarios {
         let signature = engine.evaluate(state, scenario.intervention())?;
-        outcomes.push(ScenarioOutcome {
-            scenario,
-            signature,
-        });
+        outcomes.push(ScenarioOutcome::from_parts(scenario, signature));
     }
 
-    Ok(BatchResult { baseline, outcomes })
+    Ok(BatchResult::from_parts(baseline, outcomes))
 }
 
 #[must_use]
@@ -113,7 +130,7 @@ where
 mod tests {
     use prospect_core::{DecisionPolicy, ProspectiveEngine, Scenario, ScenarioId, SignatureMetric};
 
-    use super::{best_by_policy, evaluate_batch, score_against_baseline};
+    use super::{BatchResult, ScenarioOutcome, best_by_policy, evaluate_batch, score_against_baseline};
 
     struct AdditiveEngine;
 
@@ -171,5 +188,17 @@ mod tests {
         let (best, score) = best_by_policy(&batch, &PreferHigher).expect("non-empty batch");
         assert_eq!(best.scenario().id().as_str(), "large");
         assert_eq!(score, 17);
+    }
+
+    #[test]
+    fn structural_parts_constructor_preserves_exact_order_without_claiming_validation() {
+        let outcome = ScenarioOutcome::from_parts(
+            Scenario::new(ScenarioId::new("restored").expect("id"), 4),
+            14,
+        );
+        let batch = BatchResult::from_parts(10, vec![outcome]);
+        assert_eq!(*batch.baseline(), 10);
+        assert_eq!(batch.outcomes()[0].scenario().id().as_str(), "restored");
+        assert_eq!(*batch.outcomes()[0].signature(), 14);
     }
 }
