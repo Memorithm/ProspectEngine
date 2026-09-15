@@ -95,8 +95,15 @@ journal, original canonical bundle and external restart expectations. It checks:
 - child success/failure/terminal lifecycle consistency;
 - per-entry and total journal size limits.
 
-The parent partition check is independent of the child's internal consistency. A
-child journal cannot enlarge its claimed restored prefix merely by coherently
+The inspector validates trusted identities in both directions. It first parses the
+actual parent header and requires its run ID, declared implementation, codec IDs and
+canonical adapter metadata to match the separately supplied `RestartExpectations`.
+Only then can it compare the child header with the same expectations. Supplying a
+self-consistent but wrong expectation object and coherently rehashing the child does
+not make that expectation true of the anchored parent.
+
+The parent partition check is also independent of the child's internal consistency.
+A child journal cannot enlarge its claimed restored prefix merely by coherently
 rehashing itself and omitting one of the candidate calls that the parent never
 actually completed.
 
