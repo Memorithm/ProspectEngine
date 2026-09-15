@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+pub mod constrained;
+
 use std::collections::BTreeSet;
 use std::fmt;
 
