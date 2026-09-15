@@ -756,6 +756,9 @@ pub fn inspect_continuation_journal(
     if child.len() > MAX_JOURNAL_BYTES {
         return invalid("continuation journal exceeds byte limit");
     }
+    if expected.wire.semantics != RestartSemantics::PureIndependent {
+        return invalid("continuation inspection requires pure-independent semantics");
+    }
     if digest(parent.as_bytes()) != expected.wire.anchors.journal_sha256
         || digest(bundle_json.as_bytes()) != expected.wire.anchors.bundle_sha256
     {
