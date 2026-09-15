@@ -1,0 +1,41 @@
+name: Prepare constrained decision evidence v2
+on:
+  push:
+    branches:
+      - feat/constrained-decision-evidence-v2
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+      - name: Install Rust 1.89
+        run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt --component clippy
+      - name: Import only the previously qualified evidence module
+        run: |
+          git fetch --depth=1 origin df80e8e56586110c71087f3583ef9ebc76e0a213
+          git show df80e8e56586110c71087f3583ef9ebc76e0a213:crates/prospect-evidence/src/constrained.rs > crates/prospect-evidence/src/constrained.rs
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('crates/prospect-evidence/src/lib.rs')
+          s = p.read_text()
+          anchor = '#![forbid(unsafe_code)]\n'
+          if s.count(anchor) != 1 or 'pub mod constrained;' in s:
+              raise SystemExit('prospect-evidence module anchor drift')
+          p.write_text(s.replace(anchor, anchor + '\npub mod constrained;\n', 1))
+          PY
+      - name: Validate fresh-base evidence
+        run: |
+          cargo +1.89.0 fmt --all
+          cargo +1.89.0 clippy --locked --workspace --all-targets -- -D warnings
+          cargo +1.89.0 test --locked --workspace
+      - name: Commit source-only evidence
+        run: |
+          git rm -f .github/workflows/tmp-evidence-v2.yml
+          git add crates/prospect-evidence/src/lib.rs crates/prospect-evidence/src/constrained.rs
+          git -c user.name='MEMOPERF' -c user.email='contact@checkupauto.fr' commit -m 'feat(evidence): add canonical constrained decision evidence'
+          git push origin HEAD:refs/heads/feat/constrained-decision-evidence-v2
