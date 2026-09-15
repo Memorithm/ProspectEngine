@@ -1,0 +1,147 @@
+name: Harden constrained evidence canonicalization
+on:
+  push:
+    branches:
+      - feat/constrained-decision-evidence-v2
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+      - name: Install Rust 1.89
+        run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt --component clippy
+      - name: Apply recursive JSON canonicalization
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('crates/prospect-evidence/src/constrained.rs')
+          s = p.read_text()
+          wire_anchor = '''struct ConstrainedEvidenceWire<R, T> {
+    schema: String,
+    run_id: String,
+    sources: Vec<SourceWire>,
+    alternatives: Vec<AlternativeWire<R, T>>,
+    lexicographic_selected: Option<AlternativeIdWire>,
+    pareto_front: Vec<AlternativeIdWire>,
+}
+
+'''
+          helper = r'''struct ConstrainedEvidenceWire<R, T> {
+    schema: String,
+    run_id: String,
+    sources: Vec<SourceWire>,
+    alternatives: Vec<AlternativeWire<R, T>>,
+    lexicographic_selected: Option<AlternativeIdWire>,
+    pareto_front: Vec<AlternativeIdWire>,
+}
+
+fn canonical_json_value(
+    value: &serde_json::Value,
+    output: &mut String,
+) -> Result<(), serde_json::Error> {
+    match value {
+        serde_json::Value::Null => output.push_str("null"),
+        serde_json::Value::Bool(value) => output.push_str(if *value { "true" } else { "false" }),
+        serde_json::Value::Number(value) => output.push_str(&value.to_string()),
+        serde_json::Value::String(value) => output.push_str(&serde_json::to_string(value)?),
+        serde_json::Value::Array(values) => {
+            output.push('[');
+            for (index, value) in values.iter().enumerate() {
+                if index != 0 {
+                    output.push(',');
+                }
+                canonical_json_value(value, output)?;
+            }
+            output.push(']');
+        }
+        serde_json::Value::Object(values) => {
+            let mut keys = values.keys().collect::<Vec<_>>();
+            keys.sort_unstable();
+            output.push('{');
+            for (index, key) in keys.into_iter().enumerate() {
+                if index != 0 {
+                    output.push(',');
+                }
+                output.push_str(&serde_json::to_string(key)?);
+                output.push(':');
+                canonical_json_value(&values[key], output)?;
+            }
+            output.push('}');
+        }
+    }
+    Ok(())
+}
+
+fn to_canonical_json<T: Serialize + ?Sized>(value: &T) -> Result<String, serde_json::Error> {
+    let value = serde_json::to_value(value)?;
+    let mut output = String::new();
+    canonical_json_value(&value, &mut output)?;
+    Ok(output)
+}
+
+'''
+          if s.count(wire_anchor) != 1:
+              raise SystemExit('wire anchor drift')
+          s = s.replace(wire_anchor, helper, 1)
+          old = '''        serde_json::to_string(&self.to_wire()).map_err(ConstrainedEvidenceCodecError::Json)'''
+          new = '''        to_canonical_json(&self.to_wire()).map_err(ConstrainedEvidenceCodecError::Json)'''
+          if s.count(old) != 1:
+              raise SystemExit('canonical_json anchor drift')
+          s = s.replace(old, new, 1)
+          test_anchor = '''    #[test]
+    fn baseline_exact_tie_remains_auditable() {'''
+          test = r'''    #[test]
+    fn nested_hash_map_rejection_reason_is_canonical_and_roundtrips() {
+        use std::collections::HashMap;
+
+        let batch = evaluate_batch(
+            &Engine,
+            &10,
+            vec![Scenario::new(ScenarioId::new("blocked").unwrap(), 20)],
+        )
+        .unwrap();
+        let set = assess_decision_set(&batch, |id, _, _| {
+            if matches!(id, AlternativeId::Scenario(_)) {
+                let mut reason = HashMap::new();
+                reason.insert("zeta".to_owned(), "last".to_owned());
+                reason.insert("alpha".to_owned(), "first".to_owned());
+                return Err(reason);
+            }
+            Ok(vec![Objective::maximize("quality", 1)])
+        })
+        .unwrap();
+        let evidence = ConstrainedDecisionEvidence::from_decision_set(
+            RunId::new("hash-map-reason").unwrap(),
+            vec![source("Policy")],
+            &set,
+        )
+        .unwrap();
+        let json = evidence.canonical_json().unwrap();
+        assert!(json.contains("\"reason\":{\"alpha\":\"first\",\"zeta\":\"last\"}"));
+        let decoded = ConstrainedDecisionEvidence::<HashMap<String, String>, i32>::from_canonical_json(&json).unwrap();
+        assert_eq!(decoded.canonical_json().unwrap(), json);
+    }
+
+    #[test]
+    fn baseline_exact_tie_remains_auditable() {'''
+          if s.count(test_anchor) != 1:
+              raise SystemExit('test anchor drift')
+          s = s.replace(test_anchor, test, 1)
+          p.write_text(s)
+          PY
+      - name: Validate canonical evidence fix
+        run: |
+          cargo +1.89.0 fmt --all
+          cargo +1.89.0 clippy --locked --workspace --all-targets -- -D warnings
+          cargo +1.89.0 test --locked --workspace
+      - name: Commit source-only fix
+        run: |
+          git rm -f .github/workflows/tmp-fix-pr51-canonical.yml
+          git add crates/prospect-evidence/src/constrained.rs
+          git -c user.name='MEMOPERF' -c user.email='contact@checkupauto.fr' commit -m 'fix(evidence): canonicalize nested application payloads'
+          git push origin HEAD:refs/heads/feat/constrained-decision-evidence-v2
