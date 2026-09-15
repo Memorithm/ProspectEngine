@@ -7,6 +7,7 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'scripts/check_r2_suite_interop.py'
+      - 'scripts/check_r2_publication_gate.py'
       - '.github/workflows/r2-suite-interop.yml'
   push:
     branches: [main]
@@ -15,20 +16,26 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'scripts/check_r2_suite_interop.py'
+      - 'scripts/check_r2_publication_gate.py'
       - '.github/workflows/r2-suite-interop.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: r2-interop-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   contract:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
-      - name: Checkout current ProspectEngine consumer
+      - name: Checkout current ProspectEngine consumer and pinned history
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Checkout frozen KVLab producer with preregistration history
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -38,6 +45,13 @@ jobs:
           path: .interop-kvlab
           fetch-depth: 0
           persist-credentials: false
+      - name: Checkout immutable globally gated KVLab launcher
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: Memorithm/KVLab
+          ref: 0318e4fc09b17eea3705534927917c4d34818258
+          path: .interop-launcher
+          persist-credentials: false
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.89.0 --profile minimal
       - name: Build actual locked release consumer
@@ -46,3 +60,21 @@ jobs:
         run: |
           python3 -E -s scripts/check_r2_suite_interop.py \
             --producer .interop-kvlab --prospect target/release/prospect
+      - name: Build the independently pinned publication verifier
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/r2-pub-verifier" ca9685cd98f3a0a23e8c4f7e368736bb3aa28d0c
+          cargo +1.89.0 build --locked --release \
+            --manifest-path "$RUNNER_TEMP/r2-pub-verifier/Cargo.toml" \
+            --target-dir "$RUNNER_TEMP/r2-pub-target" -p prospect-cli --bin prospect
+      - name: Test actual global acceptance and pre-publication baseline rejection
+        run: |
+          python3 -E -s scripts/check_r2_suite_interop.py \
+            --producer .interop-kvlab \
+            --prospect "$RUNNER_TEMP/r2-pub-target/release/prospect" \
+            --publication-launcher .interop-launcher
+      - name: Remove temporary verifier worktree
+        if: always()
+        run: |
+          if test -d "$RUNNER_TEMP/r2-pub-verifier"; then
+            git worktree remove --force "$RUNNER_TEMP/r2-pub-verifier"
+          fi
