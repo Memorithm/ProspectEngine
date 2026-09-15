@@ -15,7 +15,7 @@ jobs:
           ref: ${{ github.sha }}
       - name: Install Rust 1.89
         run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt --component clippy
-      - name: Wire assembly module
+      - name: Wire assembly module and normalize paths
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -26,6 +26,7 @@ jobs:
               raise SystemExit('continuation assembly module anchor drift')
           p.write_text(s.replace(anchor, 'pub mod assembly;\n\n' + anchor, 1))
           PY
+          python3 .ci/tmp_fix_assembly_imports.py
       - name: Validate assembly and entire workspace
         run: |
           cargo +1.89.0 fmt --all
@@ -33,7 +34,7 @@ jobs:
           cargo +1.89.0 test --locked --workspace
       - name: Commit validated source only
         run: |
-          git rm -f .github/workflows/tmp-assembly-qualify.yml
+          git rm -f .github/workflows/tmp-assembly-qualify.yml .ci/tmp_fix_assembly_imports.py
           git add crates/prospect-scenario/src/lib.rs
           git add crates/prospect-dispatch/src/execution/record/journal/recovery/continuation.rs
           git add crates/prospect-dispatch/src/execution/record/journal/recovery/continuation/assembly.rs
