@@ -61,10 +61,11 @@ engine errors remain available in memory even if their later journal write fails
 ## Completion and interruption
 
 `ContinuationRunState` distinguishes `Completed`, `Interrupted`, `EngineFailed`,
-`JournalFailed`, and `Rejected`. A completed child means the admitted suffix ran to
-completion under the cooperative control and its terminal child-journal entry was
-acknowledged. It does not by itself authenticate hardware or establish scientific
-validity.
+and `JournalFailed`. Preparation/admission rejection is returned as an error before
+a child run state exists; it is not a `ContinuationRunState` variant. A completed
+child means the admitted suffix ran to completion under the cooperative control and
+its terminal child-journal entry was acknowledged. It does not by itself authenticate
+hardware or establish scientific validity.
 
 Quota, cancellation and deadline semantics remain cooperative. In particular, an
 in-flight candidate is not preempted. If cancellation/deadline becomes visible only
