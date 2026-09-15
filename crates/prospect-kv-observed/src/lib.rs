@@ -758,6 +758,11 @@ fn is_lower_hex(value: &str, len: usize) -> bool {
 }
 
 fn nearly_equal(left: f64, right: f64) -> bool {
+    // Finite stored endpoints can produce an infinite derived delta.
+    // Reject it before tolerance arithmetic can compare infinity <= infinity.
+    if !left.is_finite() || !right.is_finite() {
+        return false;
+    }
     let scale = left.abs().max(right.abs());
     (left - right).abs() <= FLOAT_ABS_TOLERANCE + FLOAT_REL_TOLERANCE * scale
 }
@@ -950,6 +955,62 @@ mod tests {
     }
 
     use serde_json::Value;
+
+    #[test]
+    fn eviction_delta_guard_rejects_overflow_through_public_parser() {
+        for (baseline, candidate) in [(-1.0e308_f64, 1.0e308_f64), (1.0e308_f64, -1.0e308_f64)] {
+            assert!(baseline.is_finite() && candidate.is_finite());
+            assert!(!(candidate - baseline).is_finite());
+            let mut value: Value = serde_json::from_str(&record_json(3, '3', 0.78)).unwrap();
+            value["metrics"][1]["baseline_value"] = json!(baseline);
+            value["metrics"][1]["candidate_value"] = json!(candidate);
+            value["metrics"][1]["delta"] = json!(0.0);
+            let result =
+                KvlabKvRealModelEvictionEvidenceV1::from_canonical_json(&recanonicalize(&value));
+            assert!(
+                matches!(
+                    result,
+                    Err(super::KvlabKvRealModelEvidenceError::MetricDeltaMismatch(_))
+                ),
+                "overflow admitted: {result:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn eviction_delta_guard_rejects_nonfinite_comparator_operands() {
+        for invalid in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            for finite in [0.0, 1.0, -1.0, 1.0e308] {
+                assert!(!super::nearly_equal(finite, invalid));
+                assert!(!super::nearly_equal(invalid, finite));
+            }
+            assert!(!super::nearly_equal(invalid, invalid));
+        }
+    }
+
+    #[test]
+    fn eviction_delta_guard_preserves_large_finite_public_records() {
+        for (baseline, candidate) in [(1.0e307_f64, 2.0e307_f64), (-2.0e307_f64, -1.0e307_f64)] {
+            let mut value: Value = serde_json::from_str(&record_json(3, '3', 0.78)).unwrap();
+            value["metrics"][1]["baseline_value"] = json!(baseline);
+            value["metrics"][1]["candidate_value"] = json!(candidate);
+            value["metrics"][1]["delta"] = json!(candidate - baseline);
+            assert!(
+                KvlabKvRealModelEvictionEvidenceV1::from_canonical_json(&recanonicalize(&value))
+                    .is_ok()
+            );
+        }
+    }
+
+    #[test]
+    fn eviction_delta_guard_preserves_finite_tolerances() {
+        assert!(super::nearly_equal(0.0, 5.0e-13));
+        assert!(super::nearly_equal(1.0e6, 1.0e6 + 5.0e-7));
+        assert!(super::nearly_equal(-0.0, 0.0));
+        assert!(!super::nearly_equal(0.0, 1.0e-6));
+        assert!(!super::nearly_equal(1.0e6, 1.0e6 + 1.0));
+        assert!(!super::nearly_equal(f64::MAX, -f64::MAX));
+    }
 
     #[test]
     fn parses_observed_record_and_preserves_metric_semantics() {
