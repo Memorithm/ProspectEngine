@@ -2,6 +2,7 @@
 
 pub mod execution_journal;
 pub mod execution_record;
+pub mod execution_restart;
 pub mod input;
 
 use input::{MAX_CAMPAIGN_ENTRIES, TextReadBudget};

@@ -108,6 +108,16 @@ is an unknown call outcome, never an automatic-retry permission. Torn tails are
 reported explicitly. See [live journal contracts](docs/LIVE-EXECUTION-JOURNAL.md).
 This is live diagnostic persistence, not safe restart or hardware authentication.
 
+## Externally bound restart preflight
+
+The read-only `prospect preflight-execution-restart` command compares live journals
+to independently retained input/run/adapter/implementation/codec expectations and
+hashes the separately supplied implementation artifact without executing it. It
+identifies never-started candidates but blocks unknown outcomes, failed calls, torn
+logs and stateful/effectful engines. A positive preparation result still sets
+`resume_authorized=false`; typed restoration and actual continuation remain separate.
+See [restart preflight](docs/RESTART-PREFLIGHT.md) for the trust contract and limits.
+
 ## Validate and build
 
 ```bash

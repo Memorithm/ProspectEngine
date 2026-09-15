@@ -65,6 +65,13 @@ jobs:
             --fixture target/release/examples/journal_fixture \
             --revision "$(git rev-parse HEAD)"
 
+      - name: Qualify externally anchored restart preflight (no resume)
+        run: |
+          python3 scripts/check_restart_preflight.py \
+            --prospect target/release/prospect \
+            --fixture target/release/examples/journal_fixture \
+            --revision "$(git rev-parse HEAD)"
+
       - name: Preflight immutable KVLab R2 inputs without model execution
         run: |
           python3 - <<'PY'
