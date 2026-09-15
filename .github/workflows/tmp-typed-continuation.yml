@@ -24,7 +24,7 @@ jobs:
           cargo +1.89.0 test --locked --workspace
       - name: Commit validated continuation
         run: |
-          git rm .github/workflows/tmp-typed-continuation.yml .ci/tmp_prepare_continuation.py .ci/tmp_prepare_continuation_v2.py .ci/tmp_prepare_continuation_v3.py .ci/tmp_prepare_continuation_v4.py .ci/tmp_prepare_continuation_v5.py .ci/tmp_prepare_continuation_v6.py .ci/tmp_prepare_continuation_v7.py .ci/tmp_prepare_continuation_v8.py .ci/tmp_prepare_continuation_v9.py .ci/tmp_prepare_continuation_v10.py
+          git rm -f .github/workflows/tmp-typed-continuation.yml .ci/tmp_prepare_continuation.py .ci/tmp_prepare_continuation_v2.py .ci/tmp_prepare_continuation_v3.py .ci/tmp_prepare_continuation_v4.py .ci/tmp_prepare_continuation_v5.py .ci/tmp_prepare_continuation_v6.py .ci/tmp_prepare_continuation_v7.py .ci/tmp_prepare_continuation_v8.py .ci/tmp_prepare_continuation_v9.py .ci/tmp_prepare_continuation_v10.py
           git add crates/prospect-dispatch/src/execution/record/journal/recovery.rs
           git add crates/prospect-dispatch/src/execution/record/journal/recovery/continuation.rs
           git add crates/prospect-dispatch/src/execution/record/journal/recovery/continuation/tests.rs
