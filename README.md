@@ -69,6 +69,22 @@ The dedicated [R2 whole-suite verifier](docs/R2-SUITE-VERIFICATION.md), `verify-
 
 The [R2 launcher readiness check](docs/R2-SUITE-READINESS.md) exercises the actual KVLab R2 `--preflight-only` launcher against the repaired NNIS runtime and the locked ProspectEngine verifier. It includes strict receipt-contract tests, real pinned builds and verification of the frozen source-weight digest. Its artifact is input-only readiness evidence, not an observed model result. A successful workflow run, rather than the presence of the workflow, is required to claim that this path has passed. Representative model-quality, physical-memory, traffic, latency and throughput gates remain open.
 
+## Controlled campaign evaluation
+
+`prospect_scenario::controlled::evaluate_batch_controlled` adds an explicit
+candidate quota, shared cancellation signal, monotonic deadline checkpoints
+and synchronous progress notifications. It preserves successful work, the
+actual failed candidate/error and never-started input separately. Only a
+completed report converts to the existing rankable `BatchResult`.
+
+`prospect_dispatch::execution::evaluate_registered_bundle_controlled`
+reuses full typed requirement resolution before engine calls. This new API
+is evaluation-only: it does not invoke metrics/policies or rank a prefix.
+The original batch and full bundle-execution APIs remain unchanged.
+See [controlled evaluation](docs/CONTROLLED-EVALUATION.md) for runnable
+examples, terminal states and cooperative-control limitations. Persistent
+checkpoints, automatic retry and GPU/domain validation are separate work.
+
 ## Validate and build
 
 ```bash
