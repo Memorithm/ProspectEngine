@@ -1,0 +1,180 @@
+name: Prepare input-bound execution records
+on:
+  push:
+    branches: [feat/input-bound-execution-records]
+    paths: ['.github/workflows/tmp-execution-records.yml']
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+      - name: Install explicit project toolchain
+        run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt --component clippy
+      - name: Integrate into reviewed sources without changing historical contracts
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+
+          def original(path, expected):
+              raw = Path(path).read_bytes()
+              if hashlib.sha1(f'blob {len(raw)}\0'.encode() + raw).hexdigest() != expected:
+                  raise SystemExit(f'original source drift: {path}')
+              return raw.decode()
+          def replace(source, old, new):
+              if source.count(old) != 1:
+                  raise SystemExit(f'patch anchor drift: {old[:100]}')
+              return source.replace(old, new)
+
+          path = 'crates/prospect-dispatch/src/execution.rs'
+          source = original(path, '76a50afb2bedfe43202ac5c0413328855356ba40')
+          Path(path).write_text('pub mod record;\n' + source)
+          path = 'crates/prospect-cli/src/lib.rs'
+          source = original(path, 'f5520ac610816b31d99bccf917f0be4dc2688b57')
+          Path(path).write_text(replace(source, 'pub mod input;', 'pub mod input;\npub mod execution_record;'))
+
+          path = 'crates/prospect-cli/src/main.rs'
+          source = original(path, 'ee6ca6d8e60399c51127cca4589a17fa8b8478c8')
+          source = replace(source, 'Usage:\\n  prospect list-adapters', 'Usage:\\n  prospect verify-execution-record <record.json> <bundle.json>\\n  prospect list-adapters')
+          anchor = '        Some("list-adapters") => {'
+          insertion = '''        Some("verify-execution-record") => {
+              let (record, bundle) = exactly_two_arguments(&mut arguments,
+                  "verify-execution-record", "record file", "canonical input bundle")?;
+              let summary = prospect_cli::execution_record::verify_execution_record_files(record, bundle)
+                  .map_err(|error| CliError::Verification(error.to_string()))?;
+              serde_json::to_string(&summary).map_err(|error| CliError::Verification(error.to_string()))
+          }
+          '''
+          Path(path).write_text(replace(source, anchor, insertion + anchor))
+
+          path = 'Cargo.lock'
+          source = original(path, '6e5421705c7dff5f113faf31ffd09731978776ce')
+          start = source.index('name = "prospect-dispatch"\n')
+          end = source.index('\n[[package]]', start)
+          block = source[start:end]
+          block = replace(block, ' "prospect-core",\n', ' "prospect-core",\n "prospect-evidence",\n')
+          block = replace(block, ' "serde_json",\n', ' "serde_json",\n "sha2",\n')
+          Path(path).write_text(source[:start] + block + source[end:])
+
+          path = Path('crates/prospect-cli/src/execution_record.rs')
+          source = path.read_text()
+          source = replace(source,
+              '        file.write_all(record.canonical_json().as_bytes())?;\n        file.sync_all()?;\n        drop(file);',
+              '        let written = (|| {\n            file.write_all(record.canonical_json().as_bytes())?;\n            file.sync_all()\n        })();\n        drop(file);\n        written?;')
+          path.write_text(source)
+
+          path = Path('crates/prospect-dispatch/src/execution/record/tests.rs')
+          source = path.read_text()
+          source = replace(source,
+              '|v| v["outcomes"].as_array_mut().unwrap().pop().map(|_| ()).unwrap()',
+              '|v| { let _ = v["outcomes"].as_array_mut().unwrap().pop(); }')
+          path.write_text(source)
+
+          path = Path('crates/prospect-dispatch/src/execution/record.rs')
+          source = path.read_text()
+          source = replace(source,
+              '        let baseline = evaluation.baseline().map(&mut encode_signature)\n            .transpose().map_err(ExecutionRecordError::Encoding)?;',
+              '''        let mut remaining_payload_bytes = MAX_RECORD_BYTES;
+                  let mut encode_checked = |signature: &S| {
+                      let payload = encode_signature(signature).map_err(ExecutionRecordError::Encoding)?;
+                      check_payload(&payload)?;
+                      remaining_payload_bytes = remaining_payload_bytes.checked_sub(payload.len())
+                          .ok_or(ExecutionRecordError::Invalid("cumulative encoded payload limit"))?;
+                      Ok(payload)
+                  };
+                  let baseline = evaluation.baseline().map(&mut encode_checked).transpose()?;''')
+          source = replace(source,
+              'payload: encode_signature(outcome.signature()).map_err(ExecutionRecordError::Encoding)?,',
+              'payload: encode_checked(outcome.signature())?,')
+          path.write_text(source)
+
+          path = 'README.md'
+          source = original(path, 'b0c63eb7e2cf8691366e75da71bbe128cbaec756')
+          addition = '''## Persistent input-bound execution records
+
+          Controlled runs can now bind their canonical input before engine calls and
+          capture terminal reports with explicit signature/error codecs. The record
+          retains completed work, failed calls and never-started inputs separately.
+          A no-clobber writer and `prospect verify-execution-record <record.json> <bundle.json>`
+          preserve and independently check the file/input contract. This does not
+          authorize automatic resume, decode arbitrary codecs, authenticate GPU
+          execution or convert partial work into a completed batch.
+          See [execution records](docs/EXECUTION-RECORDS.md) for API and CLI usage.
+
+          '''.replace('\n          ', '\n')
+          Path(path).write_text(replace(source, '## Validate and build', addition + '## Validate and build'))
+
+          path = 'docs/NEXT_MILESTONE.md'
+          source = original(path, '64e1f31928c5f573275c3f2fa64d0b3fa0d63ab6')
+          start = source.index('## Current engineering slice: controlled scenario evaluation')
+          end = source.index('## Next empirical slice: exact R2 CUDA qualification')
+          replacement = '''## Completed cooperative evaluation foundation
+
+          ProspectEngine #45 is merged at `5098bcbb7a45de323c4594d63dd360fd017a78be`.
+          Generic/registered evaluation now has explicit quotas, cancellation,
+          deadline checkpoints, terminal states and retained partial work. Existing
+          batch and full execution APIs are unchanged. See
+          [controlled evaluation](CONTROLLED-EVALUATION.md).
+
+          ## Current engineering slice: persistent input-bound terminal records
+
+          Bind the exact canonical bundle before engine calls, preserve terminal
+          execution with explicitly named payload codecs and independently validate
+          record/input identity and the ordered lifecycle partition. Capture and
+          persistence errors must not destroy the in-memory report or retry engines.
+          Publish to a new path without overwriting existing records. File verification
+          reuses bounded input loading. See [execution records](EXECUTION-RECORDS.md).
+
+          Acceptance requires final-head Rust 1.89 format, locked Clippy/workspace
+          tests, real producer-example to release-CLI verification, filesystem
+          no-clobber/negative tests and unchanged R2 interoperability. Software
+          fixtures and checksums do not authenticate scientific or GPU observations.
+
+          Safe resume remains a separate functional slice: live checkpoint/event
+          capture, exact implementation/input binding across restart, explicit
+          idempotency and unknown-side-effect handling. Terminal records are not
+          resumable engine state; loading one never authorizes re-execution.
+
+          '''.replace('\n          ', '\n')
+          Path(path).write_text(source[:start] + replacement + source[end:])
+          PY
+      - name: Format and validate integrated sources
+        run: |
+          cargo +1.89.0 fmt --all
+          cargo +1.89.0 clippy --locked --workspace --all-targets -- -D warnings
+          cargo +1.89.0 test --locked --workspace
+          cargo +1.89.0 build --locked --release -p prospect-cli --bin prospect
+          cargo +1.89.0 run --locked -p prospect-dispatch --example bound_execution_record > "$RUNNER_TEMP/bound-example.jsonl"
+      - name: Verify actual example records with the actual release CLI
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP'])
+          lines = (root / 'bound-example.jsonl').read_bytes().splitlines()
+          assert len(lines) == 2
+          bundle, record = root / 'bound-input.json', root / 'bound-record.json'
+          bundle.write_bytes(lines[0]); record.write_bytes(lines[1])
+          result = subprocess.run(['target/release/prospect', 'verify-execution-record', str(record), str(bundle)], capture_output=True, text=True, check=True)
+          summary = json.loads(result.stdout)
+          assert summary['state'] == 'interrupted'
+          assert summary['successful_candidates'] == 1
+          assert summary['never_started_candidates'] == 1
+          assert summary['resume_authorized'] is False
+          print(result.stdout)
+          PY
+      - name: Commit validated integration and remove preparation workflow
+        run: |
+          git rm .github/workflows/tmp-execution-records.yml
+          git add Cargo.lock README.md docs/NEXT_MILESTONE.md docs/EXECUTION-RECORDS.md
+          git add crates/prospect-dispatch/Cargo.toml crates/prospect-dispatch/src/execution.rs crates/prospect-dispatch/src/execution/record.rs crates/prospect-dispatch/src/execution/record/tests.rs crates/prospect-dispatch/examples/bound_execution_record.rs
+          git add crates/prospect-cli/src/lib.rs crates/prospect-cli/src/main.rs crates/prospect-cli/src/execution_record.rs crates/prospect-cli/tests/execution_records.rs
+          git -c user.name='MEMOPERF' -c user.email='contact@checkupauto.fr' commit -m 'feat: integrate validated input-bound execution records and persistence'
+          git push origin HEAD:refs/heads/feat/input-bound-execution-records
