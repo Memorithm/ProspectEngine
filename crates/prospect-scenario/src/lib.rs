@@ -12,6 +12,18 @@ pub struct ScenarioOutcome<I, S> {
 }
 
 impl<I, S> ScenarioOutcome<I, S> {
+    /// Construct one structural scenario/signature pair from already validated parts.
+    ///
+    /// This constructor performs no scientific, provenance, or execution check.
+    /// Persistence assemblers must establish those guarantees before calling it.
+    #[must_use]
+    pub const fn from_parts(scenario: Scenario<I>, signature: S) -> Self {
+        Self {
+            scenario,
+            signature,
+        }
+    }
+
     #[must_use]
     pub const fn scenario(&self) -> &Scenario<I> {
         &self.scenario
@@ -30,6 +42,15 @@ pub struct BatchResult<I, S> {
 }
 
 impl<I, S> BatchResult<I, S> {
+    /// Construct a structural complete-batch container from already validated parts.
+    ///
+    /// No completeness, uniqueness, provenance, metric, or execution validation is
+    /// implied. Verified assemblers must establish those properties before use.
+    #[must_use]
+    pub fn from_parts(baseline: S, outcomes: Vec<ScenarioOutcome<I, S>>) -> Self {
+        Self { baseline, outcomes }
+    }
+
     #[must_use]
     pub const fn baseline(&self) -> &S {
         &self.baseline
