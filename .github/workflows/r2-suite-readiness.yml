@@ -28,18 +28,18 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - name: Checkout ProspectEngine and its frozen verifier revision
+      - name: Checkout ProspectEngine and its frozen verifier revisions
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           fetch-depth: 0
           persist-credentials: false
           path: prospect
 
-      - name: Checkout immutable KVLab R2 launcher (PR95 head)
+      - name: Checkout immutable globally gated KVLab R2 launcher
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: Memorithm/KVLab
-          ref: e21289bcdcf8bc01dafc6873015b15552cf1091c
+          ref: 0318e4fc09b17eea3705534927917c4d34818258
           fetch-depth: 0
           persist-credentials: false
           path: kvlab
@@ -60,6 +60,7 @@ jobs:
           python3 -m unittest discover -s prospect/scripts/tests -v
           cd kvlab
           python3 -m unittest discover -s tests -p 'test_smollm2_r2*.py' -v
+          python3 -m unittest discover -s tests -p 'test_prospect_r2_publication_gate.py' -v
 
       - name: Download and verify the frozen source weights (no model execution)
         shell: bash
@@ -91,7 +92,7 @@ jobs:
           print(f"Verified {count} source bytes; no weights were loaded into a decoder")
           PY
 
-      - name: Execute actual locked builds and all three input preflights
+      - name: Build all three pinned binaries and preflight the three frozen inputs
         working-directory: kvlab
         shell: bash
         run: |
@@ -106,8 +107,23 @@ jobs:
           test ! -e "$RUNNER_TEMP/r2-must-not-exist"
           test ! -L "$RUNNER_TEMP/r2-must-not-exist"
           rustc +1.89.0 -Vv > "$RUNNER_TEMP/r2-build-toolchain.txt"
+          python3 -E -s - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+          from kvlab.prospect_r2_publication_gate import PUBLICATION_VERIFIER_REVISION
+          launcher = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          assert launcher == '0318e4fc09b17eea3705534927917c4d34818258'
+          assert PUBLICATION_VERIFIER_REVISION == 'ca9685cd98f3a0a23e8c4f7e368736bb3aa28d0c'
+          identity = dict(schema='prospect.r2-readiness-tool-identities/v1', launcher_revision=launcher,
+                          publication_verifier_revision=PUBLICATION_VERIFIER_REVISION,
+                          evidence_kind='build_and_preflight_only')
+          (Path(os.environ['RUNNER_TEMP']) / 'r2-publication-tools.json').write_text(
+              json.dumps(identity, sort_keys=True, separators=(',', ':')), encoding='utf-8')
+          PY
 
-      - name: Validate the exact readiness receipt
+      - name: Validate the unchanged v1 readiness receipt
         run: |
           python3 prospect/scripts/verify_r2_preflight_receipt.py \
             "$RUNNER_TEMP/r2-preflight.json" > "$RUNNER_TEMP/r2-receipt-check.json"
@@ -120,5 +136,6 @@ jobs:
             ${{ runner.temp }}/r2-preflight.json
             ${{ runner.temp }}/r2-receipt-check.json
             ${{ runner.temp }}/r2-build-toolchain.txt
+            ${{ runner.temp }}/r2-publication-tools.json
           if-no-files-found: error
           retention-days: 7
