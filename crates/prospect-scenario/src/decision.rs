@@ -150,9 +150,12 @@ impl<R, T> AssessedAlternative<R, T> {
     }
 }
 
-/// Structural error in the objective schema, not a domain-constraint rejection.
+/// Structural error in the decision set or objective schema, not a domain-constraint rejection.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DecisionSetError {
+    DuplicateAlternativeId {
+        alternative: AlternativeId,
+    },
     EmptyObjectiveVector {
         alternative: AlternativeId,
     },
@@ -172,6 +175,9 @@ pub enum DecisionSetError {
 impl fmt::Display for DecisionSetError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::DuplicateAlternativeId { alternative } => {
+                write!(formatter, "decision set repeats alternative id {alternative}")
+            }
             Self::EmptyObjectiveVector { alternative } => {
                 write!(
                     formatter,
@@ -306,8 +312,10 @@ impl<R, T: Ord> ConstrainedDecisionSet<R, T> {
 /// `Err(reason)` means the alternative violates a mandatory domain constraint; its
 /// objectives are discarded and it can never be selected. `Ok(objectives)` means
 /// the alternative is admissible. Every admissible alternative must expose one
-/// identical, non-empty ordered objective schema. A schema error rejects the whole
-/// decision set rather than comparing semantically incompatible numbers.
+/// identical, non-empty ordered objective schema. Duplicate scenario identifiers
+/// are rejected before the callback runs so every selectable [`AlternativeId`]
+/// remains unambiguous. A structural error rejects the whole decision set rather
+/// than comparing semantically incompatible numbers.
 ///
 /// ```
 /// use prospect_core::{ProspectiveEngine, Scenario, ScenarioId};
@@ -338,6 +346,14 @@ pub fn assess_decision_set<I, S, R, T, F>(
 where
     F: FnMut(&AlternativeId, &S, &S) -> Result<Vec<Objective<T>>, R>,
 {
+    let mut scenario_ids = BTreeSet::new();
+    for outcome in batch.outcomes() {
+        let id = AlternativeId::Scenario(outcome.scenario().id().clone());
+        if !scenario_ids.insert(id.clone()) {
+            return Err(DecisionSetError::DuplicateAlternativeId { alternative: id });
+        }
+    }
+
     let mut alternatives = Vec::with_capacity(batch.outcomes().len() + 1);
     let mut schema = None;
 
@@ -488,6 +504,33 @@ mod tests {
             ],
         )
         .unwrap()
+    }
+
+    #[test]
+    fn duplicate_scenario_ids_fail_before_assessment() {
+        let duplicate = evaluate_batch(
+            &Add,
+            &10,
+            vec![
+                Scenario::new(ScenarioId::new("same").unwrap(), 1),
+                Scenario::new(ScenarioId::new("same").unwrap(), 2),
+            ],
+        )
+        .unwrap();
+        let mut calls = 0usize;
+        let error = assess_decision_set(&duplicate, |_id, _, signature| {
+            calls += 1;
+            Ok::<_, ()>(vec![Objective::maximize("utility", *signature)])
+        })
+        .unwrap_err();
+
+        assert_eq!(calls, 0);
+        assert_eq!(
+            error,
+            DecisionSetError::DuplicateAlternativeId {
+                alternative: AlternativeId::Scenario(ScenarioId::new("same").unwrap()),
+            }
+        );
     }
 
     #[test]
