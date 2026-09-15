@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+pub mod execution_journal;
 pub mod execution_record;
 pub mod input;
 

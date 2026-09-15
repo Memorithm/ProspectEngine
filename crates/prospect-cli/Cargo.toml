@@ -24,3 +24,9 @@ prospect-kv-position-observed = { path = "../prospect-kv-position-observed" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+
+[dev-dependencies]
+prospect-core = { path = "../prospect-core" }
+prospect-evidence = { path = "../prospect-evidence" }
+prospect-registry = { path = "../prospect-registry" }
+prospect-scenario = { path = "../prospect-scenario" }

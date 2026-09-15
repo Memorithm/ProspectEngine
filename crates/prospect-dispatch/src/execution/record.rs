@@ -5,6 +5,8 @@
 //! this module never silently converts a floating-point NaN to JSON null.
 //! A checksum binds bytes; it does not authenticate hardware or engine execution.
 
+pub mod journal;
+
 use core::fmt;
 
 use prospect_adapter::{

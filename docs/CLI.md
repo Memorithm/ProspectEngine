@@ -123,3 +123,18 @@ experiment launchers to make a missing or stale lockfile pass. Earlier
 ProspectEngine revisions without a committed lockfile are not repaired
 retroactively. Campaigns requiring locked verifier builds need an explicit
 successor verifier pin. A reproducible build is not model-execution evidence.
+
+## Inspect a live execution journal
+
+```bash
+cargo run --locked -p prospect-cli --bin prospect -- inspect-execution-journal journal.jsonl bundle.json
+```
+
+Both inputs use the shared bounded file reader. Successful inspection can describe
+an open, failed or interrupted run; its exit status does not imply campaign success.
+An unterminated final tail is reported rather than repaired, and unmatched call
+intents remain unknown outcomes. Every summary sets `resume_authorized=false`.
+Malformed complete entries, binding/hash/order errors, invalid UTF-8, oversized
+inputs and bytes after a terminal event fail with no success JSON. This command
+does not execute, resume, decode application payloads or edit the log. See
+[LIVE-EXECUTION-JOURNAL.md](LIVE-EXECUTION-JOURNAL.md) for precise trust boundaries.
