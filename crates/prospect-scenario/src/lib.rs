@@ -18,7 +18,10 @@ impl<I, S> ScenarioOutcome<I, S> {
     /// constructing an outcome.
     #[must_use]
     pub const fn from_parts(scenario: Scenario<I>, signature: S) -> Self {
-        Self { scenario, signature }
+        Self {
+            scenario,
+            signature,
+        }
     }
 
     #[must_use]
@@ -130,7 +133,9 @@ where
 mod tests {
     use prospect_core::{DecisionPolicy, ProspectiveEngine, Scenario, ScenarioId, SignatureMetric};
 
-    use super::{BatchResult, ScenarioOutcome, best_by_policy, evaluate_batch, score_against_baseline};
+    use super::{
+        BatchResult, ScenarioOutcome, best_by_policy, evaluate_batch, score_against_baseline,
+    };
 
     struct AdditiveEngine;
 

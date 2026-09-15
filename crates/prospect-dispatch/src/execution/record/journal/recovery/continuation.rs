@@ -4,6 +4,8 @@
 //! journal. It restores only acknowledged payloads through explicit application
 //! decoders, then starts a fresh parent-linked journal for the never-started suffix.
 
+pub mod assembly;
+
 use prospect_bundle::ScenarioBundle;
 use prospect_core::{ProspectiveEngine, Scenario, ScenarioId};
 use prospect_evidence::RunId;

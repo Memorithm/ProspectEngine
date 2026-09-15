@@ -12,9 +12,10 @@ use prospect_core::Scenario;
 use prospect_scenario::{BatchResult, ScenarioOutcome};
 use serde::Serialize;
 
+use super::super::RestartExpectations;
 use super::{
-    ContinuationEntry, ContinuationError, ContinuationEvent, RestartExpectations,
-    inspect_continuation_journal, prepare_typed_continuation,
+    ContinuationEntry, ContinuationError, ContinuationEvent, inspect_continuation_journal,
+    prepare_typed_continuation,
 };
 use crate::execution::record::{ExecutionRecordError, digest};
 
@@ -96,7 +97,9 @@ impl fmt::Display for ContinuationAssemblyError {
             Self::ChildNotCompleted(state) => {
                 write!(formatter, "continuation child is not completed: {state}")
             }
-            Self::Decode(error) => write!(formatter, "continuation assembly decode failed: {error}"),
+            Self::Decode(error) => {
+                write!(formatter, "continuation assembly decode failed: {error}")
+            }
             Self::ScenarioPartitionMismatch => {
                 formatter.write_str("continuation parent/child scenario partition mismatch")
             }
@@ -161,12 +164,8 @@ where
     )
     .map_err(ContinuationAssemblyError::Parent)?;
 
-    let summary = inspect_continuation_journal(
-        child_journal,
-        parent_journal,
-        &bundle_json,
-        expected,
-    )?;
+    let summary =
+        inspect_continuation_journal(child_journal, parent_journal, &bundle_json, expected)?;
     if summary.state != "completed"
         || !summary.terminal_recorded
         || summary.failed_candidate.is_some()
@@ -199,8 +198,8 @@ where
 
     let mut new_index = 0usize;
     for raw in child_journal.split_terminator('\n') {
-        let entry: ContinuationEntry = serde_json::from_str(raw)
-            .map_err(ExecutionRecordError::Json)?;
+        let entry: ContinuationEntry =
+            serde_json::from_str(raw).map_err(ExecutionRecordError::Json)?;
         if let ContinuationEvent::CallSucceeded {
             scenario_id,
             payload,

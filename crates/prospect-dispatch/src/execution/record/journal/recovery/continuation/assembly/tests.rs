@@ -12,13 +12,14 @@ use prospect_evidence::RunId;
 use prospect_registry::{DecisionPolicyRegistry, MetricRegistry};
 use prospect_scenario::controlled::EvaluationControl;
 
-use super::*;
-use super::super::{
-    ContinuationCapture, EngineIdentity, JournalCapture, JournalSink, PayloadCodecs,
-    RestartAnchors, RestartSemantics, evaluate_registered_bundle_journaled,
-    execute_typed_continuation,
+use super::super::super::super::super::{PayloadCodecs, canonical, digest};
+use super::super::super::super::evaluation::JournalCapture;
+use super::super::super::super::{
+    EngineIdentity, JournalSink, evaluate_registered_bundle_journaled,
 };
-use super::super::super::super::{canonical, digest};
+use super::super::super::{RestartAnchors, RestartSemantics};
+use super::super::{ContinuationCapture, execute_typed_continuation};
+use super::*;
 use crate::execution::ExecutableAdapterRegistry;
 
 #[derive(Default)]
@@ -89,9 +90,7 @@ fn bundle_with_state(state: i32) -> ScenarioBundle<i32, i32> {
         Some(7),
         state,
         (1..=3)
-            .map(|value| {
-                BundleScenario::new(ScenarioId::new(format!("s{value}")).unwrap(), value)
-            })
+            .map(|value| BundleScenario::new(ScenarioId::new(format!("s{value}")).unwrap(), value))
             .collect(),
         None,
         None,
@@ -164,14 +163,11 @@ fn chain(child_quota: usize) -> Chain {
     )
     .unwrap();
 
-    let plan = prepare_typed_continuation(
-        &parent,
-        &bundle,
-        &expected,
-        &"b".repeat(64),
-        |payload| payload.parse::<i32>().map_err(|error| error.to_string()),
-    )
-    .unwrap();
+    let plan =
+        prepare_typed_continuation(&parent, &bundle, &expected, &"b".repeat(64), |payload| {
+            payload.parse::<i32>().map_err(|error| error.to_string())
+        })
+        .unwrap();
     let mut child_sink = Memory::default();
     let child_run = execute_typed_continuation(
         plan,
@@ -223,9 +219,18 @@ fn complete_chain_reconstructs_exact_original_order_without_more_engine_calls() 
     let assembled = assemble(&chain).unwrap();
     assert_eq!(assembled.source_run_id(), "assembly-parent");
     assert_eq!(assembled.child_run_id(), "assembly-child");
-    assert_eq!(assembled.source_journal_sha256(), digest(chain.parent.as_bytes()));
-    assert_eq!(assembled.child_journal_sha256(), digest(chain.child.as_bytes()));
-    assert_eq!(assembled.source_bundle_sha256(), digest(bundle_with_state(10).canonical_json().unwrap().as_bytes()));
+    assert_eq!(
+        assembled.source_journal_sha256(),
+        digest(chain.parent.as_bytes())
+    );
+    assert_eq!(
+        assembled.child_journal_sha256(),
+        digest(chain.child.as_bytes())
+    );
+    assert_eq!(
+        assembled.source_bundle_sha256(),
+        digest(bundle_with_state(10).canonical_json().unwrap().as_bytes())
+    );
     assert_eq!(assembled.expectation_sha256(), chain.expected.sha256());
     let batch = assembled.into_batch();
     assert_eq!(*batch.baseline(), 10);
@@ -238,7 +243,10 @@ fn complete_chain_reconstructs_exact_original_order_without_more_engine_calls() 
         [("s1", 11), ("s2", 12), ("s3", 13)]
     );
     assert_eq!(chain.baseline_calls.load(Ordering::SeqCst), before_baseline);
-    assert_eq!(chain.candidate_calls.load(Ordering::SeqCst), before_candidates);
+    assert_eq!(
+        chain.candidate_calls.load(Ordering::SeqCst),
+        before_candidates
+    );
 }
 
 #[test]
@@ -253,7 +261,9 @@ fn interrupted_child_never_constructs_a_batch() {
 #[test]
 fn altered_child_bytes_fail_before_decoding_a_batch() {
     let mut chain = chain(2);
-    chain.child = chain.child.replacen("\"payload\":\"12\"", "\"payload\":\"99\"", 1);
+    chain.child = chain
+        .child
+        .replacen("\"payload\":\"12\"", "\"payload\":\"99\"", 1);
     assert!(matches!(
         assemble(&chain),
         Err(ContinuationAssemblyError::Contract(_))
@@ -268,7 +278,9 @@ fn missing_child_terminal_is_not_promoted_to_complete() {
     chain.child.truncate(last_line_start);
     assert!(matches!(
         assemble(&chain),
-        Err(ContinuationAssemblyError::ChildNotCompleted("open_after_return"))
+        Err(ContinuationAssemblyError::ChildNotCompleted(
+            "open_after_return"
+        ))
     ));
 }
 
@@ -293,7 +305,10 @@ fn changed_bundle_or_wrong_artifact_rejects_at_parent_admission() {
         &"c".repeat(64),
         |payload| payload.parse::<i32>().map_err(|error| error.to_string()),
     );
-    assert!(matches!(wrong_artifact, Err(ContinuationAssemblyError::Parent(_))));
+    assert!(matches!(
+        wrong_artifact,
+        Err(ContinuationAssemblyError::Parent(_))
+    ));
 }
 
 #[test]
