@@ -1,0 +1,44 @@
+name: Prepare constrained decision module
+on:
+  push:
+    branches:
+      - feat/constrained-multiobjective-decision
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+      - name: Install Rust 1.89
+        run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt --component clippy
+      - name: Apply reviewed static fixes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('crates/prospect-scenario/src/decision.rs')
+          s = p.read_text()
+          fixes = {
+              'use prospect_core::{ScenarioId};': 'use prospect_core::ScenarioId;',
+              '!core::ptr::eq(candidate, other)': '!core::ptr::eq(*candidate, other)',
+          }
+          for old, new in fixes.items():
+              if s.count(old) != 1:
+                  raise SystemExit(f'decision qualification anchor drift: {old!r} count={s.count(old)}')
+              s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+      - name: Validate decision module and workspace
+        run: |
+          cargo +1.89.0 fmt --all
+          cargo +1.89.0 clippy --locked --workspace --all-targets -- -D warnings
+          cargo +1.89.0 test --locked --workspace
+      - name: Commit validated source only
+        run: |
+          git rm .github/workflows/tmp-decision-qualify.yml
+          git add crates/prospect-scenario/src/lib.rs crates/prospect-scenario/src/decision.rs
+          git -c user.name='MEMOPERF' -c user.email='contact@checkupauto.fr' commit -m 'feat: qualify constraint-first multiobjective decisions'
+          git push origin HEAD:refs/heads/feat/constrained-multiobjective-decision
