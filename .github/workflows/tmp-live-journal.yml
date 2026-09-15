@@ -42,11 +42,15 @@ jobs:
             --fixture target/release/examples/journal_fixture \
             --revision "$(git rev-parse HEAD)"
           git diff --check
-      - name: Commit validated integration and remove preparation helpers
+      - name: Commit validated source without workflow modifications
         run: |
-          git rm .github/workflows/tmp-live-journal.yml scripts/tmp_prepare_live_journal.py
+          # Workflow edits are performed separately by the repository connector.
+          # Keep this token restricted to ordinary source content changes.
+          git restore .github/workflows/ci.yml
+          git rm scripts/tmp_prepare_live_journal.py
           git add crates/prospect-dispatch/src/execution/record.rs crates/prospect-dispatch/src/execution/record/journal.rs crates/prospect-dispatch/src/execution/record/journal
           git add crates/prospect-cli/src crates/prospect-cli/examples/journal_fixture.rs crates/prospect-cli/tests/execution_journals.rs crates/prospect-cli/Cargo.toml
-          git add Cargo.lock README.md docs/CLI.md docs/NEXT_MILESTONE.md .github/workflows/ci.yml
+          git add Cargo.lock README.md docs/CLI.md docs/NEXT_MILESTONE.md
+          test -z "$(git diff --cached --name-only -- .github/workflows)"
           git -c user.name='MEMOPERF' -c user.email='contact@checkupauto.fr' commit -m 'feat: integrate live execution journaling and conservative recovery inspection'
           git push origin HEAD:refs/heads/feat/live-execution-journal
