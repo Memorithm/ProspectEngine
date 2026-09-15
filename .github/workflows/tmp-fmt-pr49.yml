@@ -1,0 +1,25 @@
+name: Format PR49 review fix
+on:
+  push:
+    branches:
+      - feat/constrained-multiobjective-decision
+    paths:
+      - .github/workflows/tmp-fmt-pr49.yml
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+      - name: Install Rust 1.89
+        run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt
+      - name: Apply exact formatter and remove helper
+        run: |
+          cargo +1.89.0 fmt --all
+          git rm .github/workflows/tmp-fmt-pr49.yml
+          git add crates/prospect-scenario/src/decision.rs
+          git -c user.name='MEMOPERF' -c user.email='contact@checkupauto.fr' commit -m 'style(scenario): format duplicate alternative guard'
+          git push origin HEAD:refs/heads/feat/constrained-multiobjective-decision
