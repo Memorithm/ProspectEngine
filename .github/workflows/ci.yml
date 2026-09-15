@@ -57,6 +57,14 @@ jobs:
           cargo run --locked -p prospect-dispatch --example bound_execution_record > "$RUNNER_TEMP/bound-record-example.jsonl"
           python3 scripts/check_execution_record_example.py "$RUNNER_TEMP/bound-record-example.jsonl" target/release/prospect
 
+      - name: Qualify live journals and abrupt process exit (software only)
+        run: |
+          cargo build --locked --release -p prospect-cli --example journal_fixture
+          python3 scripts/check_execution_journal.py \
+            --prospect target/release/prospect \
+            --fixture target/release/examples/journal_fixture \
+            --revision "$(git rev-parse HEAD)"
+
       - name: Preflight immutable KVLab R2 inputs without model execution
         run: |
           python3 - <<'PY'
