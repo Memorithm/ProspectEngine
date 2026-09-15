@@ -1,0 +1,99 @@
+name: Prepare bounded verification input integration
+
+on:
+  push:
+    branches: [fix/bounded-verification-inputs]
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Install explicit project toolchain
+        run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt,clippy
+
+      - name: Validate preparation syntax and exact source blobs
+        run: |
+          python3 -m py_compile .assistant-bounded-inputs.py
+          python3 .assistant-bounded-inputs.py regression
+
+      - name: Require reserved-file symlink regression on the original loader
+        run: |
+          python3 - <<'PY'
+          import subprocess
+          result = subprocess.run([
+              'cargo', '+1.89.0', 'test', '--locked', '-p', 'prospect-cli', '--lib',
+              'input_limits_rejects_symlinked_reserved_campaign_files',
+          ], capture_output=True, text=True)
+          print(result.stdout)
+          print(result.stderr)
+          if result.returncode != 101 or 'reserved symlink was accepted' not in result.stdout:
+              raise SystemExit('the expected original-code assertion failure was not reproduced')
+          PY
+
+      - name: Apply checked integration and link the documented policy
+        run: |
+          python3 .assistant-bounded-inputs.py apply
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import re
+          root = Path('crates/prospect-cli/src')
+          for name in ('kv_campaign_spec.rs', 'scenario_bundle.rs', 'dispatch_preflight.rs'):
+              path = root / name
+              source = path.read_text()
+              head, tests = source.split('#[cfg(test)]\nmod tests {', 1)
+              if re.search(r'(?<![:\w])fs::', tests) and 'use std::fs;' not in tests:
+                  tests = '\n    use std::fs;' + tests
+              path.write_text(head + '#[cfg(test)]\nmod tests {' + tests)
+          path = root / 'input.rs'
+          source = path.read_text()
+          old = '                if self.0 { return Err(io::Error::other("injected read failure")); }'
+          if source.count(old) != 1:
+              raise SystemExit('test reader anchor drift')
+          path.write_text(source.replace(old, '                if buffer.is_empty() { return Ok(0); }\n' + old))
+          path = Path('docs/CLI.md')
+          raw = path.read_bytes()
+          if hashlib.sha1(f'blob {len(raw)}\0'.encode() + raw).hexdigest() != '02bec348460fa0058ffc6baa4bbe01fcdff29d19':
+              raise SystemExit('CLI documentation drift')
+          source = raw.decode()
+          anchor = '## List built-in adapters'
+          addition = ('## File input limits\n\n'
+              'File-based commands share bounded exact-byte reads: 16 MiB per file, '
+              '128 MiB cumulative text per operation (including rereads), and at most '
+              '1,024 entries per generic campaign directory. Static input symlinks and '
+              'non-regular files are rejected. Inputs over the limits fail with status 1 '
+              'and no success JSON; they are never truncated. See '
+              '[the input policy and trust boundary](VERIFICATION-INPUT-LIMITS.md).\n\n')
+          if source.count(anchor) != 1:
+              raise SystemExit('CLI documentation anchor drift')
+          path.write_text(source.replace(anchor, addition + anchor))
+          PY
+
+      - name: Format and validate the entire corrected workspace
+        run: |
+          cargo +1.89.0 fmt --all
+          git diff --check
+          cargo +1.89.0 clippy --locked --workspace --all-targets -- -D warnings
+          cargo +1.89.0 test --locked --workspace
+          cargo +1.89.0 build --locked --release -p prospect-cli --bin prospect
+
+      - name: Commit validated source and remove one-use preparation files
+        run: |
+          git config user.name 'MEMOPERF'
+          git config user.email 'contact@checkupauto.fr'
+          git add crates/prospect-cli docs/CLI.md docs/VERIFICATION-INPUT-LIMITS.md
+          git rm .assistant-bounded-inputs.py .github/workflows/tmp-bounded-inputs-prepare.yml
+          git diff --cached --check
+          git diff --cached --stat
+          git commit -m 'fix(cli): enforce shared input budgets across verification commands'
+          git push origin HEAD:fix/bounded-verification-inputs
