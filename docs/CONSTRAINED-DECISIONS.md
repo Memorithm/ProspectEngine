@@ -16,6 +16,13 @@ This permits a domain to retain no intervention when candidates do not improve t
 ordered objectives, and exact lexicographic ties conservatively retain the earlier
 alternative. Because baseline is assessed first, it wins an exact tie.
 
+Scenario IDs must be unique before constraint/objective callbacks run. The decision
+layer performs this identity preflight across the complete batch and rejects a
+duplicate `AlternativeId` before evaluating any domain constraint or objective.
+This prevents two distinct interventions from becoming indistinguishable in the
+selected ID or Pareto front even when a caller constructed a batch outside the
+normal scenario-bundle validation path.
+
 ## Mandatory constraints
 
 `assess_decision_set` calls the application once for baseline and then once for each
