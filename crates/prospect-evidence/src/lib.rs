@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
+mod canonical;
 pub mod constrained;
+pub mod multi_trace;
 
 use std::collections::BTreeSet;
 use std::fmt;
