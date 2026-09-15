@@ -4,11 +4,6 @@
 //! journal. It restores only acknowledged payloads through explicit application
 //! decoders, then starts a fresh parent-linked journal for the never-started suffix.
 
-use std::cell::RefCell;
-use std::fmt;
-use std::io;
-
-use prospect_adapter::AdapterMetadata;
 use prospect_bundle::ScenarioBundle;
 use prospect_core::{ProspectiveEngine, Scenario, ScenarioId};
 use prospect_evidence::RunId;
@@ -20,19 +15,19 @@ use prospect_scenario::controlled::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::cell::RefCell;
+use std::fmt;
 
-use super::{RestartBlocker, RestartExpectations, RestartSemantics, preflight_journal_restart};
+use super::super::super::super::{BundleExecutionError, ExecutableAdapterRegistry};
+use super::super::super::{
+    ExecutionRecordError, PayloadCodecs, RecordInterruption, canonical, check_payload, digest,
+    invalid,
+};
 use super::super::{
     CallTarget as ParentCallTarget, EngineIdentity, Entry as ParentEntry, Event as ParentEvent,
     JournalError, JournalSink, MAX_JOURNAL_BYTES, MAX_JOURNAL_ENTRY_BYTES,
 };
-use super::super::super::{
-    BoundEvaluationError, ExecutionRecordError, PayloadCodecs, RecordInterruption, canonical,
-    check_payload, digest, invalid,
-};
-use super::super::super::super::super::{
-    BundleExecutionError, ExecutableAdapterRegistry,
-};
+use super::{RestartBlocker, RestartExpectations, RestartSemantics, preflight_journal_restart};
 use crate::resolve_bundle_requirements;
 
 const CONTINUATION_SCHEMA: &str = "prospect.execution-continuation-journal/v1";
@@ -46,9 +41,13 @@ pub struct RestoredOutcome<S> {
 }
 impl<S> RestoredOutcome<S> {
     #[must_use]
-    pub const fn scenario_id(&self) -> &ScenarioId { &self.scenario_id }
+    pub const fn scenario_id(&self) -> &ScenarioId {
+        &self.scenario_id
+    }
     #[must_use]
-    pub const fn signature(&self) -> &S { &self.signature }
+    pub const fn signature(&self) -> &S {
+        &self.signature
+    }
 }
 
 /// Typed source prefix plus the exact suffix which may be attempted in a child run.
@@ -71,23 +70,41 @@ pub struct TypedContinuationPlan<I, S> {
 }
 impl<I, S> TypedContinuationPlan<I, S> {
     #[must_use]
-    pub fn source_run_id(&self) -> &str { &self.source_run_id }
+    pub fn source_run_id(&self) -> &str {
+        &self.source_run_id
+    }
     #[must_use]
-    pub fn source_journal_sha256(&self) -> &str { &self.source_journal_sha256 }
+    pub fn source_journal_sha256(&self) -> &str {
+        &self.source_journal_sha256
+    }
     #[must_use]
-    pub fn source_bundle_sha256(&self) -> &str { &self.source_bundle_sha256 }
+    pub fn source_bundle_sha256(&self) -> &str {
+        &self.source_bundle_sha256
+    }
     #[must_use]
-    pub fn expectation_sha256(&self) -> &str { &self.expectation_sha256 }
+    pub fn expectation_sha256(&self) -> &str {
+        &self.expectation_sha256
+    }
     #[must_use]
-    pub const fn implementation(&self) -> &EngineIdentity { &self.implementation }
+    pub const fn implementation(&self) -> &EngineIdentity {
+        &self.implementation
+    }
     #[must_use]
-    pub const fn codecs(&self) -> &PayloadCodecs { &self.codecs }
+    pub const fn codecs(&self) -> &PayloadCodecs {
+        &self.codecs
+    }
     #[must_use]
-    pub const fn baseline(&self) -> &S { &self.baseline }
+    pub const fn baseline(&self) -> &S {
+        &self.baseline
+    }
     #[must_use]
-    pub fn restored_outcomes(&self) -> &[RestoredOutcome<S>] { &self.restored }
+    pub fn restored_outcomes(&self) -> &[RestoredOutcome<S>] {
+        &self.restored
+    }
     #[must_use]
-    pub fn remaining(&self) -> &[Scenario<I>] { &self.remaining }
+    pub fn remaining(&self) -> &[Scenario<I>] {
+        &self.remaining
+    }
 }
 
 /// Preparation failure. `Blocked` preserves why the read-only external preflight
@@ -113,7 +130,9 @@ impl<E: fmt::Display> fmt::Display for ContinuationError<E> {
 }
 impl<E: fmt::Debug + fmt::Display> std::error::Error for ContinuationError<E> {}
 impl<E> From<ExecutionRecordError> for ContinuationError<E> {
-    fn from(value: ExecutionRecordError) -> Self { Self::Contract(value) }
+    fn from(value: ExecutionRecordError) -> Self {
+        Self::Contract(value)
+    }
 }
 
 /// Decode the exact acknowledged parent prefix after external admission succeeds.
@@ -138,12 +157,15 @@ where
     let input = bundle
         .canonical_json()
         .map_err(|_| ExecutionRecordError::Invalid("continuation bundle serialization failed"))?;
-    let preflight = preflight_journal_restart(parent_journal, &input, expected, actual_artifact_sha256)?;
+    let preflight =
+        preflight_journal_restart(parent_journal, &input, expected, actual_artifact_sha256)?;
     if !preflight.continuation_preparation_allowed {
         return Err(ContinuationError::Blocked(preflight.blockers));
     }
     if expected.wire.semantics != RestartSemantics::PureIndependent {
-        return Err(ContinuationError::Blocked(vec![RestartBlocker::StatefulOrEffectfulEngine]));
+        return Err(ContinuationError::Blocked(vec![
+            RestartBlocker::StatefulOrEffectfulEngine,
+        ]));
     }
     if !preflight.baseline_available {
         return Err(ContinuationError::Contract(ExecutionRecordError::Invalid(
@@ -154,13 +176,14 @@ where
     let mut baseline = None;
     let mut restored = Vec::new();
     for raw in parent_journal.split_terminator('\n') {
-        let entry: ParentEntry = serde_json::from_str(raw)?;
+        let entry: ParentEntry = serde_json::from_str(raw).map_err(ExecutionRecordError::Json)?;
         if let ParentEvent::CallSucceeded { target, payload } = entry.event {
             let signature = decode_signature(&payload).map_err(ContinuationError::Decode)?;
             match target {
                 ParentCallTarget::Baseline => {
                     if baseline.replace(signature).is_some() {
-                        return invalid("duplicate restored baseline").map_err(ContinuationError::Contract);
+                        return invalid("duplicate restored baseline")
+                            .map_err(ContinuationError::Contract);
                     }
                 }
                 ParentCallTarget::Scenario { id } => {
@@ -168,7 +191,8 @@ where
                         ExecutionRecordError::Invalid("restored prefix longer than input"),
                     )?;
                     if source.id().as_str() != id {
-                        return invalid("restored scenario order mismatch").map_err(ContinuationError::Contract);
+                        return invalid("restored scenario order mismatch")
+                            .map_err(ContinuationError::Contract);
                     }
                     restored.push(RestoredOutcome {
                         scenario_id: source.id().clone(),
@@ -186,8 +210,17 @@ where
         .iter()
         .map(|scenario| Scenario::new(scenario.id().clone(), scenario.intervention().clone()))
         .collect::<Vec<_>>();
-    let ids = remaining.iter().map(|scenario| scenario.id().as_str()).collect::<Vec<_>>();
-    if ids != preflight.never_started_scenario_ids.iter().map(String::as_str).collect::<Vec<_>>() {
+    let ids = remaining
+        .iter()
+        .map(|scenario| scenario.id().as_str())
+        .collect::<Vec<_>>();
+    if ids
+        != preflight
+            .never_started_scenario_ids
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+    {
         return invalid("restored suffix identity mismatch").map_err(ContinuationError::Contract);
     }
     Ok(TypedContinuationPlan {
@@ -236,11 +269,23 @@ enum ContinuationTerminal {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "event", rename_all = "snake_case", deny_unknown_fields)]
 enum ContinuationEvent {
-    Initialized { header: ContinuationHeader },
-    CallStarted { scenario_id: String },
-    CallSucceeded { scenario_id: String, payload: String },
-    CallFailed { scenario_id: String, error_payload: String },
-    Finished { terminal: ContinuationTerminal },
+    Initialized {
+        header: Box<ContinuationHeader>,
+    },
+    CallStarted {
+        scenario_id: String,
+    },
+    CallSucceeded {
+        scenario_id: String,
+        payload: String,
+    },
+    CallFailed {
+        scenario_id: String,
+        error_payload: String,
+    },
+    Finished {
+        terminal: ContinuationTerminal,
+    },
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -268,13 +313,20 @@ impl<W: JournalSink + ?Sized> ContinuationEmitter<'_, W> {
         })?;
         let hash = digest(line.as_bytes());
         line.push('\n');
-        let total = self.bytes.checked_add(line.len()).ok_or(
-            ExecutionRecordError::Invalid("continuation byte accounting overflow"),
-        )?;
+        let total = self
+            .bytes
+            .checked_add(line.len())
+            .ok_or(ExecutionRecordError::Invalid(
+                "continuation byte accounting overflow",
+            ))?;
         if line.len() > MAX_JOURNAL_ENTRY_BYTES || total > MAX_JOURNAL_BYTES {
-            return Err(ExecutionRecordError::Invalid("continuation journal byte limit exceeded").into());
+            return Err(
+                ExecutionRecordError::Invalid("continuation journal byte limit exceeded").into(),
+            );
         }
-        self.sink.append_record(line.as_bytes()).map_err(JournalError::Storage)?;
+        self.sink
+            .append_record(line.as_bytes())
+            .map_err(JournalError::Storage)?;
         self.bytes = total;
         self.previous = Some(hash);
         self.sequence += 1;
@@ -301,7 +353,14 @@ impl<'a, W: JournalSink + ?Sized, FS, FE> ContinuationCapture<'a, W, FS, FE> {
         encode_signature: FS,
         encode_error: FE,
     ) -> Self {
-        Self { sink, run_id, implementation, codecs, encode_signature, encode_error }
+        Self {
+            sink,
+            run_id,
+            implementation,
+            codecs,
+            encode_signature,
+            encode_error,
+        }
     }
 }
 
@@ -313,7 +372,10 @@ pub enum ContinuationRunState {
     JournalFailed,
 }
 #[derive(Debug)]
-enum ChildFailure<E> { BlockedBeforeEngine, Engine(E) }
+enum ChildFailure<E> {
+    BlockedBeforeEngine,
+    Engine(E),
+}
 
 /// Parent-linked child execution. Restored prefix and newly executed suffix remain
 /// separately inspectable; this type deliberately has no implicit ranking method.
@@ -328,15 +390,35 @@ pub struct ContinuationRun<I, S, E> {
     journal_error: Option<JournalError>,
 }
 impl<I, S, E> ContinuationRun<I, S, E> {
-    #[must_use] pub fn source_run_id(&self) -> &str { &self.source_run_id }
-    #[must_use] pub fn child_run_id(&self) -> &str { &self.child_run_id }
-    #[must_use] pub const fn baseline(&self) -> &S { &self.baseline }
-    #[must_use] pub fn restored_outcomes(&self) -> &[RestoredOutcome<S>] { &self.restored }
-    #[must_use] pub fn new_outcomes(&self) -> &[ScenarioOutcome<I, S>] { self.evaluation.outcomes() }
-    #[must_use] pub const fn journal_error(&self) -> Option<&JournalError> { self.journal_error.as_ref() }
+    #[must_use]
+    pub fn source_run_id(&self) -> &str {
+        &self.source_run_id
+    }
+    #[must_use]
+    pub fn child_run_id(&self) -> &str {
+        &self.child_run_id
+    }
+    #[must_use]
+    pub const fn baseline(&self) -> &S {
+        &self.baseline
+    }
+    #[must_use]
+    pub fn restored_outcomes(&self) -> &[RestoredOutcome<S>] {
+        &self.restored
+    }
+    #[must_use]
+    pub fn new_outcomes(&self) -> &[ScenarioOutcome<I, S>] {
+        self.evaluation.outcomes()
+    }
+    #[must_use]
+    pub const fn journal_error(&self) -> Option<&JournalError> {
+        self.journal_error.as_ref()
+    }
     #[must_use]
     pub fn state(&self) -> ContinuationRunState {
-        if self.journal_error.is_some() { return ContinuationRunState::JournalFailed; }
+        if self.journal_error.is_some() {
+            return ContinuationRunState::JournalFailed;
+        }
         match self.evaluation.state() {
             ExecutionState::Completed => ContinuationRunState::Completed,
             ExecutionState::Interrupted => ContinuationRunState::Interrupted,
@@ -346,7 +428,10 @@ impl<I, S, E> ContinuationRun<I, S, E> {
     #[must_use]
     pub fn engine_error(&self) -> Option<&E> {
         match self.evaluation.status() {
-            BatchStatus::EngineFailed { error: ChildFailure::Engine(error), .. } => Some(error),
+            BatchStatus::EngineFailed {
+                error: ChildFailure::Engine(error),
+                ..
+            } => Some(error),
             _ => None,
         }
     }
@@ -354,8 +439,10 @@ impl<I, S, E> ContinuationRun<I, S, E> {
     pub fn never_started(&self) -> Vec<&Scenario<I>> {
         let mut result = Vec::new();
         if let BatchStatus::EngineFailed {
-            scenario: Some(scenario), error: ChildFailure::BlockedBeforeEngine,
-        } = self.evaluation.status() {
+            scenario: Some(scenario),
+            error: ChildFailure::BlockedBeforeEngine,
+        } = self.evaluation.status()
+        {
             result.push(scenario);
         }
         result.extend(self.evaluation.pending());
@@ -377,10 +464,15 @@ struct ChildSession<'a, W: ?Sized, FS, FE> {
 }
 impl<W: JournalSink + ?Sized, FS, FE> ChildSession<'_, W, FS, FE> {
     fn emit(&mut self, event: ContinuationEvent) -> bool {
-        if self.error.is_some() { return false; }
+        if self.error.is_some() {
+            return false;
+        }
         match self.emitter.append(event) {
             Ok(()) => true,
-            Err(error) => { self.error = Some(error); false }
+            Err(error) => {
+                self.error = Some(error);
+                false
+            }
         }
     }
     fn returned<S, E>(&mut self, id: String, result: &Result<S, E>)
@@ -391,16 +483,24 @@ impl<W: JournalSink + ?Sized, FS, FE> ChildSession<'_, W, FS, FE> {
         let encoded = match result {
             Ok(value) => (self.encode_signature)(value),
             Err(error) => (self.encode_error)(error),
-        }.map_err(ExecutionRecordError::Encoding).and_then(|payload| {
+        }
+        .map_err(ExecutionRecordError::Encoding)
+        .and_then(|payload| {
             check_payload(&payload)?;
             Ok(payload)
         });
         match encoded {
             Ok(payload) => {
                 let event = if result.is_ok() {
-                    ContinuationEvent::CallSucceeded { scenario_id: id, payload }
+                    ContinuationEvent::CallSucceeded {
+                        scenario_id: id,
+                        payload,
+                    }
                 } else {
-                    ContinuationEvent::CallFailed { scenario_id: id, error_payload: payload }
+                    ContinuationEvent::CallFailed {
+                        scenario_id: id,
+                        error_payload: payload,
+                    }
                 };
                 self.emit(event);
             }
@@ -433,13 +533,19 @@ where
     fn evaluate(&self, state: &State, intervention: &I) -> Result<S, Self::Error> {
         let id = {
             let mut session = self.session.borrow_mut();
-            if session.error.is_some() { return Err(ChildFailure::BlockedBeforeEngine); }
+            if session.error.is_some() {
+                return Err(ChildFailure::BlockedBeforeEngine);
+            }
             let Some(id) = session.ids.get(session.next).cloned() else {
-                session.error = Some(ExecutionRecordError::Invalid("continuation input order exhausted").into());
+                session.error = Some(
+                    ExecutionRecordError::Invalid("continuation input order exhausted").into(),
+                );
                 return Err(ChildFailure::BlockedBeforeEngine);
             };
             session.next += 1;
-            if !session.emit(ContinuationEvent::CallStarted { scenario_id: id.clone() }) {
+            if !session.emit(ContinuationEvent::CallStarted {
+                scenario_id: id.clone(),
+            }) {
                 return Err(ChildFailure::BlockedBeforeEngine);
             }
             id
@@ -480,33 +586,56 @@ where
     FS: FnMut(&S) -> Result<String, String>,
     FE: FnMut(&E) -> Result<String, String>,
 {
+    if capture.run_id.as_str() == plan.source_run_id {
+        return Err(ContinuationError::Contract(ExecutionRecordError::Invalid(
+            "continuation child run ID must differ from parent",
+        )));
+    }
     let current_input = bundle.canonical_json().map_err(|_| {
-        ContinuationError::Contract(ExecutionRecordError::Invalid("continuation bundle serialization failed"))
+        ContinuationError::Contract(ExecutionRecordError::Invalid(
+            "continuation bundle serialization failed",
+        ))
     })?;
     if digest(current_input.as_bytes()) != plan.source_bundle_sha256 {
-        return Err(ContinuationError::Contract(ExecutionRecordError::Invalid("continuation source bundle changed")));
+        return Err(ContinuationError::Contract(ExecutionRecordError::Invalid(
+            "continuation source bundle changed",
+        )));
     }
     if canonical(&capture.implementation)? != canonical(&plan.implementation)?
         || canonical(&capture.codecs)? != canonical(&plan.codecs)?
     {
-        return Err(ContinuationError::Contract(ExecutionRecordError::Invalid("continuation implementation or codec mismatch")));
+        return Err(ContinuationError::Contract(ExecutionRecordError::Invalid(
+            "continuation implementation or codec mismatch",
+        )));
     }
     let catalog = adapters.owned_metadata_catalog();
     let resolved = resolve_bundle_requirements(bundle, &catalog, metrics, policies)
         .map_err(|error| ContinuationError::Dispatch(BundleExecutionError::Dispatch(error)))?;
     let adapter = resolved.adapter().clone();
     if digest(canonical(&adapter)?.as_bytes()) != plan.adapter_sha256 {
-        return Err(ContinuationError::Contract(ExecutionRecordError::Invalid("continuation adapter metadata changed")));
+        return Err(ContinuationError::Contract(ExecutionRecordError::Invalid(
+            "continuation adapter metadata changed",
+        )));
     }
     let adapter_id = adapter.adapter_id().as_str();
     let engine = adapters.engine(adapter_id).ok_or_else(|| {
-        ContinuationError::Dispatch(BundleExecutionError::RegistryInvariant(adapter_id.to_owned()))
+        ContinuationError::Dispatch(BundleExecutionError::RegistryInvariant(
+            adapter_id.to_owned(),
+        ))
     })?;
-    let expected_ids = plan.remaining.iter().map(|s| s.id().as_str()).collect::<Vec<_>>();
+    let expected_ids = plan
+        .remaining
+        .iter()
+        .map(|s| s.id().as_str())
+        .collect::<Vec<_>>();
     let current_ids = bundle.scenarios()[plan.restored.len()..]
-        .iter().map(|s| s.id().as_str()).collect::<Vec<_>>();
+        .iter()
+        .map(|s| s.id().as_str())
+        .collect::<Vec<_>>();
     if expected_ids != current_ids {
-        return Err(ContinuationError::Contract(ExecutionRecordError::Invalid("continuation suffix changed")));
+        return Err(ContinuationError::Contract(ExecutionRecordError::Invalid(
+            "continuation suffix changed",
+        )));
     }
     let header = ContinuationHeader {
         schema: CONTINUATION_SCHEMA.into(),
@@ -517,36 +646,46 @@ where
             bundle_sha256: plan.source_bundle_sha256.clone(),
             expectation_sha256: plan.expectation_sha256.clone(),
         },
-        adapter: serde_json::to_value(&adapter)?,
+        adapter: serde_json::to_value(&adapter).map_err(ExecutionRecordError::Json)?,
         implementation: capture.implementation,
         codecs: capture.codecs,
-        restored_candidate_ids: plan.restored.iter().map(|o| o.scenario_id.as_str().to_owned()).collect(),
-        remaining_candidate_ids: plan.remaining.iter().map(|s| s.id().as_str().to_owned()).collect(),
+        restored_candidate_ids: plan
+            .restored
+            .iter()
+            .map(|o| o.scenario_id.as_str().to_owned())
+            .collect(),
+        remaining_candidate_ids: plan
+            .remaining
+            .iter()
+            .map(|s| s.id().as_str().to_owned())
+            .collect(),
         max_evaluations: control.max_evaluations(),
         deadline_configured: control.deadline().is_some(),
     };
     let child_run_id = header.run_id.clone();
     let mut session = ChildSession {
-        emitter: ContinuationEmitter { sink: capture.sink, sequence: 0, previous: None, bytes: 0 },
+        emitter: ContinuationEmitter {
+            sink: capture.sink,
+            sequence: 0,
+            previous: None,
+            bytes: 0,
+        },
         error: None,
         ids: header.remaining_candidate_ids.clone(),
         next: 0,
         encode_signature: capture.encode_signature,
         encode_error: capture.encode_error,
     };
-    session.emit(ContinuationEvent::Initialized { header });
+    session.emit(ContinuationEvent::Initialized {
+        header: Box::new(header),
+    });
     let wrapped = ContinuationEngine {
         engine,
         restored_baseline: plan.baseline.clone(),
         session: RefCell::new(session),
     };
-    let evaluation = evaluate_batch_controlled(
-        &wrapped,
-        bundle.state(),
-        plan.remaining,
-        control,
-        |_| {},
-    );
+    let evaluation =
+        evaluate_batch_controlled(&wrapped, bundle.state(), plan.remaining, control, |_| {});
     let mut session = wrapped.session.into_inner();
     if session.error.is_none() {
         let terminal = match evaluation.status() {
@@ -555,16 +694,23 @@ where
                 reason: match reason {
                     InterruptionReason::Cancelled => RecordInterruption::Cancelled,
                     InterruptionReason::DeadlineReached => RecordInterruption::DeadlineReached,
-                    InterruptionReason::EvaluationLimitReached => RecordInterruption::EvaluationLimitReached,
+                    InterruptionReason::EvaluationLimitReached => {
+                        RecordInterruption::EvaluationLimitReached
+                    }
                 },
             }),
-            BatchStatus::EngineFailed { error: ChildFailure::Engine(_), .. } => Some(ContinuationTerminal::Failed),
+            BatchStatus::EngineFailed {
+                error: ChildFailure::Engine(_),
+                ..
+            } => Some(ContinuationTerminal::Failed),
             _ => None,
         };
         if let Some(terminal) = terminal {
             session.emit(ContinuationEvent::Finished { terminal });
         } else {
-            session.error = Some(ExecutionRecordError::Invalid("unexpected continuation evaluator state").into());
+            session.error = Some(
+                ExecutionRecordError::Invalid("unexpected continuation evaluator state").into(),
+            );
         }
     }
     Ok(ContinuationRun {
@@ -606,7 +752,9 @@ pub fn inspect_continuation_journal(
     bundle_json: &str,
     expected: &RestartExpectations,
 ) -> Result<ContinuationJournalSummary, ExecutionRecordError> {
-    if child.len() > MAX_JOURNAL_BYTES { return invalid("continuation journal exceeds byte limit"); }
+    if child.len() > MAX_JOURNAL_BYTES {
+        return invalid("continuation journal exceeds byte limit");
+    }
     if digest(parent.as_bytes()) != expected.wire.anchors.journal_sha256
         || digest(bundle_json.as_bytes()) != expected.wire.anchors.bundle_sha256
     {
@@ -619,66 +767,118 @@ pub fn inspect_continuation_journal(
     let mut successful = 0usize;
     let mut failed = None::<String>;
     let mut terminal = None::<ContinuationTerminal>;
-    let mut entries = 0usize;
-    for raw in child.split_inclusive('\n') {
-        if !raw.ends_with('\n') { return invalid("unterminated continuation entry"); }
-        if terminal.is_some() { return invalid("bytes after continuation terminal"); }
+    for (entry_index, raw) in child.split_inclusive('\n').enumerate() {
+        if entry_index >= MAX_CONTINUATION_ENTRIES {
+            return invalid("too many continuation entries");
+        }
+        if raw.len() > MAX_JOURNAL_ENTRY_BYTES {
+            return invalid("continuation entry exceeds byte limit");
+        }
+        if !raw.ends_with('\n') {
+            return invalid("unterminated continuation entry");
+        }
+        if terminal.is_some() {
+            return invalid("bytes after continuation terminal");
+        }
         let line = raw.strip_suffix('\n').unwrap();
         let entry: ContinuationEntry = serde_json::from_str(line)?;
-        if canonical(&entry)? != line || entry.sequence != entries || entry.previous_sha256 != previous {
+        if canonical(&entry)? != line
+            || entry.sequence != entry_index
+            || entry.previous_sha256 != previous
+        {
             return invalid("continuation canonical sequence or hash mismatch");
         }
         match entry.event {
-            ContinuationEvent::Initialized { header: value } if entries == 0 => {
+            ContinuationEvent::Initialized { header: value } if entry_index == 0 => {
+                let value = *value;
                 if value.schema != CONTINUATION_SCHEMA
                     || value.parent.run_id != expected.wire.anchors.run_id
                     || value.parent.journal_sha256 != expected.wire.anchors.journal_sha256
                     || value.parent.bundle_sha256 != expected.wire.anchors.bundle_sha256
                     || value.parent.expectation_sha256 != expected.sha256()
-                    || canonical(&value.implementation)? != canonical(&expected.wire.implementation)?
+                    || value.run_id == expected.wire.anchors.run_id
+                    || canonical(&value.implementation)?
+                        != canonical(&expected.wire.implementation)?
                     || canonical(&value.codecs)? != canonical(&expected.wire.codecs)?
-                    || digest(canonical(&value.adapter)?.as_bytes()) != expected.wire.anchors.adapter_sha256
+                    || digest(canonical(&value.adapter)?.as_bytes())
+                        != expected.wire.anchors.adapter_sha256
                 {
                     return invalid("continuation header identity mismatch");
                 }
                 let restored = value.restored_candidate_ids.len();
                 if restored > bundle.scenarios().len()
-                    || bundle.scenarios()[..restored].iter().map(|s| s.id().as_str()).ne(value.restored_candidate_ids.iter().map(String::as_str))
-                    || bundle.scenarios()[restored..].iter().map(|s| s.id().as_str()).ne(value.remaining_candidate_ids.iter().map(String::as_str))
+                    || bundle.scenarios()[..restored]
+                        .iter()
+                        .map(|s| s.id().as_str())
+                        .ne(value.restored_candidate_ids.iter().map(String::as_str))
+                    || bundle.scenarios()[restored..]
+                        .iter()
+                        .map(|s| s.id().as_str())
+                        .ne(value.remaining_candidate_ids.iter().map(String::as_str))
                 {
                     return invalid("continuation restored/suffix identity mismatch");
                 }
-                RunId::new(&value.run_id).map_err(|_| ExecutionRecordError::Invalid("invalid continuation run ID"))?;
+                RunId::new(&value.run_id)
+                    .map_err(|_| ExecutionRecordError::Invalid("invalid continuation run ID"))?;
                 header = Some(value);
             }
-            ContinuationEvent::Initialized { .. } => return invalid("duplicate continuation header"),
+            ContinuationEvent::Initialized { .. } => {
+                return invalid("duplicate continuation header");
+            }
             ContinuationEvent::CallStarted { scenario_id } => {
-                let h = header.as_ref().ok_or(ExecutionRecordError::Invalid("continuation missing header"))?;
-                if active.is_some() || failed.is_some() || successful >= h.max_evaluations
-                    || h.remaining_candidate_ids.get(successful).map(String::as_str) != Some(scenario_id.as_str())
+                let h = header
+                    .as_ref()
+                    .ok_or(ExecutionRecordError::Invalid("continuation missing header"))?;
+                if active.is_some()
+                    || failed.is_some()
+                    || successful >= h.max_evaluations
+                    || h.remaining_candidate_ids
+                        .get(successful)
+                        .map(String::as_str)
+                        != Some(scenario_id.as_str())
                 {
                     return invalid("inadmissible continuation call intent");
                 }
                 active = Some(scenario_id);
             }
-            ContinuationEvent::CallSucceeded { scenario_id, payload } => {
+            ContinuationEvent::CallSucceeded {
+                scenario_id,
+                payload,
+            } => {
                 check_payload(&payload)?;
-                if active.as_deref() != Some(scenario_id.as_str()) { return invalid("continuation return without intent"); }
+                if active.as_deref() != Some(scenario_id.as_str()) {
+                    return invalid("continuation return without intent");
+                }
                 active = None;
                 successful += 1;
             }
-            ContinuationEvent::CallFailed { scenario_id, error_payload } => {
+            ContinuationEvent::CallFailed {
+                scenario_id,
+                error_payload,
+            } => {
                 check_payload(&error_payload)?;
-                if active.as_deref() != Some(scenario_id.as_str()) { return invalid("continuation failure without intent"); }
+                if active.as_deref() != Some(scenario_id.as_str()) {
+                    return invalid("continuation failure without intent");
+                }
                 active = None;
                 failed = Some(scenario_id);
             }
             ContinuationEvent::Finished { terminal: value } => {
-                if active.is_some() { return invalid("continuation terminal with unknown result"); }
-                let h = header.as_ref().ok_or(ExecutionRecordError::Invalid("continuation missing header"))?;
+                if active.is_some() {
+                    return invalid("continuation terminal with unknown result");
+                }
+                let h = header
+                    .as_ref()
+                    .ok_or(ExecutionRecordError::Invalid("continuation missing header"))?;
                 match &value {
-                    ContinuationTerminal::Completed if failed.is_none() && successful == h.remaining_candidate_ids.len() => {}
-                    ContinuationTerminal::Interrupted { .. } if failed.is_none() && successful < h.remaining_candidate_ids.len() => {}
+                    ContinuationTerminal::Completed
+                        if failed.is_none() && successful == h.remaining_candidate_ids.len() => {}
+                    ContinuationTerminal::Interrupted {
+                        reason: RecordInterruption::EvaluationLimitReached,
+                    } if failed.is_none() && successful < h.remaining_candidate_ids.len() => {}
+                    ContinuationTerminal::Interrupted {
+                        reason: RecordInterruption::Cancelled | RecordInterruption::DeadlineReached,
+                    } if failed.is_none() && successful <= h.remaining_candidate_ids.len() => {}
                     ContinuationTerminal::Failed if failed.is_some() => {}
                     _ => return invalid("continuation terminal disagrees with lifecycle"),
                 }
@@ -686,17 +886,30 @@ pub fn inspect_continuation_journal(
             }
         }
         previous = Some(digest(line.as_bytes()));
-        entries += 1;
     }
     let header = header.ok_or(ExecutionRecordError::Invalid("no continuation header"))?;
-    let state = if active.is_some() { "unknown_call_result" }
-        else if failed.is_some() && terminal.is_none() { "open_after_failure" }
-        else { match terminal {
+    let state = if active.is_some() {
+        "unknown_call_result"
+    } else if failed.is_some() && terminal.is_none() {
+        "open_after_failure"
+    } else {
+        match &terminal {
             Some(ContinuationTerminal::Completed) => "completed",
             Some(ContinuationTerminal::Interrupted { .. }) => "interrupted",
             Some(ContinuationTerminal::Failed) => "failed",
             None => "open_after_return",
-        }};
+        }
+    };
+    let occupied = if failed.is_some() || active.is_some() {
+        1
+    } else {
+        0
+    };
+    let never_started = header
+        .remaining_candidate_ids
+        .len()
+        .saturating_sub(successful + occupied);
+    let terminal_recorded = terminal.is_some();
     Ok(ContinuationJournalSummary {
         schema: "prospect.execution-continuation-inspection/v1",
         journal_sha256: digest(child.as_bytes()),
@@ -709,8 +922,8 @@ pub fn inspect_continuation_journal(
         successful_new_candidates: successful,
         failed_candidate: failed,
         unknown_candidate: active,
-        never_started_candidates: header.remaining_candidate_ids.len().saturating_sub(successful + usize::from(failed.is_some() || active.is_some())),
-        terminal_recorded: terminal.is_some(),
+        never_started_candidates: never_started,
+        terminal_recorded,
         resume_authorized: false,
         evidence_kind: "parent_linked_continuation_consistency_only",
     })

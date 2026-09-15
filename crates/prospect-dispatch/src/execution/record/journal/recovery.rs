@@ -4,6 +4,8 @@
 //! never-started suffix only after external identity checks. It never decodes a
 //! payload, restores an engine, runs an intervention, or authorizes automatic resume.
 
+pub mod continuation;
+
 use serde::{Deserialize, Serialize};
 
 use super::super::{ExecutionRecordError, PayloadCodecs, canonical, digest, invalid, parse_bundle};
