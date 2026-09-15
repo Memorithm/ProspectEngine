@@ -16,7 +16,7 @@ jobs:
       - name: Install Rust 1.89
         run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt --component clippy
       - name: Apply continuation integration
-        run: python3 .ci/tmp_prepare_continuation.py
+        run: python3 .ci/tmp_prepare_continuation_v2.py
       - name: Validate continuation implementation
         run: |
           cargo +1.89.0 fmt --all
@@ -24,7 +24,7 @@ jobs:
           cargo +1.89.0 test --locked --workspace
       - name: Commit validated continuation
         run: |
-          git rm .github/workflows/tmp-typed-continuation.yml .ci/tmp_prepare_continuation.py
+          git rm .github/workflows/tmp-typed-continuation.yml .ci/tmp_prepare_continuation.py .ci/tmp_prepare_continuation_v2.py
           git add crates/prospect-dispatch/src/execution/record/journal/recovery.rs
           git add crates/prospect-dispatch/src/execution/record/journal/recovery/continuation.rs
           git add crates/prospect-dispatch/src/execution/record/journal/recovery/continuation/tests.rs
