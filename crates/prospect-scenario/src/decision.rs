@@ -8,7 +8,7 @@ use core::cmp::Ordering;
 use core::fmt;
 use std::collections::BTreeSet;
 
-use prospect_core::{ScenarioId};
+use prospect_core::ScenarioId;
 
 use crate::BatchResult;
 
@@ -153,17 +153,30 @@ impl<R, T> AssessedAlternative<R, T> {
 /// Structural error in the objective schema, not a domain-constraint rejection.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DecisionSetError {
-    EmptyObjectiveVector { alternative: AlternativeId },
-    EmptyObjectiveId { alternative: AlternativeId, index: usize },
-    DuplicateObjectiveId { alternative: AlternativeId, id: String },
-    ObjectiveSchemaMismatch { alternative: AlternativeId },
+    EmptyObjectiveVector {
+        alternative: AlternativeId,
+    },
+    EmptyObjectiveId {
+        alternative: AlternativeId,
+        index: usize,
+    },
+    DuplicateObjectiveId {
+        alternative: AlternativeId,
+        id: String,
+    },
+    ObjectiveSchemaMismatch {
+        alternative: AlternativeId,
+    },
 }
 
 impl fmt::Display for DecisionSetError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyObjectiveVector { alternative } => {
-                write!(formatter, "admissible alternative {alternative} has no objectives")
+                write!(
+                    formatter,
+                    "admissible alternative {alternative} has no objectives"
+                )
             }
             Self::EmptyObjectiveId { alternative, index } => write!(
                 formatter,
@@ -274,7 +287,7 @@ impl<R, T: Ord> ConstrainedDecisionSet<R, T> {
                     .objectives()
                     .expect("filtered alternative is admissible");
                 !admissible.iter().copied().any(|other| {
-                    !core::ptr::eq(candidate, other)
+                    !core::ptr::eq(*candidate, other)
                         && dominates(
                             other
                                 .objectives()
@@ -330,7 +343,12 @@ where
 
     let baseline_id = AlternativeId::Baseline;
     let baseline_assessment = assess(&baseline_id, batch.baseline(), batch.baseline());
-    push_assessment(&mut alternatives, &mut schema, baseline_id, baseline_assessment)?;
+    push_assessment(
+        &mut alternatives,
+        &mut schema,
+        baseline_id,
+        baseline_assessment,
+    )?;
 
     for outcome in batch.outcomes() {
         let id = AlternativeId::Scenario(outcome.scenario().id().clone());
@@ -500,7 +518,10 @@ mod tests {
             Ok::<_, ()>(vec![Objective::maximize("same", 1)])
         })
         .unwrap();
-        assert_eq!(decision.lexicographic_best().unwrap().id(), &AlternativeId::Baseline);
+        assert_eq!(
+            decision.lexicographic_best().unwrap().id(),
+            &AlternativeId::Baseline
+        );
     }
 
     #[test]
@@ -606,10 +627,9 @@ mod tests {
 
     #[test]
     fn empty_objectives_fail_closed() {
-        let error = assess_decision_set(&batch(), |_id, _, _| {
-            Ok::<Vec<Objective<i32>>, ()>(vec![])
-        })
-        .unwrap_err();
+        let error =
+            assess_decision_set(&batch(), |_id, _, _| Ok::<Vec<Objective<i32>>, ()>(vec![]))
+                .unwrap_err();
         assert!(matches!(
             error,
             DecisionSetError::EmptyObjectiveVector {
@@ -633,7 +653,10 @@ mod tests {
             ])
         })
         .unwrap_err();
-        assert!(matches!(error, DecisionSetError::DuplicateObjectiveId { .. }));
+        assert!(matches!(
+            error,
+            DecisionSetError::DuplicateObjectiveId { .. }
+        ));
     }
 
     #[test]
@@ -663,7 +686,10 @@ mod tests {
                 })
             })
             .unwrap_err();
-            assert!(matches!(error, DecisionSetError::ObjectiveSchemaMismatch { .. }));
+            assert!(matches!(
+                error,
+                DecisionSetError::ObjectiveSchemaMismatch { .. }
+            ));
         }
     }
 

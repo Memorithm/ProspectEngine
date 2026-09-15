@@ -329,8 +329,8 @@ impl<R, T> ConstrainedDecisionEvidence<R, T> {
 
     pub fn from_canonical_json(json: &str) -> Result<Self, ConstrainedEvidenceCodecError>
     where
-        R: DeserializeOwned,
-        T: DeserializeOwned + Ord,
+        R: DeserializeOwned + Serialize,
+        T: DeserializeOwned + Serialize + Ord,
     {
         let wire: ConstrainedEvidenceWire<R, T> =
             serde_json::from_str(json).map_err(ConstrainedEvidenceCodecError::Json)?;
@@ -348,10 +348,7 @@ impl<R, T> ConstrainedDecisionEvidence<R, T> {
         Ok(evidence)
     }
 
-    pub fn verify_replay(
-        &self,
-        replayed: &Self,
-    ) -> Result<(), ConstrainedReplayMismatch>
+    pub fn verify_replay(&self, replayed: &Self) -> Result<(), ConstrainedReplayMismatch>
     where
         R: PartialEq,
         T: PartialEq,
@@ -418,21 +415,23 @@ impl<R, T> ConstrainedDecisionEvidence<R, T> {
     fn from_wire(
         wire: ConstrainedEvidenceWire<R, T>,
     ) -> Result<Self, ConstrainedEvidenceCodecError> {
-        let run_id = RunId::new(wire.run_id)
-            .map_err(|error| ConstrainedEvidenceCodecError::Invalid(ConstrainedEvidenceError::Evidence(error)))?;
+        let run_id = RunId::new(wire.run_id).map_err(|error| {
+            ConstrainedEvidenceCodecError::Invalid(ConstrainedEvidenceError::Evidence(error))
+        })?;
         let mut sources = Vec::with_capacity(wire.sources.len());
         for source in wire.sources {
-            let mut converted = EvidenceSource::new_with_nature(
-                source.component,
-                source.revision,
-                source.nature,
-            )
-            .map_err(|error| {
-                ConstrainedEvidenceCodecError::Invalid(ConstrainedEvidenceError::Evidence(error))
-            })?;
+            let mut converted =
+                EvidenceSource::new_with_nature(source.component, source.revision, source.nature)
+                    .map_err(|error| {
+                    ConstrainedEvidenceCodecError::Invalid(ConstrainedEvidenceError::Evidence(
+                        error,
+                    ))
+                })?;
             if let Some(hash) = source.content_hash {
                 converted = converted.with_content_hash(hash).map_err(|error| {
-                    ConstrainedEvidenceCodecError::Invalid(ConstrainedEvidenceError::Evidence(error))
+                    ConstrainedEvidenceCodecError::Invalid(ConstrainedEvidenceError::Evidence(
+                        error,
+                    ))
                 })?;
             }
             sources.push(converted);
@@ -470,10 +469,7 @@ impl<R, T> ConstrainedDecisionEvidence<R, T> {
             run_id,
             sources,
             alternatives,
-            lexicographic_selected: wire
-                .lexicographic_selected
-                .map(id_from_wire)
-                .transpose()?,
+            lexicographic_selected: wire.lexicographic_selected.map(id_from_wire).transpose()?,
             pareto_front: wire
                 .pareto_front
                 .into_iter()
@@ -561,7 +557,9 @@ fn normalize_sources(
     mut sources: Vec<EvidenceSource>,
 ) -> Result<Vec<EvidenceSource>, ConstrainedEvidenceError> {
     if sources.is_empty() {
-        return Err(ConstrainedEvidenceError::Evidence(EvidenceError::EmptySources));
+        return Err(ConstrainedEvidenceError::Evidence(
+            EvidenceError::EmptySources,
+        ));
     }
     sources.sort();
     if sources.windows(2).any(|pair| pair[0] == pair[1]) {
@@ -581,7 +579,9 @@ fn id_to_wire(id: &EvidenceAlternativeId) -> AlternativeIdWire {
     }
 }
 
-fn id_from_wire(id: AlternativeIdWire) -> Result<EvidenceAlternativeId, ConstrainedEvidenceCodecError> {
+fn id_from_wire(
+    id: AlternativeIdWire,
+) -> Result<EvidenceAlternativeId, ConstrainedEvidenceCodecError> {
     match id {
         AlternativeIdWire::Baseline => Ok(EvidenceAlternativeId::Baseline),
         AlternativeIdWire::Scenario { scenario_id } => ScenarioId::new(scenario_id)
@@ -629,7 +629,10 @@ fn pareto_front<'a, R, T: Ord>(
         .collect()
 }
 
-fn compare_vectors<T: Ord>(left: &[ObjectiveEvidence<T>], right: &[ObjectiveEvidence<T>]) -> Ordering {
+fn compare_vectors<T: Ord>(
+    left: &[ObjectiveEvidence<T>],
+    right: &[ObjectiveEvidence<T>],
+) -> Ordering {
     for (left, right) in left.iter().zip(right) {
         let order = preferred_cmp(left.value(), right.value(), left.direction);
         if order != Ordering::Equal {
@@ -651,11 +654,7 @@ fn dominates<T: Ord>(left: &[ObjectiveEvidence<T>], right: &[ObjectiveEvidence<T
     strict
 }
 
-fn preferred_cmp<T: Ord>(
-    left: &T,
-    right: &T,
-    direction: EvidenceObjectiveDirection,
-) -> Ordering {
+fn preferred_cmp<T: Ord>(left: &T, right: &T, direction: EvidenceObjectiveDirection) -> Ordering {
     match direction {
         EvidenceObjectiveDirection::Maximize => left.cmp(right),
         EvidenceObjectiveDirection::Minimize => right.cmp(left),
@@ -666,18 +665,41 @@ impl fmt::Display for ConstrainedEvidenceError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Evidence(error) => error.fmt(formatter),
-            Self::EmptyAlternatives => formatter.write_str("constrained evidence has no alternatives"),
-            Self::BaselineMustBeFirst => formatter.write_str("baseline must be the first constrained alternative"),
-            Self::DuplicateAlternative => formatter.write_str("constrained evidence contains a duplicate alternative"),
-            Self::EmptyObjectiveVector => formatter.write_str("admissible constrained alternative has no objectives"),
-            Self::EmptyObjectiveId => formatter.write_str("constrained evidence contains an empty objective id"),
-            Self::DuplicateObjectiveId => formatter.write_str("constrained evidence repeats an objective id"),
-            Self::ObjectiveSchemaMismatch => formatter.write_str("constrained evidence objective schema differs across alternatives"),
-            Self::UnknownLexicographicSelection => formatter.write_str("lexicographic selection references an unknown alternative"),
-            Self::LexicographicSelectionMismatch => formatter.write_str("lexicographic selection disagrees with recorded objectives"),
-            Self::DuplicateParetoAlternative => formatter.write_str("Pareto front contains a duplicate alternative"),
-            Self::UnknownParetoAlternative => formatter.write_str("Pareto front references an unknown alternative"),
-            Self::ParetoFrontMismatch => formatter.write_str("Pareto front disagrees with recorded objectives"),
+            Self::EmptyAlternatives => {
+                formatter.write_str("constrained evidence has no alternatives")
+            }
+            Self::BaselineMustBeFirst => {
+                formatter.write_str("baseline must be the first constrained alternative")
+            }
+            Self::DuplicateAlternative => {
+                formatter.write_str("constrained evidence contains a duplicate alternative")
+            }
+            Self::EmptyObjectiveVector => {
+                formatter.write_str("admissible constrained alternative has no objectives")
+            }
+            Self::EmptyObjectiveId => {
+                formatter.write_str("constrained evidence contains an empty objective id")
+            }
+            Self::DuplicateObjectiveId => {
+                formatter.write_str("constrained evidence repeats an objective id")
+            }
+            Self::ObjectiveSchemaMismatch => formatter
+                .write_str("constrained evidence objective schema differs across alternatives"),
+            Self::UnknownLexicographicSelection => {
+                formatter.write_str("lexicographic selection references an unknown alternative")
+            }
+            Self::LexicographicSelectionMismatch => {
+                formatter.write_str("lexicographic selection disagrees with recorded objectives")
+            }
+            Self::DuplicateParetoAlternative => {
+                formatter.write_str("Pareto front contains a duplicate alternative")
+            }
+            Self::UnknownParetoAlternative => {
+                formatter.write_str("Pareto front references an unknown alternative")
+            }
+            Self::ParetoFrontMismatch => {
+                formatter.write_str("Pareto front disagrees with recorded objectives")
+            }
         }
     }
 }
@@ -695,9 +717,15 @@ impl fmt::Display for ConstrainedEvidenceCodecError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Json(error) => write!(formatter, "invalid constrained evidence JSON: {error}"),
-            Self::UnsupportedSchema => formatter.write_str("unsupported constrained evidence schema"),
-            Self::InvalidScenarioId => formatter.write_str("invalid scenario id in constrained evidence"),
-            Self::Invalid(error) => write!(formatter, "invalid constrained decision evidence: {error}"),
+            Self::UnsupportedSchema => {
+                formatter.write_str("unsupported constrained evidence schema")
+            }
+            Self::InvalidScenarioId => {
+                formatter.write_str("invalid scenario id in constrained evidence")
+            }
+            Self::Invalid(error) => {
+                write!(formatter, "invalid constrained decision evidence: {error}")
+            }
             Self::NonCanonical => formatter.write_str("constrained evidence JSON is not canonical"),
         }
     }
@@ -792,8 +820,10 @@ mod tests {
         assert_eq!(evidence.sources()[0].component(), "ElasticXxx");
         assert_eq!(evidence.alternatives().len(), 4);
         assert_eq!(
-            evidence.alternatives()[3].rejection_reason(),
-            Some(&"hard-limit".to_owned())
+            evidence.alternatives()[3]
+                .rejection_reason()
+                .map(String::as_str),
+            Some("hard-limit")
         );
         assert_eq!(
             evidence.lexicographic_selected().unwrap().to_string(),
@@ -813,7 +843,8 @@ mod tests {
     fn canonical_json_roundtrips_exactly() {
         let evidence = evidence();
         let json = evidence.canonical_json().unwrap();
-        let decoded = ConstrainedDecisionEvidence::<String, i32>::from_canonical_json(&json).unwrap();
+        let decoded =
+            ConstrainedDecisionEvidence::<String, i32>::from_canonical_json(&json).unwrap();
         assert_eq!(decoded, evidence);
         assert_eq!(decoded.canonical_json().unwrap(), json);
     }
@@ -821,7 +852,10 @@ mod tests {
     #[test]
     fn noncanonical_unknown_and_wrong_schema_inputs_fail_closed() {
         let json = evidence().canonical_json().unwrap();
-        assert!(ConstrainedDecisionEvidence::<String, i32>::from_canonical_json(&(json.clone() + "\n")).is_err());
+        assert!(
+            ConstrainedDecisionEvidence::<String, i32>::from_canonical_json(&(json.clone() + "\n"))
+                .is_err()
+        );
         let wrong_schema = json.replacen(
             CONSTRAINED_DECISION_EVIDENCE_SCHEMA_V1,
             "prospect.constrained-decision-evidence/v999",
@@ -871,7 +905,9 @@ mod tests {
         );
         assert!(matches!(
             result,
-            Err(ConstrainedEvidenceError::Evidence(EvidenceError::DuplicateSource))
+            Err(ConstrainedEvidenceError::Evidence(
+                EvidenceError::DuplicateSource
+            ))
         ));
     }
 
