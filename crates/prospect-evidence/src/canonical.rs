@@ -56,9 +56,6 @@ mod tests {
         nested.insert("alpha", 1);
         let value = vec![nested.clone(), nested];
         let json = to_canonical_json(&value).unwrap();
-        assert_eq!(
-            json,
-            "[{\"alpha\":1,\"zeta\":2},{\"alpha\":1,\"zeta\":2}]"
-        );
+        assert_eq!(json, "[{\"alpha\":1,\"zeta\":2},{\"alpha\":1,\"zeta\":2}]");
     }
 }

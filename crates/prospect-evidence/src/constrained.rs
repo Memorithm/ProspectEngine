@@ -14,6 +14,7 @@ use prospect_scenario::decision::{
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use super::canonical::to_canonical_json;
 use super::{EvidenceError, EvidenceNature, EvidenceSource, RunId};
 
 pub const CONSTRAINED_DECISION_EVIDENCE_SCHEMA_V1: &str =
@@ -225,50 +226,6 @@ struct ConstrainedEvidenceWire<R, T> {
     alternatives: Vec<AlternativeWire<R, T>>,
     lexicographic_selected: Option<AlternativeIdWire>,
     pareto_front: Vec<AlternativeIdWire>,
-}
-
-fn canonical_json_value(
-    value: &serde_json::Value,
-    output: &mut String,
-) -> Result<(), serde_json::Error> {
-    match value {
-        serde_json::Value::Null => output.push_str("null"),
-        serde_json::Value::Bool(value) => output.push_str(if *value { "true" } else { "false" }),
-        serde_json::Value::Number(value) => output.push_str(&value.to_string()),
-        serde_json::Value::String(value) => output.push_str(&serde_json::to_string(value)?),
-        serde_json::Value::Array(values) => {
-            output.push('[');
-            for (index, value) in values.iter().enumerate() {
-                if index != 0 {
-                    output.push(',');
-                }
-                canonical_json_value(value, output)?;
-            }
-            output.push(']');
-        }
-        serde_json::Value::Object(values) => {
-            let mut keys = values.keys().collect::<Vec<_>>();
-            keys.sort_unstable();
-            output.push('{');
-            for (index, key) in keys.into_iter().enumerate() {
-                if index != 0 {
-                    output.push(',');
-                }
-                output.push_str(&serde_json::to_string(key)?);
-                output.push(':');
-                canonical_json_value(&values[key], output)?;
-            }
-            output.push('}');
-        }
-    }
-    Ok(())
-}
-
-fn to_canonical_json<T: Serialize + ?Sized>(value: &T) -> Result<String, serde_json::Error> {
-    let value = serde_json::to_value(value)?;
-    let mut output = String::new();
-    canonical_json_value(&value, &mut output)?;
-    Ok(output)
 }
 
 impl<R, T> ConstrainedDecisionEvidence<R, T>

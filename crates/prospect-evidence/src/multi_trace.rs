@@ -15,8 +15,7 @@ use serde::{Deserialize, Serialize};
 use super::canonical::to_canonical_json;
 use super::{EvidenceError, EvidenceNature, EvidenceSource, RunId};
 
-pub const MULTI_TRACE_SCORE_EVIDENCE_SCHEMA_V1: &str =
-    "prospect.multi-trace-score-evidence/v1";
+pub const MULTI_TRACE_SCORE_EVIDENCE_SCHEMA_V1: &str = "prospect.multi-trace-score-evidence/v1";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScenarioScoreEvidence<Score> {
@@ -400,7 +399,9 @@ fn normalize_sources(
     mut sources: Vec<EvidenceSource>,
 ) -> Result<Vec<EvidenceSource>, MultiTraceEvidenceError> {
     if sources.is_empty() {
-        return Err(MultiTraceEvidenceError::Evidence(EvidenceError::EmptySources));
+        return Err(MultiTraceEvidenceError::Evidence(
+            EvidenceError::EmptySources,
+        ));
     }
     sources.sort();
     if sources.windows(2).any(|pair| pair[0] == pair[1]) {
@@ -661,7 +662,10 @@ mod tests {
             &matrix(),
         )
         .unwrap();
-        assert_eq!(first.canonical_json().unwrap(), second.canonical_json().unwrap());
+        assert_eq!(
+            first.canonical_json().unwrap(),
+            second.canonical_json().unwrap()
+        );
         assert_eq!(first.traces()[0].trace_id().as_str(), "trace-b");
     }
 
@@ -683,7 +687,9 @@ mod tests {
         );
         assert!(matches!(
             duplicate,
-            Err(MultiTraceEvidenceError::Evidence(EvidenceError::DuplicateSource))
+            Err(MultiTraceEvidenceError::Evidence(
+                EvidenceError::DuplicateSource
+            ))
         ));
     }
 
@@ -698,8 +704,7 @@ mod tests {
         .unwrap();
         let json = evidence.canonical_json().unwrap();
         let mut value: serde_json::Value = serde_json::from_str(&json).unwrap();
-        value["traces"][0]["scores"][0]["scenario_id"] =
-            serde_json::Value::String("s2".to_owned());
+        value["traces"][0]["scores"][0]["scenario_id"] = serde_json::Value::String("s2".to_owned());
         let tampered = to_canonical_json(&value).unwrap();
         assert!(matches!(
             MultiTraceScoreEvidence::<i32>::from_canonical_json(&tampered),
@@ -719,11 +724,7 @@ mod tests {
         )
         .unwrap();
         let json = evidence.canonical_json().unwrap();
-        let unknown = json.replacen(
-            "{",
-            "{\"unexpected\":true,",
-            1,
-        );
+        let unknown = json.replacen("{", "{\"unexpected\":true,", 1);
         assert!(matches!(
             MultiTraceScoreEvidence::<i32>::from_canonical_json(&unknown),
             Err(MultiTraceEvidenceCodecError::Json(_))
