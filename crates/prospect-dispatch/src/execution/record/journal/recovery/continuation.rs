@@ -763,6 +763,27 @@ pub fn inspect_continuation_journal(
     }
     let bundle = super::super::super::parse_bundle(bundle_json)?;
     let parent_summary = inspect_execution_journal(parent, bundle_json)?;
+    let parent_line = parent
+        .split_terminator('\n')
+        .next()
+        .ok_or(ExecutionRecordError::Invalid(
+            "continuation parent has no header",
+        ))?;
+    let parent_entry: ParentEntry = serde_json::from_str(parent_line)?;
+    let ParentEvent::Initialized {
+        header: parent_header,
+    } = parent_entry.event
+    else {
+        return invalid("continuation parent has no initialized header");
+    };
+    if parent_summary.run_id != expected.wire.anchors.run_id
+        || parent_summary.implementation != expected.wire.implementation
+        || canonical(&parent_header.codecs)? != canonical(&expected.wire.codecs)?
+        || digest(canonical(&parent_header.adapter)?.as_bytes())
+            != expected.wire.anchors.adapter_sha256
+    {
+        return invalid("continuation parent trusted identity mismatch");
+    }
     if parent_summary.incomplete_tail_bytes != 0
         || parent_summary.failed_call.is_some()
         || parent_summary.unknown_call_result.is_some()
