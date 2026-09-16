@@ -2,7 +2,7 @@
 
 use core::fmt;
 use prospect_core::{DecisionPolicy, ProspectiveEngine};
-use std::cmp::Reverse;
+use std::cmp::{Ordering, Reverse};
 
 /// Exact probability scale used by discrete commercial scenario models.
 pub const PROBABILITY_SCALE_PPM: u32 = 1_000_000;
@@ -425,19 +425,81 @@ impl DecisionPolicy<CommercialRiskSignature> for MaximizeExpectedNetCash {
     }
 }
 
-/// Conservative lexicographic policy: improve lower-tail mean first, then
-/// expected net cash when the downside score ties.
+/// Exact lexicographic score used by [`DownsideFirst`].
+///
+/// The downside mean is retained as its exact rational numerator/denominator
+/// pair so sub-minor-unit differences are not erased before the expected-value
+/// tie-break. A zero denominator can only arise from a manually fabricated
+/// signature and is ranked below every validated signature.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DownsideFirstScore {
+    downside_tail_weighted_minor_ppm: i128,
+    downside_tail_ppm: u32,
+    expected_net_cash_weighted_minor_ppm: i128,
+}
+
+impl Ord for DownsideFirstScore {
+    fn cmp(&self, other: &Self) -> Ordering {
+        compare_exact_downside_means(
+            self.downside_tail_weighted_minor_ppm,
+            self.downside_tail_ppm,
+            other.downside_tail_weighted_minor_ppm,
+            other.downside_tail_ppm,
+        )
+        .then_with(|| {
+            self.expected_net_cash_weighted_minor_ppm
+                .cmp(&other.expected_net_cash_weighted_minor_ppm)
+        })
+    }
+}
+
+impl PartialOrd for DownsideFirstScore {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+fn compare_exact_downside_means(
+    left_weighted: i128,
+    left_tail_ppm: u32,
+    right_weighted: i128,
+    right_tail_ppm: u32,
+) -> Ordering {
+    match (left_tail_ppm, right_tail_ppm) {
+        (0, 0) => return left_weighted.cmp(&right_weighted),
+        (0, _) => return Ordering::Less,
+        (_, 0) => return Ordering::Greater,
+        _ => {}
+    }
+
+    let left_denominator = i128::from(left_tail_ppm);
+    let right_denominator = i128::from(right_tail_ppm);
+    let left_integer = left_weighted.div_euclid(left_denominator);
+    let right_integer = right_weighted.div_euclid(right_denominator);
+    match left_integer.cmp(&right_integer) {
+        Ordering::Equal => {
+            let left_remainder = left_weighted.rem_euclid(left_denominator);
+            let right_remainder = right_weighted.rem_euclid(right_denominator);
+            (left_remainder * right_denominator).cmp(&(right_remainder * left_denominator))
+        }
+        ordering => ordering,
+    }
+}
+
+/// Conservative lexicographic policy: improve the exact lower-tail mean first,
+/// then expected net cash only when the exact downside means tie.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DownsideFirst;
 
 impl DecisionPolicy<CommercialRiskSignature> for DownsideFirst {
-    type Score = (i128, i128);
+    type Score = DownsideFirstScore;
 
     fn utility(&self, signature: &CommercialRiskSignature) -> Self::Score {
-        (
-            signature.downside_tail_mean_minor_floor,
-            signature.expected_net_cash_weighted_minor_ppm,
-        )
+        DownsideFirstScore {
+            downside_tail_weighted_minor_ppm: signature.downside_tail_weighted_minor_ppm,
+            downside_tail_ppm: signature.downside_tail_ppm,
+            expected_net_cash_weighted_minor_ppm: signature.expected_net_cash_weighted_minor_ppm,
+        }
     }
 }
 
@@ -576,6 +638,58 @@ mod tests {
         let signature = engine.baseline(&distribution).expect("valid distribution");
 
         assert_eq!(signature.downside_tail_mean_minor_floor, -340);
+    }
+
+    #[test]
+    fn downside_first_preserves_sub_minor_tail_ordering() {
+        let worse = CommercialRiskSignature {
+            expected_net_cash_weighted_minor_ppm: 10 * i128::from(PROBABILITY_SCALE_PPM),
+            expected_net_cash_minor_floor: 10,
+            loss_probability_ppm: 0,
+            worst_case_net_cash_minor: 0,
+            best_case_net_cash_minor: 10,
+            downside_tail_ppm: 600_000,
+            downside_tail_weighted_minor_ppm: 0,
+            downside_tail_mean_minor_floor: 0,
+        };
+        let better = CommercialRiskSignature {
+            expected_net_cash_weighted_minor_ppm: 0,
+            expected_net_cash_minor_floor: 0,
+            loss_probability_ppm: 0,
+            worst_case_net_cash_minor: 0,
+            best_case_net_cash_minor: 1,
+            downside_tail_ppm: 600_000,
+            downside_tail_weighted_minor_ppm: 300_000,
+            downside_tail_mean_minor_floor: 0,
+        };
+
+        assert_eq!(
+            worse.downside_tail_mean_minor_floor,
+            better.downside_tail_mean_minor_floor
+        );
+        assert!(DownsideFirst.utility(&better) > DownsideFirst.utility(&worse));
+    }
+
+    #[test]
+    fn downside_first_compares_exact_means_across_tail_masses() {
+        let half_at_six_tenths = DownsideFirstScore {
+            downside_tail_weighted_minor_ppm: 300_000,
+            downside_tail_ppm: 600_000,
+            expected_net_cash_weighted_minor_ppm: 1,
+        };
+        let half_at_eight_tenths = DownsideFirstScore {
+            downside_tail_weighted_minor_ppm: 400_000,
+            downside_tail_ppm: 800_000,
+            expected_net_cash_weighted_minor_ppm: 2,
+        };
+        let just_below_half = DownsideFirstScore {
+            downside_tail_weighted_minor_ppm: 399_999,
+            downside_tail_ppm: 800_000,
+            expected_net_cash_weighted_minor_ppm: i128::MAX,
+        };
+
+        assert!(half_at_eight_tenths > half_at_six_tenths);
+        assert!(half_at_six_tenths > just_below_half);
     }
 
     #[test]
