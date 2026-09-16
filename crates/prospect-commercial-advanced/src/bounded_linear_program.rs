@@ -263,10 +263,10 @@ fn validate(problem: &BoundedLinearProgram) -> Result<(), BoundedLinearError> {
         {
             return Err(BoundedLinearError::NonFiniteInput);
         }
-        if let (Some(lower), Some(upper)) = (variable.lower, variable.upper) {
-            if lower > upper {
-                return Err(BoundedLinearError::InvalidBounds { variable: index });
-            }
+        if let (Some(lower), Some(upper)) = (variable.lower, variable.upper)
+            && lower > upper
+        {
+            return Err(BoundedLinearError::InvalidBounds { variable: index });
         }
     }
     for constraint in &problem.constraints {
