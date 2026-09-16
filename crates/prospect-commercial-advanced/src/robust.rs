@@ -15,7 +15,9 @@ pub enum RobustError {
 impl fmt::Display for RobustError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyActionSet => formatter.write_str("robust decision requires at least one action"),
+            Self::EmptyActionSet => {
+                formatter.write_str("robust decision requires at least one action")
+            }
             Self::EmptyScenarioSet => {
                 formatter.write_str("robust decision requires at least one scenario")
             }
@@ -57,10 +59,7 @@ impl RobustDecisionProblem {
         if scenario_count == 0 {
             return Err(RobustError::EmptyScenarioSet);
         }
-        if payoffs_minor
-            .iter()
-            .any(|row| row.len() != scenario_count)
-        {
+        if payoffs_minor.iter().any(|row| row.len() != scenario_count) {
             return Err(RobustError::RaggedPayoffMatrix);
         }
         Ok(Self {
@@ -142,13 +141,20 @@ fn summarize_action(
         .payoffs_minor()
         .get(action_index)
         .ok_or(RobustError::InvalidActionIndex(action_index))?;
-    let worst_case_payoff_minor = *selected.iter().min().expect("validated non-empty scenario row");
-    let best_case_payoff_minor = *selected.iter().max().expect("validated non-empty scenario row");
+    let worst_case_payoff_minor = *selected
+        .iter()
+        .min()
+        .expect("validated non-empty scenario row");
+    let best_case_payoff_minor = *selected
+        .iter()
+        .max()
+        .expect("validated non-empty scenario row");
     let payoff_sum = selected.iter().try_fold(0_i128, |sum, payoff| {
         sum.checked_add(i128::from(*payoff))
             .ok_or(RobustError::ArithmeticOverflow("average payoff"))
     })?;
-    let average_payoff_minor_trunc = payoff_sum / i128::try_from(selected.len()).expect("usize fits i128");
+    let average_payoff_minor_trunc =
+        payoff_sum / i128::try_from(selected.len()).expect("usize fits i128");
 
     let mut maximum_regret_minor = 0_i128;
     for scenario_index in 0..selected.len() {
@@ -230,7 +236,11 @@ mod tests {
 
     fn problem() -> RobustDecisionProblem {
         RobustDecisionProblem::new(
-            vec![vec![100, 100, 100], vec![-100, 300, 500], vec![50, 150, 250]],
+            vec![
+                vec![100, 100, 100],
+                vec![-100, 300, 500],
+                vec![50, 150, 250],
+            ],
             0,
         )
         .expect("valid payoff matrix")
