@@ -17,7 +17,9 @@ impl fmt::Display for McdaError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyCriteria => formatter.write_str("MCDA requires at least one criterion"),
-            Self::EmptyAlternatives => formatter.write_str("MCDA requires at least one alternative"),
+            Self::EmptyAlternatives => {
+                formatter.write_str("MCDA requires at least one alternative")
+            }
             Self::WeightMassMismatch { actual_ppm } => write!(
                 formatter,
                 "criterion weights must sum to {PROBABILITY_SCALE_PPM} ppm, got {actual_ppm} ppm"
@@ -275,7 +277,10 @@ mod tests {
                 },
             )
             .expect("valid alternative");
-        assert!(FeasibleWeightedUtility.utility(&alternative) > FeasibleWeightedUtility.utility(&baseline));
+        assert!(
+            FeasibleWeightedUtility.utility(&alternative)
+                > FeasibleWeightedUtility.utility(&baseline)
+        );
         assert!(
             BalancedWorstCriterionFirst.utility(&baseline)
                 > BalancedWorstCriterionFirst.utility(&alternative)
