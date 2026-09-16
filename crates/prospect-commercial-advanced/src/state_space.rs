@@ -346,28 +346,26 @@ mod tests {
 
     #[test]
     fn sarima_holdout_selection_is_deterministic() {
-        let series = [
-            10.0, 20.0, 11.0, 21.0, 12.0, 22.0, 13.0, 23.0, 14.0, 24.0, 15.0, 25.0, 16.0, 26.0,
-            17.0, 27.0, 18.0, 28.0, 19.0, 29.0,
-        ];
+        let pattern = [10.0, 20.0, 30.0, 40.0];
+        let series: Vec<f64> = (0..32).map(|index| pattern[index % 4]).collect();
         let candidates = [
             SeasonalArimaOrder {
-                p: 1,
+                p: 0,
                 d: 0,
                 q: 0,
                 seasonal_p: 0,
                 seasonal_d: 0,
                 seasonal_q: 0,
-                season_length: 2,
+                season_length: 4,
             },
             SeasonalArimaOrder {
                 p: 0,
                 d: 0,
                 q: 0,
-                seasonal_p: 1,
+                seasonal_p: 0,
                 seasonal_d: 1,
                 seasonal_q: 0,
-                season_length: 2,
+                season_length: 4,
             },
         ];
         let first = select_sarima_by_holdout(&series, 4, &candidates).expect("selection");
@@ -375,5 +373,7 @@ mod tests {
         assert_eq!(first, second);
         assert!(first.selected.mae.is_finite());
         assert!(!first.scored_candidates.is_empty());
+        assert_eq!(first.selected.order.seasonal_d, 1);
+        assert!(first.selected.mae < 1e-8);
     }
 }
