@@ -15,7 +15,9 @@ pub enum ThresholdError {
 impl fmt::Display for ThresholdError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyCaseSet => formatter.write_str("threshold tuning requires at least one case"),
+            Self::EmptyCaseSet => {
+                formatter.write_str("threshold tuning requires at least one case")
+            }
             Self::ScoreOutOfRange(value) => write!(
                 formatter,
                 "case score must be in 0..={PROBABILITY_SCALE_PPM} ppm, got {value}"
@@ -24,7 +26,9 @@ impl fmt::Display for ThresholdError {
                 formatter,
                 "threshold must be in 0..={PROBABILITY_SCALE_PPM} ppm, got {value}"
             ),
-            Self::NegativeEconomicsField(field) => write!(formatter, "{field} must be non-negative"),
+            Self::NegativeEconomicsField(field) => {
+                write!(formatter, "{field} must be non-negative")
+            }
             Self::ArithmeticOverflow(operation) => {
                 write!(formatter, "arithmetic overflow while computing {operation}")
             }
@@ -111,10 +115,22 @@ fn validate_threshold(threshold_ppm: u32) -> Result<(), ThresholdError> {
 
 fn validate_economics(economics: BinaryDecisionEconomics) -> Result<(), ThresholdError> {
     for (field, value) in [
-        ("true_positive_gain_minor", economics.true_positive_gain_minor),
-        ("true_negative_gain_minor", economics.true_negative_gain_minor),
-        ("false_positive_cost_minor", economics.false_positive_cost_minor),
-        ("false_negative_cost_minor", economics.false_negative_cost_minor),
+        (
+            "true_positive_gain_minor",
+            economics.true_positive_gain_minor,
+        ),
+        (
+            "true_negative_gain_minor",
+            economics.true_negative_gain_minor,
+        ),
+        (
+            "false_positive_cost_minor",
+            economics.false_positive_cost_minor,
+        ),
+        (
+            "false_negative_cost_minor",
+            economics.false_negative_cost_minor,
+        ),
     ] {
         if value < 0 {
             return Err(ThresholdError::NegativeEconomicsField(field));
