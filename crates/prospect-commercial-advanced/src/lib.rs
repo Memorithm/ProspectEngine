@@ -6,10 +6,16 @@
 //! not fabricate forecasts, causal effects, probabilities, elasticities or
 //! financial guarantees.
 
+pub mod customer;
 pub mod finance;
 pub mod inventory;
+pub mod learning;
+pub mod market;
 pub mod mcda;
 pub mod next_best_action;
+pub mod operations;
+pub mod optimization;
 pub mod pricing;
 pub mod robust;
+pub mod stress;
 pub mod threshold;
