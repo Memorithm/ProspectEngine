@@ -2,12 +2,15 @@
 
 Wave 9 is intentionally stacked on the frozen Wave-8 head while Wave 8 awaits GitHub-hosted runner capacity. It does not weaken or bypass Wave-8 qualification. Its PR must not target `main` until Wave 8 is merged and the branch ancestry is rechecked.
 
-This wave adds four bounded, evidence-oriented research surfaces to `prospect-commercial-advanced`:
+This wave adds five bounded, evidence-oriented research surfaces to `prospect-commercial-advanced`:
 
 1. conservative mixed-integer bound presolve;
-2. exact global finite-domain consistency for unary `NoOverlap`;
-3. state-space profile likelihood over an explicit variance grid with nuisance reoptimization;
-4. multi-instrument conditional relevance and Anderson–Rubin-style block diagnostics.
+2. an explicit `presolve -> LP-relaxation branch-and-bound` pipeline preserving both evidence layers;
+3. exact global finite-domain consistency for unary `NoOverlap`;
+4. state-space profile likelihood over an explicit variance grid with nuisance reoptimization;
+5. multi-instrument conditional relevance and Anderson–Rubin-style block diagnostics.
+
+It also hardens the permanent CI workflows so superseded pull-request runs share a concurrency group and are cancelled, while each `main` push keeps a distinct SHA-scoped validation.
 
 The shared design rule is unchanged: fail closed on exhausted budgets or singular numerical systems, keep caller assumptions explicit, and never turn a diagnostic into a causal or production guarantee.
 
@@ -21,18 +24,33 @@ For a finitely bounded mixed-integer problem, each linear row is evaluated over 
 
 presolve computes the minimum contribution attainable by all variables except a selected target `x_i`. This yields a safe one-variable implied bound. The same mechanism is applied to `>=` rows by sign reversal and to equality rows in both directions.
 
-For integer variables, implied bounds are rounded inward after allowing the explicit numerical tolerance. Propagation repeats until the variable box stops changing or the caller-supplied pass budget is exhausted.
+For integer variables, implied bounds are rounded inward after allowing the explicit numerical tolerance. Integer-domain bounds must remain exact integer-valued `f64` values within `|x| <= 2^53`, matching the downstream Wave-8 mixed-integer solver. An integer variable is reported fixed only when its lower and upper bounds are exactly equal; tolerance-based fixedness remains reserved for continuous variables.
+
+Propagation repeats until the variable box stops changing or the caller-supplied pass budget is exhausted.
 
 The report preserves:
 
 - number of passes;
 - number of bound tightenings;
 - variables fixed by the resulting box;
-- rows that are redundant throughout the final box.
+- rows that are redundant throughout the final box within the explicit presolve tolerance.
 
 Rows reported as redundant are deliberately **not deleted** from the returned model. This preserves dimensionality and provenance and avoids claiming a full model-reduction presolver before substitution, coefficient reduction, duplicate-row elimination, scaling, singleton-column logic, and postsolve reconstruction are implemented.
 
 The presolver can prove infeasibility when the attainable row interval lies completely outside a constraint relation.
+
+### 1.1 Presolved mixed-integer pipeline
+
+Module: `mip_pipeline`.
+
+The pipeline composes the conservative presolve with the Wave-8 LP-relaxation branch-and-bound solver and returns both objects:
+
+- the complete presolve report and tightened model;
+- the final mixed-integer solution and branch-and-bound counters.
+
+Nothing is hidden as an implementation detail. Callers can bind evidence separately to the original model, tightened bounds, pass count, node count, relaxation count and final incumbent.
+
+The pipeline preserves the Wave-8 rule that a numerically near-integral LP leaf is snapped to exact integer coordinates and revalidated against the original retained linear constraints before becoming an incumbent.
 
 ## 2. Exact global finite-domain `NoOverlap` consistency
 
@@ -127,12 +145,14 @@ Most importantly, strong first-stage or reduced-form statistics do not establish
 
 Wave-9 evidence should retain at minimum:
 
-### MIP presolve
+### MIP presolve and pipeline
 - original and tightened variable bounds;
 - linear rows and relations;
 - pass budget and tolerance;
 - number of passes and tightenings;
-- fixed-variable and redundant-row reports.
+- fixed-variable and redundant-row reports;
+- branch-and-bound node and LP-relaxation budgets;
+- final solve counters and incumbent coordinates.
 
 ### Global disjunctive propagation
 - exact start domains and task durations;
@@ -160,13 +180,14 @@ Wave-9 evidence should retain at minimum:
 
 ## 6. Qualification and merge discipline
 
-Because Wave 9 is stacked on an unmerged Wave-8 head, it must not be treated as independently qualified yet.
+Because Wave 9 is stacked on an unmerged Wave-8 head, its draft PR may exercise CI against the exact Wave-8 branch but must not be treated as independently mergeable to `main` yet.
 
 After Wave 8 merges:
 
-1. verify the Wave-9 merge base matches the merged Wave-8 content;
-2. retarget or recreate the branch only if ancestry requires it;
-3. run the standard Rust 1.89 gates:
+1. verify the Wave-9 merge base contains the merged Wave-8 content;
+2. retarget the Wave-9 PR from `feat/commercial-acquisition-suite-8` to `main`;
+3. verify that the resulting file diff contains only Wave-9 changes;
+4. rerun the standard Rust 1.89 gates on the retargeted stable head:
 
 ```text
 cargo +1.89.0 fmt --all -- --check
@@ -175,8 +196,10 @@ cargo +1.89.0 test --locked --workspace
 cargo +1.89.0 build --locked --release --workspace
 ```
 
-4. run permanent execution-record, journal, restart-preflight, immutable R2-input, and independent R2 interoperability gates;
-5. merge only from a stable head for which all required gates are green.
+5. run permanent execution-record, journal, restart-preflight, immutable R2-input, and independent R2 interoperability gates;
+6. merge only from a stable head for which all required gates are green.
+
+For pull requests, the Wave-9 workflow versions use PR-scoped concurrency groups with `cancel-in-progress=true`; superseded PR commits should therefore stop consuming validation capacity. Pushes to `main` are SHA-scoped and are never intentionally cancelled by this rule.
 
 ## 7. Remaining boundaries
 
