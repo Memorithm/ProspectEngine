@@ -135,11 +135,9 @@ fn summarize_cash_flows(
         npv_minor_trunc = npv_minor_trunc
             .checked_add(discounted)
             .ok_or(FinanceError::ArithmeticOverflow("net present value"))?;
-        cumulative_discounted_minor = cumulative_discounted_minor
-            .checked_add(discounted)
-            .ok_or(FinanceError::ArithmeticOverflow(
-                "cumulative discounted cash flow",
-            ))?;
+        cumulative_discounted_minor = cumulative_discounted_minor.checked_add(discounted).ok_or(
+            FinanceError::ArithmeticOverflow("cumulative discounted cash flow"),
+        )?;
         if discounted_payback_period.is_none() && cumulative_discounted_minor >= 0 {
             discounted_payback_period = Some(period);
         }
