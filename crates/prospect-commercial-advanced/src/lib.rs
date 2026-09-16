@@ -7,10 +7,15 @@
 //! financial guarantees.
 
 pub mod adaptive;
+pub mod adaptive_bayes;
 pub mod causal;
+pub mod causal_advanced;
+pub mod constraint_propagation;
 pub mod customer;
 pub mod evolution;
 pub mod finance;
+pub mod forecast_advanced;
+pub mod integer_solver;
 pub mod inventory;
 pub mod learning;
 pub mod market;
