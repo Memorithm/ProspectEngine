@@ -15,7 +15,9 @@ impl fmt::Display for PricingError {
         match self {
             Self::EmptyCurve => formatter.write_str("price-demand curve must not be empty"),
             Self::DuplicatePrice(price) => write!(formatter, "duplicate price point: {price}"),
-            Self::PriceNotInCurve(price) => write!(formatter, "price is not present in curve: {price}"),
+            Self::PriceNotInCurve(price) => {
+                write!(formatter, "price is not present in curve: {price}")
+            }
             Self::NegativeField(field) => write!(formatter, "{field} must be non-negative"),
             Self::ArithmeticOverflow(operation) => {
                 write!(formatter, "arithmetic overflow while computing {operation}")
@@ -125,7 +127,10 @@ fn validate_state(state: &PricingState) -> Result<(), PricingError> {
     Ok(())
 }
 
-fn evaluate_price(state: &PricingState, price_minor: i64) -> Result<PricingSignature, PricingError> {
+fn evaluate_price(
+    state: &PricingState,
+    price_minor: i64,
+) -> Result<PricingSignature, PricingError> {
     validate_state(state)?;
     let point = state
         .curve
@@ -220,7 +225,9 @@ mod tests {
 
     #[test]
     fn pricing_engine_respects_capacity() {
-        let signature = PricingEngine.baseline(&state()).expect("valid pricing state");
+        let signature = PricingEngine
+            .baseline(&state())
+            .expect("valid pricing state");
         assert_eq!(signature.served_units, 100);
         assert_eq!(signature.unmet_demand_units, 20);
         assert_eq!(signature.revenue_minor, 100_000);
@@ -230,12 +237,7 @@ mod tests {
     #[test]
     fn explicit_higher_price_can_be_compared_without_interpolation() {
         let signature = PricingEngine
-            .evaluate(
-                &state(),
-                &PricingIntervention {
-                    price_minor: 1_200,
-                },
-            )
+            .evaluate(&state(), &PricingIntervention { price_minor: 1_200 })
             .expect("known price point");
         assert_eq!(signature.served_units, 80);
         assert_eq!(signature.operating_profit_minor, 44_000);
@@ -244,12 +246,7 @@ mod tests {
     #[test]
     fn unknown_price_fails_closed() {
         assert_eq!(
-            PricingEngine.evaluate(
-                &state(),
-                &PricingIntervention {
-                    price_minor: 1_100,
-                }
-            ),
+            PricingEngine.evaluate(&state(), &PricingIntervention { price_minor: 1_100 }),
             Err(PricingError::PriceNotInCurve(1_100))
         );
     }
