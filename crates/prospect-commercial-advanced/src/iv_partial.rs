@@ -290,8 +290,10 @@ fn solve_linear_system(
                 continue;
             }
             let factor = matrix[row][column];
-            for target in column..width {
-                matrix[row][target] -= factor * pivot_row_values[target];
+            for (target, pivot_value) in
+                pivot_row_values.iter().enumerate().take(width).skip(column)
+            {
+                matrix[row][target] -= factor * *pivot_value;
             }
             rhs[row] -= factor * pivot_rhs;
         }
