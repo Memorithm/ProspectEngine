@@ -7,8 +7,8 @@ pub struct PartialFirstStageDiagnostic {
     pub restricted_residual_sum_of_squares: f64,
     pub full_residual_sum_of_squares: f64,
     pub partial_r_squared: f64,
-    /// None denotes an exact full first-stage fit where the finite F statistic
-    /// diverges.
+    /// None denotes a full-model exact fit reached through a strictly positive
+    /// incremental reduction in SSE, for which the finite F statistic diverges.
     pub partial_f_statistic: Option<f64>,
 }
 
@@ -19,6 +19,8 @@ pub struct AndersonRubinDiagnostic {
     pub controls: usize,
     /// F statistic for adding the instrument to the residualized null outcome
     /// `y - beta0 * treatment` after controlling for the supplied covariates.
+    /// None denotes a divergent finite F statistic after a strictly positive
+    /// incremental reduction drives the full-model SSE to numerical zero.
     pub f_statistic: Option<f64>,
     pub partial_r_squared: f64,
 }
@@ -176,7 +178,8 @@ fn design_matrix(controls: &[Vec<f64>], instrument: Option<&[f64]>) -> Vec<Vec<f
         .iter()
         .enumerate()
         .map(|(row, control_values)| {
-            let mut values = Vec::with_capacity(1 + control_values.len() + usize::from(instrument.is_some()));
+            let mut values =
+                Vec::with_capacity(1 + control_values.len() + usize::from(instrument.is_some()));
             values.push(1.0);
             values.extend_from_slice(control_values);
             if let Some(instrument) = instrument {
@@ -228,8 +231,10 @@ fn partial_statistics(
     observations: usize,
     full_parameters: usize,
 ) -> Result<(f64, Option<f64>), PartialIvError> {
+    const EXACT_FIT_TOLERANCE: f64 = 1e-14;
+
     let reduction = (restricted_sse - full_sse).max(0.0);
-    let partial_r_squared = if restricted_sse <= 1e-14 {
+    let partial_r_squared = if restricted_sse <= EXACT_FIT_TOLERANCE {
         0.0
     } else {
         (reduction / restricted_sse).clamp(0.0, 1.0)
@@ -240,8 +245,12 @@ fn partial_statistics(
     if residual_degrees == 0 {
         return Err(PartialIvError::TooFewObservations);
     }
-    let f_statistic = if full_sse <= 1e-14 {
-        None
+    let f_statistic = if full_sse <= EXACT_FIT_TOLERANCE {
+        if reduction <= EXACT_FIT_TOLERANCE {
+            Some(0.0)
+        } else {
+            None
+        }
     } else {
         let statistic = reduction / (full_sse / residual_degrees as f64);
         if !statistic.is_finite() || statistic < 0.0 {
@@ -308,10 +317,24 @@ mod tests {
             .zip(instrument)
             .map(|(control, z)| 1.0 + 0.2 * control[0] + 2.0 * z)
             .collect();
-        let diagnostic = partial_first_stage(&instrument, &treatment, &controls)
-            .expect("partial first stage");
+        let diagnostic =
+            partial_first_stage(&instrument, &treatment, &controls).expect("partial first stage");
         assert!(diagnostic.partial_r_squared > 0.99);
         assert_eq!(diagnostic.partial_f_statistic, None);
+    }
+
+    #[test]
+    fn perfectly_explained_restricted_stage_has_zero_incremental_f() {
+        let instrument = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
+        let controls: Vec<Vec<f64>> = (0..8).map(|index| vec![index as f64]).collect();
+        let treatment: Vec<f64> = controls
+            .iter()
+            .map(|control| 1.0 + 0.5 * control[0])
+            .collect();
+        let diagnostic =
+            partial_first_stage(&instrument, &treatment, &controls).expect("partial first stage");
+        assert!(diagnostic.partial_r_squared <= 1e-12);
+        assert_eq!(diagnostic.partial_f_statistic, Some(0.0));
     }
 
     #[test]
@@ -328,15 +351,11 @@ mod tests {
             .zip(&treatment)
             .map(|(control, x)| 4.0 + 0.3 * control[0] + 3.0 * x)
             .collect();
-        let diagnostic = anderson_rubin_diagnostic(
-            &instrument,
-            &treatment,
-            &outcome,
-            &controls,
-            3.0,
-        )
-        .expect("Anderson-Rubin diagnostic");
+        let diagnostic =
+            anderson_rubin_diagnostic(&instrument, &treatment, &outcome, &controls, 3.0)
+                .expect("Anderson-Rubin diagnostic");
         assert!(diagnostic.partial_r_squared < 1e-10);
+        assert_eq!(diagnostic.f_statistic, Some(0.0));
     }
 
     #[test]
