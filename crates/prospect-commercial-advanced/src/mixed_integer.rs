@@ -5,6 +5,8 @@ use crate::general_linear_program::GeneralLinearConstraint;
 use crate::optimization::ConstraintRelation;
 use core::fmt;
 
+const MAX_EXACT_F64_INTEGER: f64 = 9_007_199_254_740_992.0;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MixedVariableKind {
     Continuous,
@@ -62,16 +64,17 @@ impl fmt::Display for MixedIntegerError {
             Self::NoIntegerVariable => {
                 formatter.write_str("mixed-integer branch-and-bound requires at least one integer variable")
             }
-            Self::InvalidBounds { variable } => {
-                write!(formatter, "mixed-integer variable {variable} has invalid finite bounds")
-            }
+            Self::InvalidBounds { variable } => write!(
+                formatter,
+                "mixed-integer variable {variable} has invalid finite bounds"
+            ),
             Self::ConstraintWidthMismatch => {
                 formatter.write_str("mixed-integer constraint width must match variable width")
             }
             Self::NonFiniteInput => formatter.write_str("mixed-integer inputs must be finite"),
-            Self::InvalidTolerance => {
-                formatter.write_str("mixed-integer tolerances must be finite and positive")
-            }
+            Self::InvalidTolerance => formatter.write_str(
+                "mixed-integer LP tolerance must be positive and integrality tolerance must lie in (0, 0.5)",
+            ),
             Self::InvalidNodeBudget => {
                 formatter.write_str("mixed-integer node budget must be non-zero")
             }
@@ -85,7 +88,9 @@ impl fmt::Display for MixedIntegerError {
             Self::NoFeasibleSolution => {
                 formatter.write_str("mixed-integer problem has no feasible integer solution")
             }
-            Self::Relaxation(error) => write!(formatter, "mixed-integer LP relaxation failed: {error}"),
+            Self::Relaxation(error) => {
+                write!(formatter, "mixed-integer LP relaxation failed: {error}")
+            }
             Self::NumericalBreakdown => {
                 formatter.write_str("mixed-integer search encountered numerical breakdown")
             }
@@ -114,7 +119,8 @@ struct SearchState<'a> {
 /// Solve a bounded mixed continuous/integer maximization problem using LP
 /// relaxation branch-and-bound.
 ///
-/// Every variable must have finite caller-supplied bounds. Each node is solved
+/// Every variable must have finite caller-supplied bounds. Integer bounds must
+/// themselves be exact integers in the exact-`f64` range. Each node is solved
 /// by the bounded/free-variable LP front-end backed by the deterministic
 /// two-phase simplex. Integer branching fixes `x_i <= floor(x*)` versus
 /// `x_i >= ceil(x*)`. A relaxation that is integral within tolerance is snapped
@@ -375,6 +381,7 @@ fn validate(problem: &MixedIntegerProblem) -> Result<(), MixedIntegerError> {
         || problem.lp_tolerance <= 0.0
         || !problem.integrality_tolerance.is_finite()
         || problem.integrality_tolerance <= 0.0
+        || problem.integrality_tolerance >= 0.5
     {
         return Err(MixedIntegerError::InvalidTolerance);
     }
@@ -395,9 +402,10 @@ fn validate(problem: &MixedIntegerProblem) -> Result<(), MixedIntegerError> {
             return Err(MixedIntegerError::InvalidBounds { variable: index });
         }
         if variable.kind == MixedVariableKind::Integer
-            && ((variable.lower - variable.lower.round()).abs() > problem.integrality_tolerance
-                || (variable.upper - variable.upper.round()).abs()
-                    > problem.integrality_tolerance)
+            && (variable.lower != variable.lower.round()
+                || variable.upper != variable.upper.round()
+                || variable.lower.abs() > MAX_EXACT_F64_INTEGER
+                || variable.upper.abs() > MAX_EXACT_F64_INTEGER)
         {
             return Err(MixedIntegerError::InvalidBounds { variable: index });
         }
@@ -511,6 +519,41 @@ mod tests {
         let snapped = snap_integral_values(&problem, &[0.999_999_999, 1.25]).expect("snap");
         assert_eq!(snapped, vec![1.0, 1.25]);
         assert_eq!(maximum_primal_violation(&problem, &snapped), 0.0);
+    }
+
+    #[test]
+    fn integer_domain_and_tolerance_validation_fail_closed() {
+        let mut problem = MixedIntegerProblem {
+            variables: vec![MixedVariable {
+                lower: 0.25,
+                upper: 4.0,
+                objective_coefficient: 1.0,
+                kind: MixedVariableKind::Integer,
+            }],
+            constraints: Vec::new(),
+            lp_tolerance: 1e-9,
+            integrality_tolerance: 1e-8,
+            maximum_nodes: 10,
+            maximum_lp_iterations_per_node: 20,
+        };
+        assert_eq!(
+            solve_mixed_integer_branch_and_bound(&problem),
+            Err(MixedIntegerError::InvalidBounds { variable: 0 })
+        );
+
+        problem.variables[0].lower = 0.0;
+        problem.integrality_tolerance = 0.5;
+        assert_eq!(
+            solve_mixed_integer_branch_and_bound(&problem),
+            Err(MixedIntegerError::InvalidTolerance)
+        );
+
+        problem.integrality_tolerance = 1e-8;
+        problem.variables[0].upper = MAX_EXACT_F64_INTEGER + 2.0;
+        assert_eq!(
+            solve_mixed_integer_branch_and_bound(&problem),
+            Err(MixedIntegerError::InvalidBounds { variable: 0 })
+        );
     }
 
     #[test]
