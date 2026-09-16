@@ -126,13 +126,12 @@ pub fn propagate_cumulative_timetable(
         .collect::<Result<Vec<_>, _>>()?;
     let initial_count: usize = current.iter().map(|task| task.start_domain.len()).sum();
     let mut passes = 0_u64;
-    let mut mandatory_peak_load = 0_i64;
 
     loop {
         passes = passes.saturating_add(1);
         let before = current.clone();
         let profile = mandatory_profile(&current)?;
-        mandatory_peak_load = profile.values().copied().max().unwrap_or(0);
+        let mandatory_peak_load = profile.values().copied().max().unwrap_or(0);
         if mandatory_peak_load > capacity {
             return Err(GlobalPropagationError::Infeasible);
         }
@@ -157,7 +156,7 @@ pub fn propagate_cumulative_timetable(
     }
 
     let final_profile = mandatory_profile(&current)?;
-    mandatory_peak_load = final_profile.values().copied().max().unwrap_or(0);
+    let mandatory_peak_load = final_profile.values().copied().max().unwrap_or(0);
     let final_count: usize = current.iter().map(|task| task.start_domain.len()).sum();
     Ok(CumulativePropagationReport {
         tasks: current,

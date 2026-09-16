@@ -149,7 +149,7 @@ impl LocalLinearTrendModel {
         horizon: usize,
     ) -> Result<Vec<StateSpaceForecastPoint>, StateSpaceError> {
         let mut level = self.level;
-        let mut trend = self.trend;
+        let trend = self.trend;
         let mut covariance = self.covariance;
         let mut output = Vec::with_capacity(horizon);
 
