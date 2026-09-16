@@ -274,15 +274,15 @@ mod tests {
 
     #[test]
     fn global_support_prunes_a_start_using_three_task_interaction() {
-        // If task 0 starts at 2, the two fixed-edge tasks cannot both be
-        // scheduled. Starting task 0 at 4 has complete support.
+        // If task 0 starts at 2, tasks 1 and 2 are both forced to 0 and clash.
+        // Starting task 0 at 4 leaves the globally supported assignment {4,0,2}.
         let tasks = vec![
             GlobalDisjunctiveTask {
                 start_domain: vec![2, 4],
                 duration: 2,
             },
             GlobalDisjunctiveTask {
-                start_domain: vec![0, 4],
+                start_domain: vec![0, 2],
                 duration: 2,
             },
             GlobalDisjunctiveTask {
