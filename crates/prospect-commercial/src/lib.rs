@@ -24,12 +24,17 @@ impl fmt::Display for CommercialError {
         match self {
             Self::NegativeField(field) => write!(formatter, "{field} must be non-negative"),
             Self::UnitDeltaOutOfRange(field) => {
-                write!(formatter, "{field} adjustment is outside the representable range")
+                write!(
+                    formatter,
+                    "{field} adjustment is outside the representable range"
+                )
             }
             Self::ArithmeticOverflow(operation) => {
                 write!(formatter, "arithmetic overflow while computing {operation}")
             }
-            Self::EmptyOutcomeSet => formatter.write_str("commercial outcome set must not be empty"),
+            Self::EmptyOutcomeSet => {
+                formatter.write_str("commercial outcome set must not be empty")
+            }
             Self::ZeroProbabilityOutcome => {
                 formatter.write_str("commercial outcomes must have non-zero probability mass")
             }
@@ -146,9 +151,7 @@ fn validate_unit_state(state: &UnitEconomicsState) -> Result<(), CommercialError
         return Err(CommercialError::NegativeField("unit_price_minor"));
     }
     if state.unit_variable_cost_minor < 0 {
-        return Err(CommercialError::NegativeField(
-            "unit_variable_cost_minor",
-        ));
+        return Err(CommercialError::NegativeField("unit_variable_cost_minor"));
     }
     if state.fixed_cost_minor < 0 {
         return Err(CommercialError::NegativeField("fixed_cost_minor"));
@@ -158,7 +161,7 @@ fn validate_unit_state(state: &UnitEconomicsState) -> Result<(), CommercialError
 
 fn apply_unit_delta(base: u64, delta: i64, field: &'static str) -> Result<u64, CommercialError> {
     let adjusted = i128::from(base) + i128::from(delta);
-    if adjusted < 0 || adjusted > i128::from(u64::MAX) {
+    if !(0..=i128::from(u64::MAX)).contains(&adjusted) {
         return Err(CommercialError::UnitDeltaOutOfRange(field));
     }
     u64::try_from(adjusted).map_err(|_| CommercialError::UnitDeltaOutOfRange(field))
@@ -227,16 +230,16 @@ impl DecisionPolicy<UnitEconomicsSignature> for MaximizeNetCash {
 /// Policy that penalizes unmet demand while retaining exact monetary arithmetic.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CapacityAwareNetCash {
-    pub unmet_demand_penalty_minor_per_unit: i64,
+    pub unmet_demand_penalty_minor_per_unit: u64,
 }
 
 impl DecisionPolicy<UnitEconomicsSignature> for CapacityAwareNetCash {
     type Score = i128;
 
     fn utility(&self, signature: &UnitEconomicsSignature) -> Self::Score {
-        signature.net_cash_contribution_minor
-            - i128::from(signature.unmet_demand_units)
-                * i128::from(self.unmet_demand_penalty_minor_per_unit)
+        let penalty = i128::from(signature.unmet_demand_units)
+            .saturating_mul(i128::from(self.unmet_demand_penalty_minor_per_unit));
+        signature.net_cash_contribution_minor.saturating_sub(penalty)
     }
 }
 
@@ -393,8 +396,8 @@ fn summarize_distribution(
         remaining_tail_ppm -= consumed_ppm;
     }
     debug_assert_eq!(remaining_tail_ppm, 0);
-    let downside_tail_mean_minor_floor = downside_tail_weighted_minor_ppm
-        .div_euclid(i128::from(downside_tail_ppm));
+    let downside_tail_mean_minor_floor =
+        downside_tail_weighted_minor_ppm.div_euclid(i128::from(downside_tail_ppm));
 
     CommercialRiskSignature {
         expected_net_cash_weighted_minor_ppm,
@@ -598,8 +601,6 @@ mod tests {
 
         assert!(MaximizeExpectedNetCash.utility(&risky) > MaximizeExpectedNetCash.utility(&stable));
         assert!(DownsideFirst.utility(&stable) > DownsideFirst.utility(&risky));
-        assert!(
-            MinimizeLossProbability.utility(&stable) > MinimizeLossProbability.utility(&risky)
-        );
+        assert!(MinimizeLossProbability.utility(&stable) > MinimizeLossProbability.utility(&risky));
     }
 }
