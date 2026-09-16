@@ -166,7 +166,9 @@ fn summarize_action(
     let failure_weight = scale - success_weight;
     let certain_cost_minor = i128::from(action.attempt_cost_minor)
         .checked_add(i128::from(action.risk_reserve_minor))
-        .ok_or(NextBestActionError::ArithmeticOverflow("certain action cost"))?;
+        .ok_or(NextBestActionError::ArithmeticOverflow(
+            "certain action cost",
+        ))?;
     let expected_value_weighted_minor_ppm = i128::from(action.success_value_minor)
         .checked_mul(success_weight)
         .and_then(|value| {
@@ -258,12 +260,17 @@ mod tests {
             .expect("eligible action");
         assert_eq!(first.expected_value_minor_trunc, 1_400);
         assert_eq!(second.expected_value_minor_trunc, 2_100);
-        assert!(MaximizeNextBestActionValue.utility(&second) > MaximizeNextBestActionValue.utility(&first));
+        assert!(
+            MaximizeNextBestActionValue.utility(&second)
+                > MaximizeNextBestActionValue.utility(&first)
+        );
     }
 
     #[test]
     fn no_action_baseline_is_explicit() {
-        let baseline = NextBestActionEngine.baseline(&state()).expect("valid no-op");
+        let baseline = NextBestActionEngine
+            .baseline(&state())
+            .expect("valid no-op");
         assert_eq!(baseline.action_index, None);
         assert_eq!(baseline.expected_value_minor_trunc, 0);
     }
@@ -271,10 +278,8 @@ mod tests {
     #[test]
     fn ineligible_action_fails_closed() {
         assert_eq!(
-            NextBestActionEngine.evaluate(
-                &state(),
-                &NextBestActionIntervention { action_index: 2 }
-            ),
+            NextBestActionEngine
+                .evaluate(&state(), &NextBestActionIntervention { action_index: 2 }),
             Err(NextBestActionError::IneligibleAction(2))
         );
     }
