@@ -270,7 +270,6 @@ fn propagate_linear(
         };
         for position in 0..variables.len() {
             let variable = variables[position];
-            let coefficient = coefficients[position];
             let candidates = domains[variable].clone();
             let mut supported = Vec::new();
             for candidate in candidates {
