@@ -272,6 +272,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "prospect-commercial-advanced"
+version = "0.1.0"
+dependencies = [
+ "prospect-commercial",
+ "prospect-core",
+]
+
+[[package]]
 name = "prospect-core"
 version = "0.1.0"
 
