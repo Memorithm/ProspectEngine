@@ -45,7 +45,9 @@ impl fmt::Display for PartialIvError {
             Self::TooFewObservations => formatter.write_str(
                 "IV partial diagnostic needs more observations than full regression parameters",
             ),
-            Self::NonFiniteInput => formatter.write_str("IV partial diagnostic inputs must be finite"),
+            Self::NonFiniteInput => {
+                formatter.write_str("IV partial diagnostic inputs must be finite")
+            }
             Self::SingularDesign => {
                 formatter.write_str("IV partial diagnostic design matrix is singular")
             }
@@ -131,12 +133,8 @@ pub fn anderson_rubin_diagnostic(
     let controls_width = controls.first().map_or(0, Vec::len);
     let restricted_sse = regression_sse(&design_matrix(controls, None), &null_outcome)?;
     let full_sse = regression_sse(&design_matrix(controls, Some(instrument)), &null_outcome)?;
-    let (partial_r_squared, f_statistic) = partial_statistics(
-        restricted_sse,
-        full_sse,
-        outcome.len(),
-        controls_width + 2,
-    )?;
+    let (partial_r_squared, f_statistic) =
+        partial_statistics(restricted_sse, full_sse, outcome.len(), controls_width + 2)?;
     Ok(AndersonRubinDiagnostic {
         null_effect,
         observations: outcome.len(),

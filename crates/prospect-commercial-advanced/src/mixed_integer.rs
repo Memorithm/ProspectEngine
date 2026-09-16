@@ -1,5 +1,5 @@
 use crate::bounded_linear_program::{
-    solve_bounded_linear_program, BoundedLinearError, BoundedLinearProgram, LinearVariable,
+    BoundedLinearError, BoundedLinearProgram, LinearVariable, solve_bounded_linear_program,
 };
 use crate::general_linear_program::GeneralLinearConstraint;
 use crate::optimization::ConstraintRelation;
@@ -244,12 +244,9 @@ fn search_node(
         // primal feasibility. In that case a near-integer LP point can snap to
         // an infeasible integer. It is still a legitimate branch point: search
         // the exact floor/ceil children instead of aborting a feasible MIP.
-        let (branch_variable, branch_value, _) = choose_fractional_variable(
-            state.problem,
-            &relaxation.values,
-            0.0,
-        )
-        .ok_or(MixedIntegerError::NumericalBreakdown)?;
+        let (branch_variable, branch_value, _) =
+            choose_fractional_variable(state.problem, &relaxation.values, 0.0)
+                .ok_or(MixedIntegerError::NumericalBreakdown)?;
         return branch_on_variable(state, bounds, branch_variable, branch_value);
     }
 
@@ -571,7 +568,8 @@ mod tests {
             maximum_nodes: 10,
             maximum_lp_iterations_per_node: 50,
         };
-        let solution = solve_mixed_integer_branch_and_bound(&problem).expect("exact integer search");
+        let solution =
+            solve_mixed_integer_branch_and_bound(&problem).expect("exact integer search");
         assert_eq!(solution.values, vec![0.0]);
         assert_eq!(solution.objective_value, 0.0);
         assert!(solution.explored_nodes >= 2);
