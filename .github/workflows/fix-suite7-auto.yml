@@ -19,13 +19,12 @@ jobs:
       - shell: bash
         run: |
           set -euo pipefail
-          cargo +1.89.0 clippy --fix --allow-dirty --allow-staged --workspace --all-targets -- -D warnings
+          sed -i 's/for decision in 0\.\.decision_width {/for (decision, mapped) in old_to_new.iter().take(decision_width).enumerate() {/' crates/prospect-commercial-advanced/src/general_linear_program.rs
+          sed -i 's/let mapped = old_to_new\[decision\]\.expect("decision columns are never artificial");/let mapped = mapped.expect("decision columns are never artificial");/' crates/prospect-commercial-advanced/src/general_linear_program.rs
           cargo +1.89.0 fmt --all
-          if git diff --quiet; then
-            exit 0
-          fi
+          cargo +1.89.0 clippy --locked --workspace --all-targets -- -D warnings
           git config user.name MEMOPERF
           git config user.email contact@checkupauto.fr
-          git add crates/prospect-commercial-advanced/src
-          git commit -m "fix(commercial): apply strict wave-seven lint fixes"
+          git add crates/prospect-commercial-advanced/src/general_linear_program.rs
+          git commit -m "fix(commercial): satisfy strict wave-seven lints"
           git push origin HEAD:feat/commercial-acquisition-suite-7
