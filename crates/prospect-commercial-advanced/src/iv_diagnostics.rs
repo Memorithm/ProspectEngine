@@ -188,8 +188,8 @@ mod tests {
     fn exact_first_stage_is_reported_without_fake_finite_f() {
         let instrument = [0.0, 1.0, 2.0, 3.0, 4.0];
         let treatment = [1.0, 3.0, 5.0, 7.0, 9.0];
-        let diagnostic = single_instrument_first_stage(&instrument, &treatment)
-            .expect("exact first stage");
+        let diagnostic =
+            single_instrument_first_stage(&instrument, &treatment).expect("exact first stage");
         assert!((diagnostic.instrument_slope - 2.0).abs() < 1e-12);
         assert!((diagnostic.intercept - 1.0).abs() < 1e-12);
         assert!((diagnostic.r_squared - 1.0).abs() < 1e-12);
@@ -203,8 +203,8 @@ mod tests {
     fn noisy_first_stage_returns_finite_f_statistic() {
         let instrument = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0];
         let treatment = [0.2, 0.9, 2.4, 2.8, 4.5, 4.7];
-        let diagnostic = single_instrument_first_stage(&instrument, &treatment)
-            .expect("noisy first stage");
+        let diagnostic =
+            single_instrument_first_stage(&instrument, &treatment).expect("noisy first stage");
         let statistic = diagnostic.f_statistic.expect("finite F");
         assert!(statistic > 0.0);
         assert!(diagnostic.r_squared > 0.0 && diagnostic.r_squared < 1.0);

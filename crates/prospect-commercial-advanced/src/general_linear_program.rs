@@ -181,9 +181,7 @@ pub fn solve_general_two_phase_simplex(
     for (new_column, old_column) in kept_columns.iter().copied().enumerate() {
         old_to_new[old_column] = Some(new_column);
     }
-    let kept_rows: Vec<usize> = (0..rows)
-        .filter(|row| !redundant_rows[*row])
-        .collect();
+    let kept_rows: Vec<usize> = (0..rows).filter(|row| !redundant_rows[*row]).collect();
     let phase_two_rows = kept_rows.len();
     let phase_two_width = kept_columns.len();
     let phase_two_rhs = phase_two_width;
@@ -195,7 +193,8 @@ pub fn solve_general_two_phase_simplex(
             phase_two[new_row][new_column] = tableau[old_row][old_column];
         }
         phase_two[new_row][phase_two_rhs] = tableau[old_row][rhs_column];
-        let mapped_basis = old_to_new[basis[old_row]].ok_or(GeneralLinearError::NumericalBreakdown)?;
+        let mapped_basis =
+            old_to_new[basis[old_row]].ok_or(GeneralLinearError::NumericalBreakdown)?;
         phase_two_basis.push(mapped_basis);
     }
 
@@ -273,7 +272,10 @@ fn validate(problem: &GeneralLinearProgram) -> Result<(), GeneralLinearError> {
             return Err(GeneralLinearError::ConstraintWidthMismatch);
         }
         if !constraint.rhs.is_finite()
-            || constraint.coefficients.iter().any(|value| !value.is_finite())
+            || constraint
+                .coefficients
+                .iter()
+                .any(|value| !value.is_finite())
         {
             return Err(GeneralLinearError::NonFiniteInput);
         }
@@ -288,7 +290,11 @@ fn normalize_constraints(problem: &GeneralLinearProgram) -> Vec<NormalizedConstr
         .map(|constraint| {
             if constraint.rhs < -problem.tolerance {
                 NormalizedConstraint {
-                    coefficients: constraint.coefficients.iter().map(|value| -*value).collect(),
+                    coefficients: constraint
+                        .coefficients
+                        .iter()
+                        .map(|value| -*value)
+                        .collect(),
                     relation: flip_relation(constraint.relation),
                     rhs: -constraint.rhs,
                 }
@@ -353,19 +359,11 @@ fn run_simplex(
 ) -> Result<(), GeneralLinearError> {
     let rhs_column = width;
     loop {
-        let Some(entering) = (0..width).find(|column| tableau[rows][*column] < -tolerance)
-        else {
+        let Some(entering) = (0..width).find(|column| tableau[rows][*column] < -tolerance) else {
             return Ok(());
         };
-        let leaving = choose_leaving_row(
-            tableau,
-            basis,
-            rows,
-            entering,
-            rhs_column,
-            tolerance,
-        )?
-        .ok_or(GeneralLinearError::Unbounded)?;
+        let leaving = choose_leaving_row(tableau, basis, rows, entering, rhs_column, tolerance)?
+            .ok_or(GeneralLinearError::Unbounded)?;
         if *iterations >= maximum_iterations {
             return Err(GeneralLinearError::IterationLimitExceeded {
                 iterations: *iterations,
@@ -489,15 +487,18 @@ fn maximum_violation(problem: &GeneralLinearProgram, values: &[f64]) -> f64 {
         .iter()
         .map(|value| (-*value).max(0.0))
         .fold(0.0_f64, f64::max);
-    problem.constraints.iter().fold(nonnegative_violation, |current, constraint| {
-        let lhs = dot(&constraint.coefficients, values);
-        let violation = match constraint.relation {
-            ConstraintRelation::LessOrEqual => (lhs - constraint.rhs).max(0.0),
-            ConstraintRelation::GreaterOrEqual => (constraint.rhs - lhs).max(0.0),
-            ConstraintRelation::Equal => (lhs - constraint.rhs).abs(),
-        };
-        current.max(violation)
-    })
+    problem
+        .constraints
+        .iter()
+        .fold(nonnegative_violation, |current, constraint| {
+            let lhs = dot(&constraint.coefficients, values);
+            let violation = match constraint.relation {
+                ConstraintRelation::LessOrEqual => (lhs - constraint.rhs).max(0.0),
+                ConstraintRelation::GreaterOrEqual => (constraint.rhs - lhs).max(0.0),
+                ConstraintRelation::Equal => (lhs - constraint.rhs).abs(),
+            };
+            current.max(violation)
+        })
 }
 
 fn dot(left: &[f64], right: &[f64]) -> f64 {

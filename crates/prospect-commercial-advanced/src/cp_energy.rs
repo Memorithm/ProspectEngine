@@ -35,16 +35,28 @@ impl fmt::Display for EnergeticPropagationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyTasks => formatter.write_str("energetic propagation requires tasks"),
-            Self::EmptyDomain { task } => write!(formatter, "task {task} has an empty start domain"),
-            Self::InvalidTask { task } => write!(formatter, "task {task} has invalid duration or demand"),
-            Self::InvalidCapacity => formatter.write_str("energetic capacity must be strictly positive"),
-            Self::InvalidIntervalBudget => formatter.write_str("energetic interval budget must be non-zero"),
+            Self::EmptyDomain { task } => {
+                write!(formatter, "task {task} has an empty start domain")
+            }
+            Self::InvalidTask { task } => {
+                write!(formatter, "task {task} has invalid duration or demand")
+            }
+            Self::InvalidCapacity => {
+                formatter.write_str("energetic capacity must be strictly positive")
+            }
+            Self::InvalidIntervalBudget => {
+                formatter.write_str("energetic interval budget must be non-zero")
+            }
             Self::IntervalBudgetExceeded { needed, maximum } => write!(
                 formatter,
                 "energetic interval budget exceeded: need {needed}, maximum {maximum}"
             ),
-            Self::ArithmeticOverflow => formatter.write_str("energetic propagation arithmetic overflow"),
-            Self::Infeasible => formatter.write_str("energetic reasoning proved the schedule infeasible"),
+            Self::ArithmeticOverflow => {
+                formatter.write_str("energetic propagation arithmetic overflow")
+            }
+            Self::Infeasible => {
+                formatter.write_str("energetic reasoning proved the schedule infeasible")
+            }
         }
     }
 }
@@ -100,11 +112,7 @@ pub fn propagate_cumulative_energy(
             let mut supported = Vec::with_capacity(candidates.len());
             for candidate in candidates {
                 if candidate_energy_supported(
-                    &current,
-                    task_index,
-                    candidate,
-                    capacity,
-                    &intervals,
+                    &current, task_index, candidate, capacity, &intervals,
                 )? {
                     supported.push(candidate);
                 }

@@ -289,8 +289,8 @@ mod tests {
             mean: 10.0,
             variance: 4.0,
         }];
-        let interval = gaussian_predictive_intervals(&forecast, 2.0)
-            .expect("predictive interval")[0];
+        let interval =
+            gaussian_predictive_intervals(&forecast, 2.0).expect("predictive interval")[0];
         assert_eq!(interval.standard_deviation, 2.0);
         assert_eq!(interval.lower, 6.0);
         assert_eq!(interval.upper, 14.0);
