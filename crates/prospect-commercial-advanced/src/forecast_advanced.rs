@@ -266,13 +266,12 @@ pub fn select_forecast_family(
                 gamma: 0.2,
                 season_length,
             },
-        ) {
-            if let Ok(forecast) = additive.forecast(holdout_len) {
-                candidates.push((ForecastFamily::AdditiveSeasonal, forecast));
-            }
+        ) && let Ok(forecast) = additive.forecast(holdout_len)
+        {
+            candidates.push((ForecastFamily::AdditiveSeasonal, forecast));
         }
-        if train.iter().all(|value| *value > 0.0) {
-            if let Ok(multiplicative) = HoltWintersMultiplicativeModel::fit(
+        if train.iter().all(|value| *value > 0.0)
+            && let Ok(multiplicative) = HoltWintersMultiplicativeModel::fit(
                 train,
                 MultiplicativeHoltWintersConfig {
                     alpha: 0.35,
@@ -281,11 +280,10 @@ pub fn select_forecast_family(
                     phi: 0.95,
                     season_length,
                 },
-            ) {
-                if let Ok(forecast) = multiplicative.forecast(holdout_len) {
-                    candidates.push((ForecastFamily::MultiplicativeSeasonal, forecast));
-                }
-            }
+            )
+            && let Ok(forecast) = multiplicative.forecast(holdout_len)
+        {
+            candidates.push((ForecastFamily::MultiplicativeSeasonal, forecast));
         }
     }
 
