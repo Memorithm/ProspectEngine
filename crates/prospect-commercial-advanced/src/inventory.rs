@@ -152,7 +152,9 @@ fn evaluate_inventory(
 
     let purchase_cost = i128::from(order_quantity_units)
         .checked_mul(i128::from(state.unit_purchase_cost_minor))
-        .ok_or(InventoryError::ArithmeticOverflow("inventory purchase cost"))?;
+        .ok_or(InventoryError::ArithmeticOverflow(
+            "inventory purchase cost",
+        ))?;
 
     for outcome in state.demand.outcomes() {
         let sold = order_quantity_units.min(outcome.demand_units);
@@ -174,12 +176,12 @@ fn evaluate_inventory(
             .ok_or(InventoryError::ArithmeticOverflow("inventory profit"))?;
         let probability = i128::from(outcome.probability_ppm);
         expected_profit_weighted_minor_ppm = expected_profit_weighted_minor_ppm
-            .checked_add(
-                profit
-                    .checked_mul(probability)
-                    .ok_or(InventoryError::ArithmeticOverflow("weighted inventory profit"))?,
-            )
-            .ok_or(InventoryError::ArithmeticOverflow("expected inventory profit"))?;
+            .checked_add(profit.checked_mul(probability).ok_or(
+                InventoryError::ArithmeticOverflow("weighted inventory profit"),
+            )?)
+            .ok_or(InventoryError::ArithmeticOverflow(
+                "expected inventory profit",
+            ))?;
 
         let probability_u128 = u128::from(outcome.probability_ppm);
         expected_units_sold_weighted_ppm = expected_units_sold_weighted_ppm
