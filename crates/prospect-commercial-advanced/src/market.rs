@@ -81,17 +81,21 @@ pub fn evaluate_competitive_actions(
         .iter()
         .enumerate()
         .map(|(action_index, row)| {
-            let expected = if let Some(probabilities) = &problem.competitor_response_probability_ppm {
-                let weighted = row
-                    .iter()
-                    .zip(probabilities)
-                    .try_fold(0_i128, |sum, (payoff, probability)| {
+            let expected = if let Some(probabilities) = &problem.competitor_response_probability_ppm
+            {
+                let weighted = row.iter().zip(probabilities).try_fold(
+                    0_i128,
+                    |sum, (payoff, probability)| {
                         let term = i128::from(*payoff)
                             .checked_mul(i128::from(*probability))
-                            .ok_or(MarketError::ArithmeticOverflow("competitive expected payoff"))?;
-                        sum.checked_add(term)
-                            .ok_or(MarketError::ArithmeticOverflow("competitive expected payoff"))
-                    })?;
+                            .ok_or(MarketError::ArithmeticOverflow(
+                                "competitive expected payoff",
+                            ))?;
+                        sum.checked_add(term).ok_or(MarketError::ArithmeticOverflow(
+                            "competitive expected payoff",
+                        ))
+                    },
+                )?;
                 Some(weighted / i128::from(PROBABILITY_SCALE_PPM))
             } else {
                 None
@@ -113,7 +117,12 @@ pub fn best_expected_competitive_action(
     Ok(values
         .into_iter()
         .filter(|value| value.expected_payoff_minor_trunc.is_some())
-        .max_by_key(|value| (value.expected_payoff_minor_trunc, value.worst_case_payoff_minor)))
+        .max_by_key(|value| {
+            (
+                value.expected_payoff_minor_trunc,
+                value.worst_case_payoff_minor,
+            )
+        }))
 }
 
 pub fn maximin_competitive_action(
@@ -144,12 +153,20 @@ pub struct BidValue {
 
 pub fn evaluate_first_price_bid(candidate: BidCandidate) -> Result<BidValue, MarketError> {
     if candidate.win_probability_ppm > PROBABILITY_SCALE_PPM {
-        return Err(MarketError::InvalidBidProbability(candidate.win_probability_ppm));
+        return Err(MarketError::InvalidBidProbability(
+            candidate.win_probability_ppm,
+        ));
     }
     for (field, value) in [
         ("bid_minor", candidate.bid_minor),
-        ("gross_value_if_won_minor", candidate.gross_value_if_won_minor),
-        ("participation_cost_minor", candidate.participation_cost_minor),
+        (
+            "gross_value_if_won_minor",
+            candidate.gross_value_if_won_minor,
+        ),
+        (
+            "participation_cost_minor",
+            candidate.participation_cost_minor,
+        ),
     ] {
         if value < 0 {
             return Err(MarketError::NegativeField(field));
@@ -174,9 +191,7 @@ pub fn evaluate_first_price_bid(candidate: BidCandidate) -> Result<BidValue, Mar
     })
 }
 
-pub fn select_best_first_price_bid(
-    candidates: &[BidCandidate],
-) -> Result<BidValue, MarketError> {
+pub fn select_best_first_price_bid(candidates: &[BidCandidate]) -> Result<BidValue, MarketError> {
     if candidates.is_empty() {
         return Err(MarketError::EmptyProblem);
     }

@@ -13,7 +13,9 @@ pub enum StressError {
 impl fmt::Display for StressError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptySample => formatter.write_str("stress or Monte Carlo sample must not be empty"),
+            Self::EmptySample => {
+                formatter.write_str("stress or Monte Carlo sample must not be empty")
+            }
             Self::ZeroDraws => formatter.write_str("Monte Carlo draw count must be non-zero"),
             Self::ArithmeticOverflow(operation) => {
                 write!(formatter, "arithmetic overflow while computing {operation}")
@@ -82,8 +84,7 @@ pub fn bootstrap_monte_carlo(
     }
     sample.sort_unstable();
     let loss_probability_ppm = u32::try_from(
-        u128::from(losses)
-            .saturating_mul(u128::from(PROBABILITY_SCALE_PPM))
+        u128::from(losses).saturating_mul(u128::from(PROBABILITY_SCALE_PPM))
             / u128::from(config.draws),
     )
     .expect("probability is bounded by ppm scale");
@@ -106,8 +107,7 @@ fn empirical_quantile(sorted: &[i64], quantile_ppm: u32) -> i64 {
         .expect("usize fits u128")
         .saturating_mul(u128::from(quantile_ppm));
     let index = usize::try_from(
-        numerator
-            .saturating_add(u128::from(PROBABILITY_SCALE_PPM - 1))
+        numerator.saturating_add(u128::from(PROBABILITY_SCALE_PPM - 1))
             / u128::from(PROBABILITY_SCALE_PPM),
     )
     .expect("quantile index fits usize")
@@ -202,8 +202,7 @@ pub fn evaluate_weighted_stress_cases(
     }
     Ok(StressSummary {
         baseline_value_minor,
-        expected_stressed_value_minor_trunc: expected_weighted
-            / i128::from(PROBABILITY_SCALE_PPM),
+        expected_stressed_value_minor_trunc: expected_weighted / i128::from(PROBABILITY_SCALE_PPM),
         worst_stressed_value_minor: worst,
         best_stressed_value_minor: best,
         probability_below_zero_ppm: below_zero,
@@ -216,7 +215,10 @@ mod tests {
 
     #[test]
     fn bootstrap_is_seeded_and_replayable() {
-        let config = MonteCarloConfig { seed: 7, draws: 1_000 };
+        let config = MonteCarloConfig {
+            seed: 7,
+            draws: 1_000,
+        };
         let first = bootstrap_monte_carlo(&[-100, 0, 100, 200], config).expect("simulation");
         let second = bootstrap_monte_carlo(&[-100, 0, 100, 200], config).expect("simulation");
         assert_eq!(first, second);
@@ -229,8 +231,14 @@ mod tests {
         let summary = evaluate_weighted_stress_cases(
             100,
             &[
-                StressScenario { probability_ppm: 200_000, impact_minor: -200 },
-                StressScenario { probability_ppm: 800_000, impact_minor: 50 },
+                StressScenario {
+                    probability_ppm: 200_000,
+                    impact_minor: -200,
+                },
+                StressScenario {
+                    probability_ppm: 800_000,
+                    impact_minor: 50,
+                },
             ],
         )
         .expect("stress summary");

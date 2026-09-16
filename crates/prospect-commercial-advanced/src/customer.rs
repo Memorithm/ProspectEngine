@@ -84,7 +84,9 @@ pub fn customer_lifetime_value(
     let scale = i128::from(PROBABILITY_SCALE_PPM);
     let discount_denominator = scale
         .checked_add(i128::from(plan.discount_rate_ppm))
-        .ok_or(CustomerError::ArithmeticOverflow("CLV discount denominator"))?;
+        .ok_or(CustomerError::ArithmeticOverflow(
+            "CLV discount denominator",
+        ))?;
     let mut survival_ppm = i128::from(PROBABILITY_SCALE_PPM);
     let mut discount_factor_ppm = scale;
     let mut expected_by_period = Vec::with_capacity(plan.periods.len());
@@ -151,7 +153,10 @@ pub fn evaluate_churn_retention(
         return Err(CustomerError::UpliftExceedsChurn);
     }
     for (field, value) in [
-        ("retained_customer_value_minor", intervention.retained_customer_value_minor),
+        (
+            "retained_customer_value_minor",
+            intervention.retained_customer_value_minor,
+        ),
         ("incentive_cost_minor", intervention.incentive_cost_minor),
         ("contact_cost_minor", intervention.contact_cost_minor),
     ] {
@@ -193,8 +198,14 @@ pub struct PromotionValue {
 pub fn evaluate_promotion(candidate: PromotionCandidate) -> Result<PromotionValue, CustomerError> {
     for (field, value) in [
         ("price_minor", candidate.price_minor),
-        ("unit_variable_cost_minor", candidate.unit_variable_cost_minor),
-        ("campaign_fixed_cost_minor", candidate.campaign_fixed_cost_minor),
+        (
+            "unit_variable_cost_minor",
+            candidate.unit_variable_cost_minor,
+        ),
+        (
+            "campaign_fixed_cost_minor",
+            candidate.campaign_fixed_cost_minor,
+        ),
     ] {
         if value < 0 {
             return Err(CustomerError::NegativeField(field));
@@ -248,9 +259,10 @@ pub fn select_assortment_exact(
         return Err(CustomerError::EmptyPlan);
     }
     if problem.maximum_capital_minor < 0
-        || problem.products.iter().any(|product| {
-            product.expected_margin_minor < 0 || product.capital_required_minor < 0
-        })
+        || problem
+            .products
+            .iter()
+            .any(|product| product.expected_margin_minor < 0 || product.capital_required_minor < 0)
     {
         return Err(CustomerError::NegativeField("assortment economics"));
     }
@@ -318,8 +330,14 @@ mod tests {
     fn clv_accounts_for_survival_and_discounting() {
         let value = customer_lifetime_value(&CustomerLifetimePlan {
             periods: vec![
-                CustomerPeriod { retention_probability_ppm: 800_000, margin_if_active_minor: 1_000 },
-                CustomerPeriod { retention_probability_ppm: 500_000, margin_if_active_minor: 1_000 },
+                CustomerPeriod {
+                    retention_probability_ppm: 800_000,
+                    margin_if_active_minor: 1_000,
+                },
+                CustomerPeriod {
+                    retention_probability_ppm: 500_000,
+                    margin_if_active_minor: 1_000,
+                },
             ],
             discount_rate_ppm: 0,
         })
@@ -361,9 +379,21 @@ mod tests {
     fn assortment_solver_obeys_capital_and_slots() {
         let solution = select_assortment_exact(&AssortmentProblem {
             products: vec![
-                AssortmentProduct { expected_margin_minor: 100, capital_required_minor: 60, slot_units: 1 },
-                AssortmentProduct { expected_margin_minor: 90, capital_required_minor: 40, slot_units: 1 },
-                AssortmentProduct { expected_margin_minor: 80, capital_required_minor: 30, slot_units: 1 },
+                AssortmentProduct {
+                    expected_margin_minor: 100,
+                    capital_required_minor: 60,
+                    slot_units: 1,
+                },
+                AssortmentProduct {
+                    expected_margin_minor: 90,
+                    capital_required_minor: 40,
+                    slot_units: 1,
+                },
+                AssortmentProduct {
+                    expected_margin_minor: 80,
+                    capital_required_minor: 30,
+                    slot_units: 1,
+                },
             ],
             maximum_capital_minor: 70,
             maximum_slot_units: 2,

@@ -119,7 +119,9 @@ impl BinaryLinearProblem {
         }
         let required = 1_u64
             .checked_shl(u32::try_from(self.objective.len()).expect("bounded width fits u32"))
-            .ok_or(OptimizationError::ArithmeticOverflow("binary assignment count"))?;
+            .ok_or(OptimizationError::ArithmeticOverflow(
+                "binary assignment count",
+            ))?;
         if required > self.maximum_assignments {
             return Err(OptimizationError::EnumerationBudgetTooSmall {
                 required,
@@ -416,16 +418,22 @@ pub fn summarize_scenarios(
     let expected_payoff_weighted_minor_ppm = outcomes.iter().try_fold(0_i128, |sum, outcome| {
         let weighted = i128::from(outcome.payoff_minor)
             .checked_mul(i128::from(outcome.probability_ppm))
-            .ok_or(OptimizationError::ArithmeticOverflow("weighted scenario payoff"))?;
+            .ok_or(OptimizationError::ArithmeticOverflow(
+                "weighted scenario payoff",
+            ))?;
         sum.checked_add(weighted)
-            .ok_or(OptimizationError::ArithmeticOverflow("expected scenario payoff"))
+            .ok_or(OptimizationError::ArithmeticOverflow(
+                "expected scenario payoff",
+            ))
     })?;
     let violation_probability_ppm = outcomes
         .iter()
         .filter(|outcome| !outcome.constraint_satisfied)
         .try_fold(0_u32, |sum, outcome| {
             sum.checked_add(outcome.probability_ppm)
-                .ok_or(OptimizationError::ArithmeticOverflow("violation probability"))
+                .ok_or(OptimizationError::ArithmeticOverflow(
+                    "violation probability",
+                ))
         })?;
 
     let mut ordered = outcomes.to_vec();
@@ -609,17 +617,20 @@ pub fn select_portfolio_exact(
             let payoff = dot_binary(row, &selected, "portfolio payoff")?;
             worst = worst.min(payoff);
             let weighted = payoff
-                .checked_mul(i128::from(problem.scenario_probabilities_ppm[scenario_index]))
-                .ok_or(OptimizationError::ArithmeticOverflow("portfolio expectation"))?;
-            expected_weighted = expected_weighted
-                .checked_add(weighted)
-                .ok_or(OptimizationError::ArithmeticOverflow("portfolio expectation"))?;
+                .checked_mul(i128::from(
+                    problem.scenario_probabilities_ppm[scenario_index],
+                ))
+                .ok_or(OptimizationError::ArithmeticOverflow(
+                    "portfolio expectation",
+                ))?;
+            expected_weighted = expected_weighted.checked_add(weighted).ok_or(
+                OptimizationError::ArithmeticOverflow("portfolio expectation"),
+            )?;
         }
         let candidate = PortfolioSolution {
             selected_assets: selected,
             invested_minor: invested,
-            expected_payoff_minor_trunc: expected_weighted
-                / i128::from(PROBABILITY_SCALE_PPM),
+            expected_payoff_minor_trunc: expected_weighted / i128::from(PROBABILITY_SCALE_PPM),
             worst_scenario_payoff_minor: if worst == i128::MAX { 0 } else { worst },
         };
         if best.as_ref().is_none_or(|current| {
@@ -656,16 +667,28 @@ mod tests {
     #[test]
     fn pareto_front_and_nsga_selection_preserve_extremes() {
         let population = vec![
-            ParetoCandidate { id: "a".into(), objectives: vec![10, 1] },
-            ParetoCandidate { id: "b".into(), objectives: vec![7, 7] },
-            ParetoCandidate { id: "c".into(), objectives: vec![1, 10] },
-            ParetoCandidate { id: "d".into(), objectives: vec![5, 5] },
+            ParetoCandidate {
+                id: "a".into(),
+                objectives: vec![10, 1],
+            },
+            ParetoCandidate {
+                id: "b".into(),
+                objectives: vec![7, 7],
+            },
+            ParetoCandidate {
+                id: "c".into(),
+                objectives: vec![1, 10],
+            },
+            ParetoCandidate {
+                id: "d".into(),
+                objectives: vec![5, 5],
+            },
         ];
         let directions = [ObjectiveDirection::Maximize, ObjectiveDirection::Maximize];
         let fronts = non_dominated_fronts(&population, &directions).expect("valid population");
         assert_eq!(fronts[0], vec![0, 1, 2]);
-        let selected = nsga2_environmental_select(&population, &directions, 2)
-            .expect("selection succeeds");
+        let selected =
+            nsga2_environmental_select(&population, &directions, 2).expect("selection succeeds");
         assert!(selected.iter().all(|entry| entry.rank == 0));
         assert!(selected.iter().any(|entry| entry.index == 0));
         assert!(selected.iter().any(|entry| entry.index == 2));
@@ -675,8 +698,16 @@ mod tests {
     fn chance_constraints_and_downside_tail_are_explicit() {
         let summary = summarize_scenarios(
             &[
-                ScenarioOutcome { probability_ppm: 200_000, payoff_minor: -100, constraint_satisfied: false },
-                ScenarioOutcome { probability_ppm: 800_000, payoff_minor: 100, constraint_satisfied: true },
+                ScenarioOutcome {
+                    probability_ppm: 200_000,
+                    payoff_minor: -100,
+                    constraint_satisfied: false,
+                },
+                ScenarioOutcome {
+                    probability_ppm: 800_000,
+                    payoff_minor: 100,
+                    constraint_satisfied: true,
+                },
             ],
             200_000,
         )
@@ -690,8 +721,16 @@ mod tests {
     #[test]
     fn dro_moves_mass_toward_worst_payoff() {
         let worst = worst_case_expected_value_under_probability_intervals(&[
-            ProbabilityIntervalScenario { lower_probability_ppm: 200_000, upper_probability_ppm: 800_000, payoff_minor: -100 },
-            ProbabilityIntervalScenario { lower_probability_ppm: 200_000, upper_probability_ppm: 800_000, payoff_minor: 100 },
+            ProbabilityIntervalScenario {
+                lower_probability_ppm: 200_000,
+                upper_probability_ppm: 800_000,
+                payoff_minor: -100,
+            },
+            ProbabilityIntervalScenario {
+                lower_probability_ppm: 200_000,
+                upper_probability_ppm: 800_000,
+                payoff_minor: 100,
+            },
         ])
         .expect("ambiguity set is feasible");
         assert_eq!(worst, -60);

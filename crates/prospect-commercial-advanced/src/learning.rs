@@ -38,9 +38,8 @@ impl fmt::Display for LearningError {
             Self::InvalidBanditConfiguration => {
                 formatter.write_str("bandit requires at least one action")
             }
-            Self::NonFiniteExploration => {
-                formatter.write_str("bandit exploration coefficient must be finite and non-negative")
-            }
+            Self::NonFiniteExploration => formatter
+                .write_str("bandit exploration coefficient must be finite and non-negative"),
             Self::EmptyBayesianProblem => {
                 formatter.write_str("Bayesian decision problem must not be empty")
             }
@@ -55,9 +54,8 @@ impl fmt::Display for LearningError {
                 formatter,
                 "experiment likelihood must be in 0..={PROBABILITY_SCALE_PPM} ppm, got {value}"
             ),
-            Self::ExperimentWidthMismatch => formatter.write_str(
-                "experiment likelihood width must match Bayesian hypothesis count",
-            ),
+            Self::ExperimentWidthMismatch => formatter
+                .write_str("experiment likelihood width must match Bayesian hypothesis count"),
             Self::NegativeExperimentCost => {
                 formatter.write_str("experiment cost must be non-negative")
             }
@@ -121,7 +119,10 @@ impl HoltLinearTrend {
         if beta_ppm > PROBABILITY_SCALE_PPM {
             return Err(LearningError::InvalidSmoothingPpm(beta_ppm));
         }
-        Ok(Self { alpha_ppm, beta_ppm })
+        Ok(Self {
+            alpha_ppm,
+            beta_ppm,
+        })
     }
 
     pub fn forecast(&self, series: &[i64], horizon: usize) -> Result<Vec<i128>, LearningError> {
@@ -251,18 +252,22 @@ fn doubly_robust_effect(record: DoublyRobustRecord) -> Result<i128, LearningErro
     let modeled_uplift = i128::from(record.modeled_treated_outcome_minor)
         - i128::from(record.modeled_control_outcome_minor);
     let correction = if record.treated {
-        let residual = i128::from(record.outcome_minor)
-            - i128::from(record.modeled_treated_outcome_minor);
+        let residual =
+            i128::from(record.outcome_minor) - i128::from(record.modeled_treated_outcome_minor);
         residual
             .checked_mul(scale)
-            .ok_or(LearningError::ArithmeticOverflow("treated causal correction"))?
+            .ok_or(LearningError::ArithmeticOverflow(
+                "treated causal correction",
+            ))?
             / i128::from(propensity)
     } else {
-        let residual = i128::from(record.outcome_minor)
-            - i128::from(record.modeled_control_outcome_minor);
+        let residual =
+            i128::from(record.outcome_minor) - i128::from(record.modeled_control_outcome_minor);
         -(residual
             .checked_mul(scale)
-            .ok_or(LearningError::ArithmeticOverflow("control causal correction"))?
+            .ok_or(LearningError::ArithmeticOverflow(
+                "control causal correction",
+            ))?
             / i128::from(PROBABILITY_SCALE_PPM - propensity))
     };
     modeled_uplift
@@ -280,9 +285,7 @@ pub struct PolicyLearningRecord {
     pub modeled_treated_outcome_minor: i64,
 }
 
-pub fn doubly_robust_policy_value(
-    records: &[PolicyLearningRecord],
-) -> Result<i128, LearningError> {
+pub fn doubly_robust_policy_value(records: &[PolicyLearningRecord]) -> Result<i128, LearningError> {
     if records.is_empty() {
         return Err(LearningError::EmptyCausalSample);
     }
@@ -441,9 +444,13 @@ impl BayesianDecisionProblem {
                 .try_fold(0_i128, |sum, (utility, probability)| {
                     let term = i128::from(*utility)
                         .checked_mul(i128::from(*probability))
-                        .ok_or(LearningError::ArithmeticOverflow("Bayesian expected utility"))?;
+                        .ok_or(LearningError::ArithmeticOverflow(
+                            "Bayesian expected utility",
+                        ))?;
                     sum.checked_add(term)
-                        .ok_or(LearningError::ArithmeticOverflow("Bayesian expected utility"))
+                        .ok_or(LearningError::ArithmeticOverflow(
+                            "Bayesian expected utility",
+                        ))
                 })?;
             if best.is_none_or(|(_, current)| weighted > current) {
                 best = Some((action_index, weighted));
@@ -459,9 +466,8 @@ impl BayesianDecisionProblem {
     pub fn value_of_perfect_information_minor_trunc(&self) -> Result<i128, LearningError> {
         self.validate()?;
         let baseline = self.best_action()?.expected_utility_minor_trunc;
-        let perfect_weighted = (0..self.prior_probabilities_ppm.len()).try_fold(
-            0_i128,
-            |sum, hypothesis| {
+        let perfect_weighted =
+            (0..self.prior_probabilities_ppm.len()).try_fold(0_i128, |sum, hypothesis| {
                 let best_utility = self
                     .action_utilities_minor
                     .iter()
@@ -470,11 +476,14 @@ impl BayesianDecisionProblem {
                     .expect("validated actions are non-empty");
                 let term = i128::from(best_utility)
                     .checked_mul(i128::from(self.prior_probabilities_ppm[hypothesis]))
-                    .ok_or(LearningError::ArithmeticOverflow("perfect information value"))?;
+                    .ok_or(LearningError::ArithmeticOverflow(
+                        "perfect information value",
+                    ))?;
                 sum.checked_add(term)
-                    .ok_or(LearningError::ArithmeticOverflow("perfect information value"))
-            },
-        )?;
+                    .ok_or(LearningError::ArithmeticOverflow(
+                        "perfect information value",
+                    ))
+            })?;
         Ok(perfect_weighted / i128::from(PROBABILITY_SCALE_PPM) - baseline)
     }
 }
@@ -524,10 +533,13 @@ pub fn select_best_binary_experiment(
 
         let best_positive = best_joint_signal_utility(problem, experiment, true)?;
         let best_negative = best_joint_signal_utility(problem, experiment, false)?;
-        let post_experiment_utility = best_positive
-            .checked_add(best_negative)
-            .ok_or(LearningError::ArithmeticOverflow("sample information utility"))?
-            / scale_squared;
+        let post_experiment_utility =
+            best_positive
+                .checked_add(best_negative)
+                .ok_or(LearningError::ArithmeticOverflow(
+                    "sample information utility",
+                ))?
+                / scale_squared;
         let evsi = post_experiment_utility - baseline;
         let net = evsi - i128::from(experiment.cost_minor);
         let candidate = ExperimentValue {
@@ -535,9 +547,10 @@ pub fn select_best_binary_experiment(
             expected_value_of_sample_information_minor_trunc: evsi,
             net_value_minor_trunc: net,
         };
-        if best.as_ref().is_none_or(|current| {
-            candidate.net_value_minor_trunc > current.net_value_minor_trunc
-        }) {
+        if best
+            .as_ref()
+            .is_none_or(|current| candidate.net_value_minor_trunc > current.net_value_minor_trunc)
+        {
             best = Some(candidate);
         }
     }
@@ -551,25 +564,26 @@ fn best_joint_signal_utility(
 ) -> Result<i128, LearningError> {
     let mut best = i128::MIN;
     for utilities in &problem.action_utilities_minor {
-        let weighted = utilities
-            .iter()
-            .enumerate()
-            .try_fold(0_i128, |sum, (hypothesis, utility)| {
-                let likelihood = if positive_signal {
-                    experiment.positive_likelihood_ppm_by_hypothesis[hypothesis]
-                } else {
-                    PROBABILITY_SCALE_PPM
-                        - experiment.positive_likelihood_ppm_by_hypothesis[hypothesis]
-                };
-                let joint_weight = i128::from(problem.prior_probabilities_ppm[hypothesis])
-                    .checked_mul(i128::from(likelihood))
-                    .ok_or(LearningError::ArithmeticOverflow("signal probability"))?;
-                let term = i128::from(*utility)
-                    .checked_mul(joint_weight)
-                    .ok_or(LearningError::ArithmeticOverflow("signal utility"))?;
-                sum.checked_add(term)
-                    .ok_or(LearningError::ArithmeticOverflow("signal utility"))
-            })?;
+        let weighted =
+            utilities
+                .iter()
+                .enumerate()
+                .try_fold(0_i128, |sum, (hypothesis, utility)| {
+                    let likelihood = if positive_signal {
+                        experiment.positive_likelihood_ppm_by_hypothesis[hypothesis]
+                    } else {
+                        PROBABILITY_SCALE_PPM
+                            - experiment.positive_likelihood_ppm_by_hypothesis[hypothesis]
+                    };
+                    let joint_weight = i128::from(problem.prior_probabilities_ppm[hypothesis])
+                        .checked_mul(i128::from(likelihood))
+                        .ok_or(LearningError::ArithmeticOverflow("signal probability"))?;
+                    let term = i128::from(*utility)
+                        .checked_mul(joint_weight)
+                        .ok_or(LearningError::ArithmeticOverflow("signal utility"))?;
+                    sum.checked_add(term)
+                        .ok_or(LearningError::ArithmeticOverflow("signal utility"))
+                })?;
         best = best.max(weighted);
     }
     Ok(best)
@@ -582,9 +596,15 @@ mod tests {
     #[test]
     fn smoothing_forecasts_are_deterministic() {
         let ses = SimpleExponentialSmoothing::new(500_000).expect("valid alpha");
-        assert_eq!(ses.forecast(&[100, 200, 300], 2).expect("forecast"), vec![225, 225]);
+        assert_eq!(
+            ses.forecast(&[100, 200, 300], 2).expect("forecast"),
+            vec![225, 225]
+        );
         let holt = HoltLinearTrend::new(1_000_000, 1_000_000).expect("valid coefficients");
-        assert_eq!(holt.forecast(&[100, 200, 300], 2).expect("forecast"), vec![400, 500]);
+        assert_eq!(
+            holt.forecast(&[100, 200, 300], 2).expect("forecast"),
+            vec![400, 500]
+        );
     }
 
     #[test]
@@ -607,8 +627,15 @@ mod tests {
                 modeled_treated_outcome_minor: 120,
             },
         ];
-        assert_eq!(doubly_robust_average_treatment_effect(&records).expect("ATE"), 20);
-        assert_eq!(doubly_robust_segment_uplift(&records).expect("segments")[0].doubly_robust_uplift_minor_trunc, 20);
+        assert_eq!(
+            doubly_robust_average_treatment_effect(&records).expect("ATE"),
+            20
+        );
+        assert_eq!(
+            doubly_robust_segment_uplift(&records).expect("segments")[0]
+                .doubly_robust_uplift_minor_trunc,
+            20
+        );
     }
 
     #[test]
@@ -621,13 +648,20 @@ mod tests {
             modeled_control_outcome_minor: 100,
             modeled_treated_outcome_minor: 120,
         }];
-        assert_eq!(doubly_robust_policy_value(&records).expect("policy value"), 140);
+        assert_eq!(
+            doubly_robust_policy_value(&records).expect("policy value"),
+            140
+        );
     }
 
     #[test]
     fn contextual_ucb_explores_unseen_actions_first() {
         let recommendation = contextual_ucb_recommend(
-            &[BanditObservation { context_key: 7, action: 0, reward_minor: 10 }],
+            &[BanditObservation {
+                context_key: 7,
+                action: 0,
+                reward_minor: 10,
+            }],
             7,
             2,
             1.0,
@@ -646,7 +680,12 @@ mod tests {
         let best = problem.best_action().expect("best action");
         assert_eq!(best.action_index, 0);
         assert_eq!(best.expected_utility_minor_trunc, 50);
-        assert_eq!(problem.value_of_perfect_information_minor_trunc().expect("EVPI"), 40);
+        assert_eq!(
+            problem
+                .value_of_perfect_information_minor_trunc()
+                .expect("EVPI"),
+            40
+        );
     }
 
     #[test]
@@ -662,7 +701,10 @@ mod tests {
         let selected = select_best_binary_experiment(&problem, &[experiment])
             .expect("selection")
             .expect("one experiment");
-        assert_eq!(selected.expected_value_of_sample_information_minor_trunc, 40);
+        assert_eq!(
+            selected.expected_value_of_sample_information_minor_trunc,
+            40
+        );
         assert_eq!(selected.net_value_minor_trunc, 30);
     }
 }

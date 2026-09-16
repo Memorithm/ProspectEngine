@@ -38,13 +38,13 @@ impl fmt::Display for OperationsError {
                 formatter,
                 "workforce problem has {actual} tasks; bounded exact solver supports at most {maximum}"
             ),
-            Self::WorkerWidthMismatch => formatter.write_str(
-                "every task must define one optional assignment cost per worker",
-            ),
-            Self::NoFeasibleAssignment => formatter.write_str("no feasible workforce assignment exists"),
-            Self::InvalidDistanceMatrix => {
-                formatter.write_str("routing distance matrix must be square with non-negative costs")
+            Self::WorkerWidthMismatch => formatter
+                .write_str("every task must define one optional assignment cost per worker"),
+            Self::NoFeasibleAssignment => {
+                formatter.write_str("no feasible workforce assignment exists")
             }
+            Self::InvalidDistanceMatrix => formatter
+                .write_str("routing distance matrix must be square with non-negative costs"),
             Self::TooManyRouteNodes { actual, maximum } => write!(
                 formatter,
                 "routing problem has {actual} nodes; bounded exact solver supports at most {maximum}"
@@ -76,8 +76,7 @@ pub fn replenishment_policy_for_service_level(
     if outcomes.is_empty() {
         return Err(OperationsError::EmptyProblem);
     }
-    if target_service_probability_ppm == 0
-        || target_service_probability_ppm > PROBABILITY_SCALE_PPM
+    if target_service_probability_ppm == 0 || target_service_probability_ppm > PROBABILITY_SCALE_PPM
     {
         return Err(OperationsError::InvalidServiceLevel(
             target_service_probability_ppm,
@@ -93,9 +92,13 @@ pub fn replenishment_policy_for_service_level(
     let expected_weighted = outcomes.iter().try_fold(0_i128, |sum, outcome| {
         let term = i128::from(outcome.demand_units)
             .checked_mul(i128::from(outcome.probability_ppm))
-            .ok_or(OperationsError::ArithmeticOverflow("lead-time demand expectation"))?;
+            .ok_or(OperationsError::ArithmeticOverflow(
+                "lead-time demand expectation",
+            ))?;
         sum.checked_add(term)
-            .ok_or(OperationsError::ArithmeticOverflow("lead-time demand expectation"))
+            .ok_or(OperationsError::ArithmeticOverflow(
+                "lead-time demand expectation",
+            ))
     })?;
     let expected = expected_weighted / i128::from(PROBABILITY_SCALE_PPM);
     let mut ordered = outcomes.to_vec();
@@ -157,7 +160,13 @@ pub fn solve_workforce_assignment_exact(
     {
         return Err(OperationsError::WorkerWidthMismatch);
     }
-    if problem.tasks.iter().flat_map(|task| &task.worker_cost_minor).flatten().any(|cost| *cost < 0) {
+    if problem
+        .tasks
+        .iter()
+        .flat_map(|task| &task.worker_cost_minor)
+        .flatten()
+        .any(|cost| *cost < 0)
+    {
         return Err(OperationsError::NegativeField("workforce assignment cost"));
     }
     let mut capacities = problem.worker_task_capacities.clone();
@@ -200,7 +209,14 @@ fn workforce_dfs(
         let next_cost = current_cost
             .checked_add(i128::from(cost))
             .ok_or(OperationsError::ArithmeticOverflow("workforce cost"))?;
-        workforce_dfs(problem, task_index + 1, capacities, current, next_cost, best)?;
+        workforce_dfs(
+            problem,
+            task_index + 1,
+            capacities,
+            current,
+            next_cost,
+            best,
+        )?;
         capacities[worker] += 1;
     }
     Ok(())
@@ -375,9 +391,18 @@ mod tests {
     fn replenishment_uses_requested_quantile() {
         let policy = replenishment_policy_for_service_level(
             &[
-                LeadTimeDemandOutcome { probability_ppm: 500_000, demand_units: 10 },
-                LeadTimeDemandOutcome { probability_ppm: 300_000, demand_units: 20 },
-                LeadTimeDemandOutcome { probability_ppm: 200_000, demand_units: 30 },
+                LeadTimeDemandOutcome {
+                    probability_ppm: 500_000,
+                    demand_units: 10,
+                },
+                LeadTimeDemandOutcome {
+                    probability_ppm: 300_000,
+                    demand_units: 20,
+                },
+                LeadTimeDemandOutcome {
+                    probability_ppm: 200_000,
+                    demand_units: 30,
+                },
             ],
             800_000,
         )
@@ -391,8 +416,12 @@ mod tests {
     fn workforce_solver_finds_minimum_cost_feasible_assignment() {
         let solution = solve_workforce_assignment_exact(&WorkforceProblem {
             tasks: vec![
-                WorkforceTask { worker_cost_minor: vec![Some(10), Some(30)] },
-                WorkforceTask { worker_cost_minor: vec![Some(20), Some(5)] },
+                WorkforceTask {
+                    worker_cost_minor: vec![Some(10), Some(30)],
+                },
+                WorkforceTask {
+                    worker_cost_minor: vec![Some(20), Some(5)],
+                },
             ],
             worker_task_capacities: vec![1, 1],
         })
