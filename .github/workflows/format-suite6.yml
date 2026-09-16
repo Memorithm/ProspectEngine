@@ -1,0 +1,30 @@
+name: Format commercial acquisition suite 6
+
+on:
+  push:
+    branches:
+      - feat/commercial-acquisition-suite-6
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/commercial-acquisition-suite-6
+      - run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt
+      - shell: bash
+        run: |
+          set -euo pipefail
+          cargo +1.89.0 fmt --all
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name MEMOPERF
+          git config user.email contact@checkupauto.fr
+          git add crates/prospect-commercial-advanced/src
+          git commit -m "style(commercial): apply rustfmt to acquisition suite six"
+          git push origin HEAD:feat/commercial-acquisition-suite-6
