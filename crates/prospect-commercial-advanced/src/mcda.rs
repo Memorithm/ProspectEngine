@@ -252,7 +252,7 @@ mod tests {
                     minimum_desirability_ppm: None,
                 },
             ],
-            vec![vec![700_000, 500_000], vec![900_000, 800_000]],
+            vec![vec![700_000, 500_000], vec![950_000, 800_000]],
             0,
         )
         .expect("valid MCDA problem")
