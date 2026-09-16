@@ -239,7 +239,9 @@ impl DecisionPolicy<UnitEconomicsSignature> for CapacityAwareNetCash {
     fn utility(&self, signature: &UnitEconomicsSignature) -> Self::Score {
         let penalty = i128::from(signature.unmet_demand_units)
             .saturating_mul(i128::from(self.unmet_demand_penalty_minor_per_unit));
-        signature.net_cash_contribution_minor.saturating_sub(penalty)
+        signature
+            .net_cash_contribution_minor
+            .saturating_sub(penalty)
     }
 }
 
