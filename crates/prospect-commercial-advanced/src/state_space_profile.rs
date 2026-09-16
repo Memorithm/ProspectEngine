@@ -3,7 +3,6 @@ use crate::state_space_optimization::{
     optimize_local_linear_trend_likelihood, StateSpaceOptimizationConfig,
     StateSpaceOptimizationError, VarianceBounds,
 };
-use core::cmp::Ordering;
 use core::fmt;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,9 +67,8 @@ impl fmt::Display for StateSpaceProfileError {
             Self::InvalidTotalBudget => {
                 formatter.write_str("state-space profile total evaluation budget must be non-zero")
             }
-            Self::InvalidCutoff => {
-                formatter.write_str("state-space profile deviance cutoff must be finite and non-negative")
-            }
+            Self::InvalidCutoff => formatter
+                .write_str("state-space profile deviance cutoff must be finite and non-negative"),
             Self::BudgetExceeded { used } => write!(
                 formatter,
                 "state-space profile exhausted its evaluation budget after {used} evaluations"
@@ -78,7 +76,9 @@ impl fmt::Display for StateSpaceProfileError {
             Self::NoUsablePoint => {
                 formatter.write_str("state-space profile contains no usable likelihood point")
             }
-            Self::Optimization(error) => write!(formatter, "state-space profile optimization failed: {error}"),
+            Self::Optimization(error) => {
+                write!(formatter, "state-space profile optimization failed: {error}")
+            }
         }
     }
 }
@@ -145,7 +145,12 @@ pub fn profile_local_linear_trend_variance(
         set_fixed_parameter(&mut point_config, parameter, variance);
         let result = optimize_local_linear_trend_likelihood(series, point_config)?;
         total_evaluations = total_evaluations.saturating_add(result.evaluations);
-        raw.push((variance, result.log_likelihood, result.config, result.evaluations));
+        raw.push((
+            variance,
+            result.log_likelihood,
+            result.config,
+            result.evaluations,
+        ));
     }
     if raw.is_empty() {
         return Err(StateSpaceProfileError::NoUsablePoint);
@@ -250,11 +255,6 @@ fn set_fixed_parameter(
         ProfileVariance::TrendProcess => config.trend_process = fixed,
         ProfileVariance::Measurement => config.measurement = fixed,
     }
-}
-
-#[allow(dead_code)]
-fn compare_profile_points(left: &ProfileLikelihoodPoint, right: &ProfileLikelihoodPoint) -> Ordering {
-    left.variance.total_cmp(&right.variance)
 }
 
 #[cfg(test)]
