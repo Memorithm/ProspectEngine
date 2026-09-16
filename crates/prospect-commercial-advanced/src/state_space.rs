@@ -72,10 +72,7 @@ pub struct LocalLinearTrendModel {
 }
 
 impl LocalLinearTrendModel {
-    pub fn fit(
-        series: &[f64],
-        config: LocalLinearTrendConfig,
-    ) -> Result<Self, StateSpaceError> {
+    pub fn fit(series: &[f64], config: LocalLinearTrendConfig) -> Result<Self, StateSpaceError> {
         validate_series(series)?;
         validate_config(config)?;
 
@@ -128,10 +125,7 @@ impl LocalLinearTrendModel {
                     + innovation * innovation / innovation_variance);
             if !level.is_finite()
                 || !trend.is_finite()
-                || covariance
-                    .iter()
-                    .flatten()
-                    .any(|value| !value.is_finite())
+                || covariance.iter().flatten().any(|value| !value.is_finite())
                 || !contribution.is_finite()
             {
                 return Err(StateSpaceError::NumericalBreakdown);
@@ -353,8 +347,8 @@ mod tests {
     #[test]
     fn sarima_holdout_selection_is_deterministic() {
         let series = [
-            10.0, 20.0, 11.0, 21.0, 12.0, 22.0, 13.0, 23.0, 14.0, 24.0, 15.0, 25.0,
-            16.0, 26.0, 17.0, 27.0, 18.0, 28.0, 19.0, 29.0,
+            10.0, 20.0, 11.0, 21.0, 12.0, 22.0, 13.0, 23.0, 14.0, 24.0, 15.0, 25.0, 16.0, 26.0,
+            17.0, 27.0, 18.0, 28.0, 19.0, 29.0,
         ];
         let candidates = [
             SeasonalArimaOrder {

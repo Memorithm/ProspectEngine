@@ -198,7 +198,14 @@ fn has_perfect_matching(domains: &[Vec<i64>], fixed: Option<(usize, i64)>) -> bo
             _ => domains[variable].clone(),
         };
         let mut visited = BTreeMap::new();
-        if !augment(variable, &candidates, domains, fixed, &mut value_owner, &mut visited) {
+        if !augment(
+            variable,
+            &candidates,
+            domains,
+            fixed,
+            &mut value_owner,
+            &mut visited,
+        ) {
             return false;
         }
     }

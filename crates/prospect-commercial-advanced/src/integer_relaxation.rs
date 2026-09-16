@@ -1,6 +1,6 @@
 use crate::integer_solver::BoundedIntegerProblem;
 use crate::linear_program::{
-    solve_canonical_simplex, CanonicalLinearProgram, LinearInequality, LinearProgramError,
+    CanonicalLinearProgram, LinearInequality, LinearProgramError, solve_canonical_simplex,
 };
 use crate::optimization::ConstraintRelation;
 use core::fmt;
@@ -30,21 +30,20 @@ impl fmt::Display for IntegerRelaxationError {
             Self::ConstraintWidthMismatch => {
                 formatter.write_str("integer relaxation constraint width mismatch")
             }
-            Self::UnsupportedConstraintRelation => formatter.write_str(
-                "capacity relaxation currently accepts only <= constraints",
-            ),
-            Self::NegativeConstraintCoefficient => formatter.write_str(
-                "capacity relaxation requires non-negative constraint coefficients",
-            ),
+            Self::UnsupportedConstraintRelation => {
+                formatter.write_str("capacity relaxation currently accepts only <= constraints")
+            }
+            Self::NegativeConstraintCoefficient => formatter
+                .write_str("capacity relaxation requires non-negative constraint coefficients"),
             Self::UnsafeIntegerMagnitude => formatter.write_str(
                 "integer relaxation rejects magnitudes not exactly representable as f64 integers",
             ),
             Self::InfeasibleAtLowerBounds => formatter.write_str(
                 "non-negative capacity constraint is already violated at variable lower bounds",
             ),
-            Self::InvalidIntegralityTolerance => formatter.write_str(
-                "integrality tolerance must be finite and strictly positive",
-            ),
+            Self::InvalidIntegralityTolerance => {
+                formatter.write_str("integrality tolerance must be finite and strictly positive")
+            }
             Self::LinearProgram(error) => write!(formatter, "LP relaxation failed: {error}"),
         }
     }
@@ -90,8 +89,7 @@ pub fn relax_bounded_integer_capacity(
         ensure_safe_i64(variable.upper)?;
         ensure_safe_i64(variable.objective_coefficient)?;
         objective.push(variable.objective_coefficient as f64);
-        constant_objective +=
-            variable.objective_coefficient as f64 * variable.lower as f64;
+        constant_objective += variable.objective_coefficient as f64 * variable.lower as f64;
     }
     if !constant_objective.is_finite() {
         return Err(IntegerRelaxationError::UnsafeIntegerMagnitude);
@@ -102,7 +100,11 @@ pub fn relax_bounded_integer_capacity(
         if constraint.relation != ConstraintRelation::LessOrEqual {
             return Err(IntegerRelaxationError::UnsupportedConstraintRelation);
         }
-        if constraint.coefficients.iter().any(|coefficient| *coefficient < 0) {
+        if constraint
+            .coefficients
+            .iter()
+            .any(|coefficient| *coefficient < 0)
+        {
             return Err(IntegerRelaxationError::NegativeConstraintCoefficient);
         }
         let mut lower_contribution = 0_i128;
@@ -145,12 +147,7 @@ pub fn relax_bounded_integer_capacity(
 
     let mut values = Vec::with_capacity(problem.variables.len());
     let mut fractional_variables = Vec::new();
-    for (index, (relaxed, variable)) in solution
-        .values
-        .iter()
-        .zip(&problem.variables)
-        .enumerate()
-    {
+    for (index, (relaxed, variable)) in solution.values.iter().zip(&problem.variables).enumerate() {
         let value = *relaxed + variable.lower as f64;
         if !value.is_finite() {
             return Err(IntegerRelaxationError::UnsafeIntegerMagnitude);
@@ -259,8 +256,8 @@ mod tests {
             }],
             maximum_nodes: 50,
         };
-        let report = relax_bounded_integer_capacity(&problem, 1e-10, 1e-9, 50)
-            .expect("shifted relaxation");
+        let report =
+            relax_bounded_integer_capacity(&problem, 1e-10, 1e-9, 50).expect("shifted relaxation");
         assert!((report.values[0] - 4.0).abs() < 1e-8);
         assert!((report.numerical_objective_upper_bound - 12.0).abs() < 1e-8);
     }

@@ -43,10 +43,12 @@ pub enum LinearProgramError {
 impl fmt::Display for LinearProgramError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyObjective => formatter.write_str("linear program objective must not be empty"),
-            Self::ConstraintWidthMismatch => formatter.write_str(
-                "linear program constraint width must match objective width",
-            ),
+            Self::EmptyObjective => {
+                formatter.write_str("linear program objective must not be empty")
+            }
+            Self::ConstraintWidthMismatch => {
+                formatter.write_str("linear program constraint width must match objective width")
+            }
             Self::NonFiniteInput => formatter.write_str("linear program inputs must be finite"),
             Self::NegativeRightHandSide { constraint, rhs } => write!(
                 formatter,
@@ -103,20 +105,14 @@ pub fn solve_canonical_simplex(
 
     let mut iterations = 0_u64;
     loop {
-        let Some(entering) = (0..total_width)
-            .find(|column| tableau[rows][*column] < -problem.tolerance)
+        let Some(entering) =
+            (0..total_width).find(|column| tableau[rows][*column] < -problem.tolerance)
         else {
             break;
         };
 
-        let leaving = choose_leaving_row(
-            &tableau,
-            rows,
-            entering,
-            rhs_column,
-            problem.tolerance,
-        )?
-        .ok_or(LinearProgramError::Unbounded)?;
+        let leaving = choose_leaving_row(&tableau, rows, entering, rhs_column, problem.tolerance)?
+            .ok_or(LinearProgramError::Unbounded)?;
 
         if iterations >= problem.maximum_iterations {
             return Err(LinearProgramError::IterationLimitExceeded { iterations });

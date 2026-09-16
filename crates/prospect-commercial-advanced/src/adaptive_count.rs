@@ -15,11 +15,13 @@ impl fmt::Display for CountBanditError {
             Self::InvalidActionCount => {
                 formatter.write_str("count bandit requires at least one action")
             }
-            Self::InvalidPrior => {
-                formatter.write_str("Gamma-Poisson prior shape and rate must be finite and positive")
-            }
+            Self::InvalidPrior => formatter
+                .write_str("Gamma-Poisson prior shape and rate must be finite and positive"),
             Self::InvalidAction { action } => {
-                write!(formatter, "count bandit observation references invalid action {action}")
+                write!(
+                    formatter,
+                    "count bandit observation references invalid action {action}"
+                )
             }
             Self::InvalidExposure => {
                 formatter.write_str("count bandit exposure must be finite and strictly positive")
@@ -160,8 +162,8 @@ fn sample_gamma_rate(
         let uniform = rng.open_unit();
         let normal_squared = normal * normal;
         let squeeze = 1.0 - 0.0331 * normal_squared * normal_squared;
-        let accepted = uniform < squeeze
-            || uniform.ln() < 0.5 * normal_squared + d * (1.0 - v + v.ln());
+        let accepted =
+            uniform < squeeze || uniform.ln() < 0.5 * normal_squared + d * (1.0 - v + v.ln());
         if accepted {
             let sample = d * v / rate;
             if sample.is_finite() && sample >= 0.0 {
@@ -228,10 +230,10 @@ mod tests {
             shape: 1.0,
             rate: 1.0,
         };
-        let first = gamma_poisson_thompson_recommend(&observations, 2, prior, 42)
-            .expect("count policy");
-        let second = gamma_poisson_thompson_recommend(&observations, 2, prior, 42)
-            .expect("count policy");
+        let first =
+            gamma_poisson_thompson_recommend(&observations, 2, prior, 42).expect("count policy");
+        let second =
+            gamma_poisson_thompson_recommend(&observations, 2, prior, 42).expect("count policy");
         assert_eq!(first, second);
         assert_eq!(first.action, 1);
         assert!(first.posterior_mean_rate > 3.0);
