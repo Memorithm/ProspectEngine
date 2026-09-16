@@ -61,9 +61,9 @@ impl fmt::Display for MixedIntegerError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyProblem => formatter.write_str("mixed-integer problem must not be empty"),
-            Self::NoIntegerVariable => {
-                formatter.write_str("mixed-integer branch-and-bound requires at least one integer variable")
-            }
+            Self::NoIntegerVariable => formatter.write_str(
+                "mixed-integer branch-and-bound requires at least one integer variable",
+            ),
             Self::InvalidBounds { variable } => write!(
                 formatter,
                 "mixed-integer variable {variable} has invalid finite bounds"
@@ -125,9 +125,11 @@ struct SearchState<'a> {
 /// two-phase simplex. Integer branching fixes `x_i <= floor(x*)` versus
 /// `x_i >= ceil(x*)`. A relaxation that is integral within tolerance is snapped
 /// to exact integer coordinates and revalidated in the original problem before
-/// it may become an incumbent. The solver fails closed on node-budget
-/// exhaustion rather than returning an incumbent as if optimality had been
-/// proven.
+/// it may become an incumbent. If that near-integral snap is not primal-feasible,
+/// the solver branches on a still non-exact integer coordinate rather than
+/// misclassifying the node as a numerical failure. The solver fails closed on
+/// node-budget exhaustion rather than returning an incumbent as if optimality
+/// had been proven.
 ///
 /// This is a real LP-relaxation branch-and-bound core, but it deliberately does
 /// not claim presolve, cuts, pseudocosts, strong branching, incumbent
@@ -224,36 +226,61 @@ fn search_node(
         return Ok(());
     }
 
-    let fractional = choose_fractional_variable(state.problem, &relaxation.values);
-    let Some((branch_variable, branch_value, fractionality)) = fractional else {
-        let candidate = snap_integral_values(state.problem, &relaxation.values)?;
-        let violation = maximum_primal_violation(state.problem, &candidate);
-        if !violation.is_finite() || violation > state.problem.lp_tolerance * 10.0 {
-            return Err(MixedIntegerError::NumericalBreakdown);
-        }
-        let objective = original_objective(state.problem, &candidate);
-        if !objective.is_finite() {
-            return Err(MixedIntegerError::NumericalBreakdown);
-        }
-        if objective > state.best_objective + state.problem.lp_tolerance
-            || ((objective - state.best_objective).abs() <= state.problem.lp_tolerance
-                && state
-                    .best_values
-                    .as_ref()
-                    .is_none_or(|existing| lexicographically_less(&candidate, existing)))
-        {
-            state.best_objective = objective;
-            state.best_values = Some(candidate);
-        }
-        return Ok(());
-    };
-
-    if fractionality <= state.problem.integrality_tolerance {
-        return Err(MixedIntegerError::NumericalBreakdown);
+    if let Some((branch_variable, branch_value, _)) = choose_fractional_variable(
+        state.problem,
+        &relaxation.values,
+        state.problem.integrality_tolerance,
+    ) {
+        return branch_on_variable(state, bounds, branch_variable, branch_value);
     }
 
+    let candidate = snap_integral_values(state.problem, &relaxation.values)?;
+    let violation = maximum_primal_violation(state.problem, &candidate);
+    if !violation.is_finite() {
+        return Err(MixedIntegerError::NumericalBreakdown);
+    }
+    if violation > state.problem.lp_tolerance * 10.0 {
+        // A user may deliberately choose an integrality tolerance looser than
+        // primal feasibility. In that case a near-integer LP point can snap to
+        // an infeasible integer. It is still a legitimate branch point: search
+        // the exact floor/ceil children instead of aborting a feasible MIP.
+        let (branch_variable, branch_value, _) = choose_fractional_variable(
+            state.problem,
+            &relaxation.values,
+            0.0,
+        )
+        .ok_or(MixedIntegerError::NumericalBreakdown)?;
+        return branch_on_variable(state, bounds, branch_variable, branch_value);
+    }
+
+    let objective = original_objective(state.problem, &candidate);
+    if !objective.is_finite() {
+        return Err(MixedIntegerError::NumericalBreakdown);
+    }
+    if objective > state.best_objective + state.problem.lp_tolerance
+        || ((objective - state.best_objective).abs() <= state.problem.lp_tolerance
+            && state
+                .best_values
+                .as_ref()
+                .is_none_or(|existing| lexicographically_less(&candidate, existing)))
+    {
+        state.best_objective = objective;
+        state.best_values = Some(candidate);
+    }
+    Ok(())
+}
+
+fn branch_on_variable(
+    state: &mut SearchState<'_>,
+    bounds: Vec<NodeBound>,
+    branch_variable: usize,
+    branch_value: f64,
+) -> Result<(), MixedIntegerError> {
     let floor = branch_value.floor();
     let ceil = branch_value.ceil();
+    if floor == ceil {
+        return Err(MixedIntegerError::NumericalBreakdown);
+    }
     let mut lower_child = bounds.clone();
     lower_child[branch_variable].upper = lower_child[branch_variable].upper.min(floor);
     let mut upper_child = bounds;
@@ -276,6 +303,7 @@ fn search_node(
 fn choose_fractional_variable(
     problem: &MixedIntegerProblem,
     values: &[f64],
+    minimum_distance: f64,
 ) -> Option<(usize, f64, f64)> {
     problem
         .variables
@@ -285,7 +313,7 @@ fn choose_fractional_variable(
         .filter(|(_, (variable, _))| variable.kind == MixedVariableKind::Integer)
         .filter_map(|(index, (_, value))| {
             let distance = (*value - value.round()).abs();
-            (distance > problem.integrality_tolerance).then_some((index, *value, distance))
+            (distance > minimum_distance).then_some((index, *value, distance))
         })
         .max_by(|left, right| {
             left.2
@@ -415,7 +443,10 @@ fn validate(problem: &MixedIntegerProblem) -> Result<(), MixedIntegerError> {
             return Err(MixedIntegerError::ConstraintWidthMismatch);
         }
         if !constraint.rhs.is_finite()
-            || constraint.coefficients.iter().any(|value| !value.is_finite())
+            || constraint
+                .coefficients
+                .iter()
+                .any(|value| !value.is_finite())
         {
             return Err(MixedIntegerError::NonFiniteInput);
         }
@@ -519,6 +550,31 @@ mod tests {
         let snapped = snap_integral_values(&problem, &[0.999_999_999, 1.25]).expect("snap");
         assert_eq!(snapped, vec![1.0, 1.25]);
         assert_eq!(maximum_primal_violation(&problem, &snapped), 0.0);
+    }
+
+    #[test]
+    fn infeasible_near_integral_snap_branches_to_an_exact_feasible_integer() {
+        let problem = MixedIntegerProblem {
+            variables: vec![MixedVariable {
+                lower: 0.0,
+                upper: 1.0,
+                objective_coefficient: 1.0,
+                kind: MixedVariableKind::Integer,
+            }],
+            constraints: vec![GeneralLinearConstraint {
+                coefficients: vec![1.0],
+                relation: ConstraintRelation::LessOrEqual,
+                rhs: 0.95,
+            }],
+            lp_tolerance: 1e-9,
+            integrality_tolerance: 0.1,
+            maximum_nodes: 10,
+            maximum_lp_iterations_per_node: 50,
+        };
+        let solution = solve_mixed_integer_branch_and_bound(&problem).expect("exact integer search");
+        assert_eq!(solution.values, vec![0.0]);
+        assert_eq!(solution.objective_value, 0.0);
+        assert!(solution.explored_nodes >= 2);
     }
 
     #[test]
