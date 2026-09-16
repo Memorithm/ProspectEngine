@@ -199,8 +199,8 @@ pub fn solve_general_two_phase_simplex(
     }
 
     let mut phase_two_costs = vec![0.0_f64; phase_two_width];
-    for decision in 0..decision_width {
-        let mapped = old_to_new[decision].expect("decision columns are never artificial");
+    for (decision, mapped) in old_to_new.iter().take(decision_width).enumerate() {
+        let mapped = mapped.expect("decision columns are never artificial");
         phase_two_costs[mapped] = problem.objective[decision];
     }
     initialize_objective_row(
