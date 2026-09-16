@@ -18,10 +18,17 @@ impl fmt::Display for TimeSeriesError {
             Self::NonFiniteInput => formatter.write_str("time series inputs must be finite"),
             Self::InvalidOrder => formatter.write_str("time series order is invalid"),
             Self::SeriesTooShort { got, need } => {
-                write!(formatter, "time series is too short: got {got}, need at least {need}")
+                write!(
+                    formatter,
+                    "time series is too short: got {got}, need at least {need}"
+                )
             }
-            Self::SingularSystem => formatter.write_str("time series regression system is singular"),
-            Self::InvalidSmoothing => formatter.write_str("smoothing coefficients must be finite and in [0, 1]"),
+            Self::SingularSystem => {
+                formatter.write_str("time series regression system is singular")
+            }
+            Self::InvalidSmoothing => {
+                formatter.write_str("smoothing coefficients must be finite and in [0, 1]")
+            }
             Self::InvalidSeasonLength => formatter.write_str("season length must be at least two"),
         }
     }
@@ -140,10 +147,7 @@ impl SeasonalArimaModel {
                     need: series.len() + order.season_length + 1 - transformed.len(),
                 });
             }
-            seasonal_tails.push(
-                transformed[transformed.len() - order.season_length..]
-                    .to_vec(),
-            );
+            seasonal_tails.push(transformed[transformed.len() - order.season_length..].to_vec());
             transformed = difference(&transformed, order.season_length);
         }
         let mut regular_tails = Vec::with_capacity(order.d);
@@ -154,7 +158,11 @@ impl SeasonalArimaModel {
                     need: series.len() + 1,
                 });
             }
-            regular_tails.push(*transformed.last().expect("validated non-empty transformed series"));
+            regular_tails.push(
+                *transformed
+                    .last()
+                    .expect("validated non-empty transformed series"),
+            );
             transformed = difference(&transformed, 1);
         }
 
@@ -253,12 +261,7 @@ fn fit_arma_hannan_rissanen(
     if series.is_empty() {
         return Err(TimeSeriesError::EmptySeries);
     }
-    let max_requested_lag = ar_lags
-        .iter()
-        .chain(&ma_lags)
-        .copied()
-        .max()
-        .unwrap_or(0);
+    let max_requested_lag = ar_lags.iter().chain(&ma_lags).copied().max().unwrap_or(0);
     if ar_lags.iter().any(|lag| *lag == 0) || ma_lags.iter().any(|lag| *lag == 0) {
         return Err(TimeSeriesError::InvalidOrder);
     }
@@ -285,7 +288,10 @@ fn fit_arma_hannan_rissanen(
     let minimum = (long_order + max_requested_lag + ar_lags.len() + ma_lags.len() + 3)
         .max(max_requested_lag + 3);
     if n < minimum {
-        return Err(TimeSeriesError::SeriesTooShort { got: n, need: minimum });
+        return Err(TimeSeriesError::SeriesTooShort {
+            got: n,
+            need: minimum,
+        });
     }
 
     let long_lags: Vec<usize> = (1..=long_order).collect();
@@ -300,13 +306,8 @@ fn fit_arma_hannan_rissanen(
     }
 
     let start = max_requested_lag.max(long_order + ma_lags.iter().copied().max().unwrap_or(0));
-    let regression = fit_joint_regression(
-        series,
-        &preliminary_residuals,
-        &ar_lags,
-        &ma_lags,
-        start,
-    )?;
+    let regression =
+        fit_joint_regression(series, &preliminary_residuals, &ar_lags, &ma_lags, start)?;
     let ar_count = ar_lags.len();
     let ar_coefficients = regression.coefficients[..ar_count].to_vec();
     let ma_coefficients = regression.coefficients[ar_count..].to_vec();
@@ -553,13 +554,16 @@ impl HoltWintersAdditiveModel {
             let seasonal_index = index % season;
             let old_level = level;
             let old_season = seasonal[seasonal_index];
-            level = config.alpha * (observation - old_season)
-                + (1.0 - config.alpha) * (level + trend);
+            level =
+                config.alpha * (observation - old_season) + (1.0 - config.alpha) * (level + trend);
             trend = config.beta * (level - old_level) + (1.0 - config.beta) * trend;
-            seasonal[seasonal_index] = config.gamma * (observation - level)
-                + (1.0 - config.gamma) * old_season;
+            seasonal[seasonal_index] =
+                config.gamma * (observation - level) + (1.0 - config.gamma) * old_season;
         }
-        if !level.is_finite() || !trend.is_finite() || seasonal.iter().any(|value| !value.is_finite()) {
+        if !level.is_finite()
+            || !trend.is_finite()
+            || seasonal.iter().any(|value| !value.is_finite())
+        {
             return Err(TimeSeriesError::NonFiniteInput);
         }
         Ok(Self {
@@ -574,7 +578,8 @@ impl HoltWintersAdditiveModel {
     pub fn forecast(&self, horizon: usize) -> Result<Vec<f64>, TimeSeriesError> {
         (0..horizon)
             .map(|offset| {
-                let seasonal = self.seasonal[(self.next_season_index + offset) % self.config.season_length];
+                let seasonal =
+                    self.seasonal[(self.next_season_index + offset) % self.config.season_length];
                 let step = (offset + 1) as f64;
                 let value = self.level + step * self.trend + seasonal;
                 if value.is_finite() {

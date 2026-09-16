@@ -13,12 +13,20 @@ pub enum AdaptiveError {
 impl fmt::Display for AdaptiveError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidActionCount => formatter.write_str("adaptive policy requires at least one action"),
-            Self::InvalidPrior => formatter.write_str("Beta prior parameters must be finite and positive"),
-            Self::InvalidConfiguration => formatter.write_str("adaptive policy configuration is invalid"),
+            Self::InvalidActionCount => {
+                formatter.write_str("adaptive policy requires at least one action")
+            }
+            Self::InvalidPrior => {
+                formatter.write_str("Beta prior parameters must be finite and positive")
+            }
+            Self::InvalidConfiguration => {
+                formatter.write_str("adaptive policy configuration is invalid")
+            }
             Self::InvalidFeatureWidth => formatter.write_str("context feature widths must match"),
             Self::NonFiniteInput => formatter.write_str("adaptive policy inputs must be finite"),
-            Self::SingularSystem => formatter.write_str("linear contextual bandit system is singular"),
+            Self::SingularSystem => {
+                formatter.write_str("linear contextual bandit system is singular")
+            }
         }
     }
 }
@@ -199,7 +207,10 @@ pub fn linucb_recommend(
         }
         let mut response = vec![0.0; dimensions];
         let mut count = 0_u64;
-        for observation in observations.iter().filter(|observation| observation.action == action) {
+        for observation in observations
+            .iter()
+            .filter(|observation| observation.action == action)
+        {
             count = count.saturating_add(1);
             for left in 0..dimensions {
                 response[left] += observation.reward * observation.features[left];
@@ -247,12 +258,11 @@ fn invert_matrix(matrix: &[Vec<f64>]) -> Option<Vec<Vec<f64>>> {
         augmented[row][width + row] = 1.0;
     }
     for column in 0..width {
-        let pivot_row = (column..width)
-            .max_by(|left, right| {
-                augmented[*left][column]
-                    .abs()
-                    .total_cmp(&augmented[*right][column].abs())
-            })?;
+        let pivot_row = (column..width).max_by(|left, right| {
+            augmented[*left][column]
+                .abs()
+                .total_cmp(&augmented[*right][column].abs())
+        })?;
         if augmented[pivot_row][column].abs() < 1e-12 {
             return None;
         }
@@ -282,7 +292,12 @@ fn invert_matrix(matrix: &[Vec<f64>]) -> Option<Vec<Vec<f64>>> {
 fn matrix_vector(matrix: &[Vec<f64>], vector: &[f64]) -> Vec<f64> {
     matrix
         .iter()
-        .map(|row| row.iter().zip(vector).map(|(left, right)| left * right).sum())
+        .map(|row| {
+            row.iter()
+                .zip(vector)
+                .map(|(left, right)| left * right)
+                .sum()
+        })
         .collect()
 }
 
@@ -298,7 +313,11 @@ struct DeterministicRng {
 impl DeterministicRng {
     fn new(seed: u64) -> Self {
         Self {
-            state: if seed == 0 { 0x6a09_e667_f3bc_c909 } else { seed },
+            state: if seed == 0 {
+                0x6a09_e667_f3bc_c909
+            } else {
+                seed
+            },
         }
     }
 
@@ -346,7 +365,10 @@ mod tests {
             &observations,
             7,
             2,
-            BetaPrior { alpha: 1.0, beta: 1.0 },
+            BetaPrior {
+                alpha: 1.0,
+                beta: 1.0,
+            },
             123,
         )
         .expect("valid Thompson recommendation");
@@ -354,7 +376,10 @@ mod tests {
             &observations,
             7,
             2,
-            BetaPrior { alpha: 1.0, beta: 1.0 },
+            BetaPrior {
+                alpha: 1.0,
+                beta: 1.0,
+            },
             123,
         )
         .expect("replayed Thompson recommendation");

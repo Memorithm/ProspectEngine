@@ -23,14 +23,21 @@ impl fmt::Display for SolverError {
             }
             Self::InvalidNodeBudget => formatter.write_str("node budget must be non-zero"),
             Self::NodeBudgetExceeded { explored_nodes } => {
-                write!(formatter, "solver node budget exceeded after {explored_nodes} nodes")
+                write!(
+                    formatter,
+                    "solver node budget exceeded after {explored_nodes} nodes"
+                )
             }
             Self::NoFeasibleSolution => formatter.write_str("no feasible solution exists"),
             Self::ArithmeticOverflow(operation) => {
                 write!(formatter, "arithmetic overflow while computing {operation}")
             }
-            Self::EmptyDomain { variable } => write!(formatter, "variable {variable} has an empty domain"),
-            Self::InvalidVariableIndex(index) => write!(formatter, "invalid variable index {index}"),
+            Self::EmptyDomain { variable } => {
+                write!(formatter, "variable {variable} has an empty domain")
+            }
+            Self::InvalidVariableIndex(index) => {
+                write!(formatter, "invalid variable index {index}")
+            }
             Self::InvalidConstraint => formatter.write_str("invalid finite-domain constraint"),
         }
     }
@@ -66,7 +73,9 @@ pub fn solve_binary_branch_and_bound(
         pruned_nodes: 0,
     };
     branch_binary(&mut state, 0, 0)?;
-    let assignment = state.best_assignment.ok_or(SolverError::NoFeasibleSolution)?;
+    let assignment = state
+        .best_assignment
+        .ok_or(SolverError::NoFeasibleSolution)?;
     Ok(BranchBoundSolution {
         assignment,
         objective_value: state.best_value,
@@ -243,7 +252,9 @@ pub struct FiniteDomainSolution {
     pub backtracks: u64,
 }
 
-pub fn solve_finite_domain(problem: &FiniteDomainProblem) -> Result<FiniteDomainSolution, SolverError> {
+pub fn solve_finite_domain(
+    problem: &FiniteDomainProblem,
+) -> Result<FiniteDomainSolution, SolverError> {
     validate_finite_domain(problem)?;
     let mut assignment = vec![None; problem.domains.len()];
     let mut explored_nodes = 0_u64;
@@ -351,12 +362,9 @@ fn search_finite_domain(
     values.dedup();
     for value in values {
         assignment[variable] = Some(value);
-        if let Some(solution) = search_finite_domain(
-            problem,
-            assignment,
-            explored_nodes,
-            backtracks,
-        )? {
+        if let Some(solution) =
+            search_finite_domain(problem, assignment, explored_nodes, backtracks)?
+        {
             return Ok(Some(solution));
         }
         assignment[variable] = None;

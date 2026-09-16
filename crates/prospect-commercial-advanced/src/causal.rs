@@ -18,16 +18,25 @@ impl fmt::Display for CausalError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyGraph => formatter.write_str("causal graph must contain at least one node"),
-            Self::UnknownVariable(index) => write!(formatter, "unknown causal variable index {index}"),
-            Self::SelfEdge(index) => write!(formatter, "self edge is not allowed at variable {index}"),
-            Self::DuplicateEdge { from, to } => write!(formatter, "duplicate causal edge {from}->{to}"),
+            Self::UnknownVariable(index) => {
+                write!(formatter, "unknown causal variable index {index}")
+            }
+            Self::SelfEdge(index) => {
+                write!(formatter, "self edge is not allowed at variable {index}")
+            }
+            Self::DuplicateEdge { from, to } => {
+                write!(formatter, "duplicate causal edge {from}->{to}")
+            }
             Self::CyclicGraph => formatter.write_str("causal graph must be acyclic"),
             Self::SameEndpoint => formatter.write_str("treatment and outcome must differ"),
             Self::DuplicateAdjustmentVariable(index) => {
                 write!(formatter, "duplicate adjustment variable {index}")
             }
             Self::AdjustmentContainsEndpoint(index) => {
-                write!(formatter, "adjustment set contains treatment/outcome endpoint {index}")
+                write!(
+                    formatter,
+                    "adjustment set contains treatment/outcome endpoint {index}"
+                )
             }
             Self::OutcomeIsParentOfTreatment => formatter.write_str(
                 "outcome is a parent of treatment; queried causal direction contradicts the graph",
@@ -436,7 +445,10 @@ mod tests {
             check_backdoor_criterion(&dag, 1, 2, &[0]).expect("valid query"),
             BackdoorVerdict::Satisfied
         );
-        assert_eq!(canonical_adjustment_set(&dag, 1, 2).expect("canonical set"), vec![0]);
+        assert_eq!(
+            canonical_adjustment_set(&dag, 1, 2).expect("canonical set"),
+            vec![0]
+        );
     }
 
     #[test]

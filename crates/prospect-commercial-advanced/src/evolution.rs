@@ -18,17 +18,31 @@ pub enum EvolutionError {
 impl fmt::Display for EvolutionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidPopulationSize => formatter.write_str("NSGA-II population size must be at least two"),
-            Self::InvalidGenerationCount => formatter.write_str("NSGA-II generation count must be non-zero"),
-            Self::InvalidDimensions => formatter.write_str("NSGA-II genome and objective dimensions must be non-zero"),
-            Self::InvalidBounds => formatter.write_str("NSGA-II bounds must be finite with lower < upper"),
+            Self::InvalidPopulationSize => {
+                formatter.write_str("NSGA-II population size must be at least two")
+            }
+            Self::InvalidGenerationCount => {
+                formatter.write_str("NSGA-II generation count must be non-zero")
+            }
+            Self::InvalidDimensions => {
+                formatter.write_str("NSGA-II genome and objective dimensions must be non-zero")
+            }
+            Self::InvalidBounds => {
+                formatter.write_str("NSGA-II bounds must be finite with lower < upper")
+            }
             Self::InvalidRatePpm(value) => write!(
                 formatter,
                 "NSGA-II probability must be in 0..={PROBABILITY_SCALE_PPM} ppm, got {value}"
             ),
-            Self::InvalidMutationSigma => formatter.write_str("NSGA-II mutation sigma must be finite and non-negative"),
-            Self::ObjectiveWidthMismatch => formatter.write_str("objective function returned the wrong width"),
-            Self::NonFiniteObjective => formatter.write_str("objective function returned a non-finite value"),
+            Self::InvalidMutationSigma => {
+                formatter.write_str("NSGA-II mutation sigma must be finite and non-negative")
+            }
+            Self::ObjectiveWidthMismatch => {
+                formatter.write_str("objective function returned the wrong width")
+            }
+            Self::NonFiniteObjective => {
+                formatter.write_str("objective function returned a non-finite value")
+            }
         }
     }
 }
@@ -368,7 +382,11 @@ struct DeterministicRng {
 impl DeterministicRng {
     fn new(seed: u64) -> Self {
         Self {
-            state: if seed == 0 { 0x9e37_79b9_7f4a_7c15 } else { seed },
+            state: if seed == 0 {
+                0x9e37_79b9_7f4a_7c15
+            } else {
+                seed
+            },
         }
     }
 
@@ -445,7 +463,11 @@ mod tests {
         .expect("reproducible NSGA-II run");
         assert_eq!(first, second);
         assert_eq!(first.len(), 24);
-        assert!(first.iter().all(|candidate| candidate.objectives.iter().all(|v| v.is_finite())));
+        assert!(
+            first
+                .iter()
+                .all(|candidate| candidate.objectives.iter().all(|v| v.is_finite()))
+        );
         assert!(first.iter().filter(|candidate| candidate.rank == 0).count() >= 2);
     }
 
