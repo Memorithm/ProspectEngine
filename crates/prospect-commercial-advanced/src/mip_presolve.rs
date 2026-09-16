@@ -65,6 +65,8 @@ impl std::error::Error for MixedIntegerPresolveError {}
 /// current variable box, proves row infeasibility when the whole attainable
 /// interval lies on the wrong side of the relation, and tightens one variable
 /// at a time from the most favorable attainable contribution of all others.
+/// The tolerance is applied in row units before division by a target
+/// coefficient, so implied bounds remain invariant to coefficient scaling.
 /// Integer bounds are rounded inward after a safe linear bound is derived and
 /// remain restricted to the exact-`f64` integer range.
 ///
@@ -246,19 +248,22 @@ fn tighten_less_or_equal(
                 return Err(MixedIntegerPresolveError::ArithmeticBreakdown);
             }
         }
-        let residual = constraint.rhs - minimum_other;
-        if !residual.is_finite() {
+        // For a row a.x <= b accepted within row tolerance t, the conservative
+        // bound is derived from a_i x_i + min(other) <= b + t. Applying t here,
+        // before division, keeps the semantics independent of coefficient scale.
+        let relaxed_residual = constraint.rhs + tolerance - minimum_other;
+        if !relaxed_residual.is_finite() {
             return Err(MixedIntegerPresolveError::ArithmeticBreakdown);
         }
-        let implied = residual / coefficient;
+        let implied = relaxed_residual / coefficient;
         if !implied.is_finite() {
             return Err(MixedIntegerPresolveError::ArithmeticBreakdown);
         }
         if coefficient > 0.0 {
             let candidate = if variables[target].kind == MixedVariableKind::Integer {
-                (implied + tolerance).floor()
+                implied.floor()
             } else {
-                implied + tolerance
+                implied
             };
             if candidate < variables[target].upper {
                 variables[target].upper = candidate;
@@ -266,9 +271,9 @@ fn tighten_less_or_equal(
             }
         } else {
             let candidate = if variables[target].kind == MixedVariableKind::Integer {
-                (implied - tolerance).ceil()
+                implied.ceil()
             } else {
-                implied - tolerance
+                implied
             };
             if candidate > variables[target].lower {
                 variables[target].lower = candidate;
@@ -424,8 +429,38 @@ mod tests {
         )
         .expect("presolve");
         assert_eq!(report.problem.variables[0].upper, 3.0);
-        assert!((report.problem.variables[1].upper - 7.0).abs() < 1e-8);
+        assert!((report.problem.variables[1].upper - (7.0 + 1e-9)).abs() < 1e-12);
         assert!(report.tightened_bounds >= 2);
+    }
+
+    #[test]
+    fn row_tolerance_is_scaled_before_coefficient_division() {
+        let problem = MixedIntegerProblem {
+            variables: vec![MixedVariable {
+                lower: 0.0,
+                upper: 100.0,
+                objective_coefficient: 0.0,
+                kind: MixedVariableKind::Continuous,
+            }],
+            constraints: vec![GeneralLinearConstraint {
+                coefficients: vec![0.1],
+                relation: ConstraintRelation::LessOrEqual,
+                rhs: 1.0,
+            }],
+            lp_tolerance: 1e-9,
+            integrality_tolerance: 1e-8,
+            maximum_nodes: 10,
+            maximum_lp_iterations_per_node: 10,
+        };
+        let report = presolve_mixed_integer_bounds(
+            &problem,
+            MixedIntegerPresolveConfig {
+                maximum_passes: 2,
+                tolerance: 0.01,
+            },
+        )
+        .expect("scaled tolerance presolve");
+        assert!((report.problem.variables[0].upper - 10.1).abs() < 1e-12);
     }
 
     #[test]
