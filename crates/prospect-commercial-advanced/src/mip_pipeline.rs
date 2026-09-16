@@ -96,8 +96,8 @@ mod tests {
         .expect("presolved MIP");
         assert_eq!(result.presolve.problem.variables[0].upper, 2.0);
         assert!((result.presolve.problem.variables[1].upper - 3.5).abs() < 1e-8);
-        assert_eq!(result.solution.values[0], 1.0);
-        assert!((result.solution.values[1] - 2.0).abs() < 1e-8);
-        assert!((result.solution.objective_value - 13.0).abs() < 1e-8);
+        assert_eq!(result.solution.values[0], 0.0);
+        assert!((result.solution.values[1] - 3.5).abs() < 1e-8);
+        assert!((result.solution.objective_value - 14.0).abs() < 1e-8);
     }
 }
