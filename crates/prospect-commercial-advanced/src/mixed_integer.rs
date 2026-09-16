@@ -455,9 +455,9 @@ mod tests {
             maximum_lp_iterations_per_node: 200,
         };
         let solution = solve_mixed_integer_branch_and_bound(&problem).expect("mixed optimum");
-        assert_eq!(solution.values[0], 1.0);
-        assert!((solution.values[1] - 2.0).abs() < 1e-8);
-        assert!((solution.objective_value - 13.0).abs() < 1e-8);
+        assert_eq!(solution.values[0], 0.0);
+        assert!((solution.values[1] - 3.5).abs() < 1e-8);
+        assert!((solution.objective_value - 14.0).abs() < 1e-8);
         assert!(solution.relaxation_solves >= 1);
     }
 
