@@ -672,7 +672,7 @@ mod tests {
     }
 
     #[test]
-    fn Bayesian_decision_and_information_value_are_explicit() {
+    fn bayesian_decision_and_information_value_are_explicit() {
         let problem = BayesianDecisionProblem {
             prior_probabilities_ppm: vec![500_000, 500_000],
             action_utilities_minor: vec![vec![100, 0], vec![0, 80]],
