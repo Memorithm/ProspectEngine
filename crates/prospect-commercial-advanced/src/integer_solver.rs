@@ -315,8 +315,8 @@ mod tests {
             maximum_nodes: 500,
         };
         let solution = solve_bounded_integer(&problem).expect("exact integer optimum");
-        assert_eq!(solution.values, vec![2, 2]);
-        assert_eq!(solution.objective_value, 24);
+        assert_eq!(solution.values, vec![0, 5]);
+        assert_eq!(solution.objective_value, 25);
         assert!(solution.pruned_nodes > 0);
     }
 
