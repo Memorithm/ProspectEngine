@@ -1,6 +1,6 @@
 use crate::general_linear_program::{
-    solve_general_two_phase_simplex, GeneralLinearConstraint, GeneralLinearError,
-    GeneralLinearProgram,
+    GeneralLinearConstraint, GeneralLinearError, GeneralLinearProgram,
+    solve_general_two_phase_simplex,
 };
 use crate::optimization::ConstraintRelation;
 use core::fmt;
@@ -46,7 +46,10 @@ impl fmt::Display for BoundedLinearError {
         match self {
             Self::EmptyProblem => formatter.write_str("bounded LP must contain variables"),
             Self::InvalidBounds { variable } => {
-                write!(formatter, "bounded LP variable {variable} has invalid bounds")
+                write!(
+                    formatter,
+                    "bounded LP variable {variable} has invalid bounds"
+                )
             }
             Self::ConstraintWidthMismatch => {
                 formatter.write_str("bounded LP constraint width must match variable width")
@@ -58,7 +61,9 @@ impl fmt::Display for BoundedLinearError {
             Self::InvalidIterationLimit => {
                 formatter.write_str("bounded LP iteration budget must be non-zero")
             }
-            Self::General(error) => write!(formatter, "bounded LP transformed solve failed: {error}"),
+            Self::General(error) => {
+                write!(formatter, "bounded LP transformed solve failed: {error}")
+            }
             Self::NumericalBreakdown => {
                 formatter.write_str("bounded LP reconstruction encountered numerical breakdown")
             }
@@ -145,7 +150,10 @@ pub fn solve_bounded_linear_program(
     }
 
     let mut transformed_constraints = Vec::with_capacity(
-        problem.constraints.len().saturating_add(upper_constraints.len()),
+        problem
+            .constraints
+            .len()
+            .saturating_add(upper_constraints.len()),
     );
     for constraint in &problem.constraints {
         let mut coefficients = vec![0.0_f64; transformed_width];
@@ -266,7 +274,10 @@ fn validate(problem: &BoundedLinearProgram) -> Result<(), BoundedLinearError> {
             return Err(BoundedLinearError::ConstraintWidthMismatch);
         }
         if !constraint.rhs.is_finite()
-            || constraint.coefficients.iter().any(|value| !value.is_finite())
+            || constraint
+                .coefficients
+                .iter()
+                .any(|value| !value.is_finite())
         {
             return Err(BoundedLinearError::NonFiniteInput);
         }
