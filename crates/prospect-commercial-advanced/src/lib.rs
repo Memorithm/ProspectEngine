@@ -6,7 +6,10 @@
 //! not fabricate forecasts, causal effects, probabilities, elasticities or
 //! financial guarantees.
 
+pub mod adaptive;
+pub mod causal;
 pub mod customer;
+pub mod evolution;
 pub mod finance;
 pub mod inventory;
 pub mod learning;
@@ -17,5 +20,7 @@ pub mod operations;
 pub mod optimization;
 pub mod pricing;
 pub mod robust;
+pub mod solver;
 pub mod stress;
 pub mod threshold;
+pub mod timeseries;
