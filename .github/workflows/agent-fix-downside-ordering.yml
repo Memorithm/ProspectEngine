@@ -1,0 +1,43 @@
+name: Agent fix exact downside ordering
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.head_ref == 'fix/commercial-exact-downside-ordering'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: fix/commercial-exact-downside-ordering
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.89.0'
+          components: rustfmt, clippy
+      - name: Apply review fix
+        run: python3 .agent/fix_downside_ordering.py
+      - name: Format
+        run: cargo fmt --all
+      - name: Test commercial crate
+        run: cargo test -p prospect-commercial --all-targets
+      - name: Clippy commercial crate
+        run: cargo clippy -p prospect-commercial --all-targets -- -D warnings
+      - name: Commit review correction when needed
+        shell: bash
+        run: |
+          if git diff --quiet -- crates/prospect-commercial/src/lib.rs; then
+            echo 'No source changes required.'
+            exit 0
+          fi
+          git config user.name "ZEKRITI TAREK"
+          git config user.email "contact@checkupauto.fr"
+          git add crates/prospect-commercial/src/lib.rs
+          git commit -m "fix(commercial): preserve exact downside ordering"
+          git push origin HEAD:fix/commercial-exact-downside-ordering
