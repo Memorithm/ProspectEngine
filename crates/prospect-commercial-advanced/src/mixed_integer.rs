@@ -2,6 +2,7 @@ use crate::bounded_linear_program::{
     solve_bounded_linear_program, BoundedLinearError, BoundedLinearProgram, LinearVariable,
 };
 use crate::general_linear_program::GeneralLinearConstraint;
+use crate::optimization::ConstraintRelation;
 use core::fmt;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -116,8 +117,11 @@ struct SearchState<'a> {
 /// Every variable must have finite caller-supplied bounds. Each node is solved
 /// by the bounded/free-variable LP front-end backed by the deterministic
 /// two-phase simplex. Integer branching fixes `x_i <= floor(x*)` versus
-/// `x_i >= ceil(x*)`. The solver fails closed on node-budget exhaustion rather
-/// than returning an incumbent as if optimality had been proven.
+/// `x_i >= ceil(x*)`. A relaxation that is integral within tolerance is snapped
+/// to exact integer coordinates and revalidated in the original problem before
+/// it may become an incumbent. The solver fails closed on node-budget
+/// exhaustion rather than returning an incumbent as if optimality had been
+/// proven.
 ///
 /// This is a real LP-relaxation branch-and-bound core, but it deliberately does
 /// not claim presolve, cuts, pseudocosts, strong branching, incumbent
@@ -168,7 +172,10 @@ fn search_node(
     }
     state.explored_nodes = state.explored_nodes.saturating_add(1);
 
-    if bounds.iter().any(|bound| bound.lower > bound.upper + state.problem.lp_tolerance) {
+    if bounds
+        .iter()
+        .any(|bound| bound.lower > bound.upper + state.problem.lp_tolerance)
+    {
         state.infeasible_nodes = state.infeasible_nodes.saturating_add(1);
         return Ok(());
     }
@@ -213,7 +220,12 @@ fn search_node(
 
     let fractional = choose_fractional_variable(state.problem, &relaxation.values);
     let Some((branch_variable, branch_value, fractionality)) = fractional else {
-        let objective = original_objective(state.problem, &relaxation.values);
+        let candidate = snap_integral_values(state.problem, &relaxation.values)?;
+        let violation = maximum_primal_violation(state.problem, &candidate);
+        if !violation.is_finite() || violation > state.problem.lp_tolerance * 10.0 {
+            return Err(MixedIntegerError::NumericalBreakdown);
+        }
+        let objective = original_objective(state.problem, &candidate);
         if !objective.is_finite() {
             return Err(MixedIntegerError::NumericalBreakdown);
         }
@@ -222,10 +234,10 @@ fn search_node(
                 && state
                     .best_values
                     .as_ref()
-                    .is_none_or(|existing| lexicographically_less(&relaxation.values, existing)))
+                    .is_none_or(|existing| lexicographically_less(&candidate, existing)))
         {
             state.best_objective = objective;
-            state.best_values = Some(relaxation.values);
+            state.best_values = Some(candidate);
         }
         return Ok(());
     };
@@ -274,6 +286,58 @@ fn choose_fractional_variable(
                 .total_cmp(&right.2)
                 .then_with(|| right.0.cmp(&left.0))
         })
+}
+
+fn snap_integral_values(
+    problem: &MixedIntegerProblem,
+    values: &[f64],
+) -> Result<Vec<f64>, MixedIntegerError> {
+    if values.len() != problem.variables.len() {
+        return Err(MixedIntegerError::NumericalBreakdown);
+    }
+    let snapped: Vec<f64> = problem
+        .variables
+        .iter()
+        .zip(values)
+        .map(|(variable, value)| match variable.kind {
+            MixedVariableKind::Continuous => *value,
+            MixedVariableKind::Integer => value.round(),
+        })
+        .collect();
+    if snapped.iter().any(|value| !value.is_finite()) {
+        return Err(MixedIntegerError::NumericalBreakdown);
+    }
+    for (variable, value) in problem.variables.iter().zip(&snapped) {
+        if *value < variable.lower - problem.lp_tolerance
+            || *value > variable.upper + problem.lp_tolerance
+        {
+            return Err(MixedIntegerError::NumericalBreakdown);
+        }
+    }
+    Ok(snapped)
+}
+
+fn maximum_primal_violation(problem: &MixedIntegerProblem, values: &[f64]) -> f64 {
+    let mut maximum = 0.0_f64;
+    for (variable, value) in problem.variables.iter().zip(values) {
+        maximum = maximum.max((variable.lower - *value).max(0.0));
+        maximum = maximum.max((*value - variable.upper).max(0.0));
+    }
+    for constraint in &problem.constraints {
+        let lhs = constraint
+            .coefficients
+            .iter()
+            .zip(values)
+            .map(|(coefficient, value)| coefficient * value)
+            .sum::<f64>();
+        let violation = match constraint.relation {
+            ConstraintRelation::LessOrEqual => (lhs - constraint.rhs).max(0.0),
+            ConstraintRelation::GreaterOrEqual => (constraint.rhs - lhs).max(0.0),
+            ConstraintRelation::Equal => (lhs - constraint.rhs).abs(),
+        };
+        maximum = maximum.max(violation);
+    }
+    maximum
 }
 
 fn original_objective(problem: &MixedIntegerProblem, values: &[f64]) -> f64 {
@@ -354,7 +418,6 @@ fn validate(problem: &MixedIntegerProblem) -> Result<(), MixedIntegerError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::optimization::ConstraintRelation;
 
     #[test]
     fn mixed_branch_and_bound_finds_integer_continuous_optimum() {
@@ -384,7 +447,7 @@ mod tests {
             maximum_lp_iterations_per_node: 200,
         };
         let solution = solve_mixed_integer_branch_and_bound(&problem).expect("mixed optimum");
-        assert!((solution.values[0] - 1.0).abs() < 1e-8);
+        assert_eq!(solution.values[0], 1.0);
         assert!((solution.values[1] - 2.0).abs() < 1e-8);
         assert!((solution.objective_value - 13.0).abs() < 1e-8);
         assert!(solution.relaxation_solves >= 1);
@@ -420,6 +483,34 @@ mod tests {
         let solution = solve_mixed_integer_branch_and_bound(&problem).expect("integer optimum");
         assert_eq!(solution.values, vec![1.0, 2.0]);
         assert!((solution.objective_value - 13.0).abs() < 1e-8);
+    }
+
+    #[test]
+    fn near_integral_values_snap_to_exact_integer_coordinates() {
+        let problem = MixedIntegerProblem {
+            variables: vec![
+                MixedVariable {
+                    lower: 0.0,
+                    upper: 4.0,
+                    objective_coefficient: 1.0,
+                    kind: MixedVariableKind::Integer,
+                },
+                MixedVariable {
+                    lower: 0.0,
+                    upper: 4.0,
+                    objective_coefficient: 1.0,
+                    kind: MixedVariableKind::Continuous,
+                },
+            ],
+            constraints: Vec::new(),
+            lp_tolerance: 1e-9,
+            integrality_tolerance: 1e-8,
+            maximum_nodes: 10,
+            maximum_lp_iterations_per_node: 20,
+        };
+        let snapped = snap_integral_values(&problem, &[0.999_999_999, 1.25]).expect("snap");
+        assert_eq!(snapped, vec![1.0, 1.25]);
+        assert_eq!(maximum_primal_violation(&problem, &snapped), 0.0);
     }
 
     #[test]
