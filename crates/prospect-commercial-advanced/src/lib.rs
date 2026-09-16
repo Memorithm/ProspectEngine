@@ -33,6 +33,7 @@ pub mod learning;
 pub mod linear_program;
 pub mod market;
 pub mod mcda;
+pub mod mip_pipeline;
 pub mod mip_presolve;
 pub mod mixed_integer;
 pub mod next_best_action;
