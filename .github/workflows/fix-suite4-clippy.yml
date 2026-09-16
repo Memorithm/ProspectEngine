@@ -1,0 +1,52 @@
+name: Fix commercial acquisition suite 4 clippy
+
+on:
+  push:
+    branches: [feat/commercial-acquisition-suite-4]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/commercial-acquisition-suite-4
+
+      - name: Apply exact lint fixes and commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('crates/prospect-commercial-advanced/src/timeseries.rs')
+          s = p.read_text()
+          replacements = [
+              (
+                  'if ar_lags.iter().any(|lag| *lag == 0) || ma_lags.iter().any(|lag| *lag == 0) {',
+                  'if ar_lags.contains(&0) || ma_lags.contains(&0) {'
+              ),
+              (
+                  '''        for row in (column + 1)..width {\n            let candidate = matrix[row][column].abs();\n            if candidate > pivot_value {\n                pivot_value = candidate;\n                pivot_row = row;\n            }\n        }''',
+                  '''        for (row, values) in matrix.iter().enumerate().skip(column + 1) {\n            let candidate = values[column].abs();\n            if candidate > pivot_value {\n                pivot_value = candidate;\n                pivot_row = row;\n            }\n        }'''
+              ),
+              (
+                  '''        for column in (row + 1)..width {\n            value -= matrix[row][column] * solution[column];\n        }''',
+                  '''        for (coefficient, solved) in matrix[row][row + 1..].iter().zip(&solution[row + 1..]) {\n            value -= coefficient * solved;\n        }'''
+              ),
+          ]
+          for old, new in replacements:
+              if old not in s:
+                  raise SystemExit(f'expected source fragment not found: {old[:80]!r}')
+              s = s.replace(old, new, 1)
+          p.write_text(s)
+          PY
+          cargo fmt --all
+          git config user.name "MEMOPERF"
+          git config user.email "contact@checkupauto.fr"
+          git add crates/prospect-commercial-advanced/src/timeseries.rs
+          git commit -m "fix(commercial): satisfy strict time-series lints"
+          git push origin HEAD:feat/commercial-acquisition-suite-4
