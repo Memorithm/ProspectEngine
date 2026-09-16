@@ -1,0 +1,15 @@
+[package]
+name = "prospect-commercial"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Auditable commercial decision models for ProspectEngine"
+
+[lints]
+workspace = true
+
+[dependencies]
+prospect-core = { path = "../prospect-core" }
