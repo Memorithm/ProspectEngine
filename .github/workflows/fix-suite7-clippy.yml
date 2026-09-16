@@ -1,0 +1,45 @@
+name: Fix commercial acquisition suite 7 lints
+
+on:
+  push:
+    branches:
+      - feat/commercial-acquisition-suite-7
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/commercial-acquisition-suite-7
+      - run: rustup toolchain install 1.89.0 --profile minimal --component rustfmt
+      - shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('crates/prospect-commercial-advanced/src/general_linear_program.rs')
+          s = p.read_text()
+          old = '''    for decision in 0..decision_width {
+        let mapped = old_to_new[decision].expect("decision columns are never artificial");
+        phase_two_costs[mapped] = problem.objective[decision];
+    }
+'''
+          new = '''    for (decision, mapped) in old_to_new.iter().take(decision_width).enumerate() {
+        let mapped = mapped.expect("decision columns are never artificial");
+        phase_two_costs[mapped] = problem.objective[decision];
+    }
+'''
+          if old not in s:
+              raise SystemExit('phase-two cost loop fragment not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          cargo +1.89.0 fmt --all
+          git config user.name MEMOPERF
+          git config user.email contact@checkupauto.fr
+          git add crates/prospect-commercial-advanced/src/general_linear_program.rs
+          git commit -m "fix(commercial): satisfy strict wave-seven lints"
+          git push origin HEAD:feat/commercial-acquisition-suite-7
