@@ -13,12 +13,20 @@ pub enum BayesianBanditError {
 impl fmt::Display for BayesianBanditError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidActionCount => formatter.write_str("Bayesian bandit requires at least one action"),
+            Self::InvalidActionCount => {
+                formatter.write_str("Bayesian bandit requires at least one action")
+            }
             Self::InvalidPrior => formatter.write_str("Bayesian bandit prior is invalid"),
-            Self::InvalidNoise => formatter.write_str("Bayesian bandit noise configuration is invalid"),
-            Self::InvalidFeatureWidth => formatter.write_str("Bayesian linear bandit feature widths must match"),
+            Self::InvalidNoise => {
+                formatter.write_str("Bayesian bandit noise configuration is invalid")
+            }
+            Self::InvalidFeatureWidth => {
+                formatter.write_str("Bayesian linear bandit feature widths must match")
+            }
             Self::NonFiniteInput => formatter.write_str("Bayesian bandit inputs must be finite"),
-            Self::SingularSystem => formatter.write_str("Bayesian linear bandit posterior system is singular"),
+            Self::SingularSystem => {
+                formatter.write_str("Bayesian linear bandit posterior system is singular")
+            }
         }
     }
 }
@@ -64,7 +72,10 @@ pub fn gaussian_thompson_recommend(
     {
         return Err(BayesianBanditError::InvalidPrior);
     }
-    if observations.iter().any(|observation| !observation.reward.is_finite()) {
+    if observations
+        .iter()
+        .any(|observation| !observation.reward.is_finite())
+    {
         return Err(BayesianBanditError::NonFiniteInput);
     }
 
@@ -84,12 +95,12 @@ pub fn gaussian_thompson_recommend(
     let mut best: Option<GaussianThompsonRecommendation> = None;
     for action in 0..action_count {
         let index = usize::try_from(action).expect("bounded action fits usize");
-        let posterior_precision = prior.precision
-            + count[index] as f64 * prior.observation_precision;
+        let posterior_precision =
+            prior.precision + count[index] as f64 * prior.observation_precision;
         let posterior_variance = 1.0 / posterior_precision;
-        let posterior_mean = (
-            prior.precision * prior.mean + prior.observation_precision * sum[index]
-        ) / posterior_precision;
+        let posterior_mean = (prior.precision * prior.mean
+            + prior.observation_precision * sum[index])
+            / posterior_precision;
         let sampled_reward = posterior_mean + posterior_variance.sqrt() * rng.standard_normal();
         if !sampled_reward.is_finite() {
             return Err(BayesianBanditError::NonFiniteInput);
@@ -175,23 +186,23 @@ pub fn linear_thompson_recommend(
         }
         let mut response = vec![0.0; dimensions];
         let mut count = 0_u64;
-        for observation in observations.iter().filter(|observation| observation.action == action) {
+        for observation in observations
+            .iter()
+            .filter(|observation| observation.action == action)
+        {
             count = count.saturating_add(1);
             for left in 0..dimensions {
                 response[left] += noise_precision * observation.reward * observation.features[left];
                 for right in 0..dimensions {
-                    precision[left][right] += noise_precision
-                        * observation.features[left]
-                        * observation.features[right];
+                    precision[left][right] +=
+                        noise_precision * observation.features[left] * observation.features[right];
                 }
             }
         }
         let covariance = invert_matrix(&precision).ok_or(BayesianBanditError::SingularSystem)?;
         let posterior_mean = matrix_vector(&covariance, &response);
         let cholesky = cholesky_lower(&covariance).ok_or(BayesianBanditError::SingularSystem)?;
-        let standard_normal: Vec<f64> = (0..dimensions)
-            .map(|_| rng.standard_normal())
-            .collect();
+        let standard_normal: Vec<f64> = (0..dimensions).map(|_| rng.standard_normal()).collect();
         let perturbation = matrix_vector(&cholesky, &standard_normal);
         let sampled_theta: Vec<f64> = posterior_mean
             .iter()
@@ -291,7 +302,12 @@ fn invert_matrix(matrix: &[Vec<f64>]) -> Option<Vec<Vec<f64>>> {
 fn matrix_vector(matrix: &[Vec<f64>], vector: &[f64]) -> Vec<f64> {
     matrix
         .iter()
-        .map(|row| row.iter().zip(vector).map(|(left, right)| left * right).sum())
+        .map(|row| {
+            row.iter()
+                .zip(vector)
+                .map(|(left, right)| left * right)
+                .sum()
+        })
         .collect()
 }
 
@@ -307,7 +323,11 @@ struct DeterministicRng {
 impl DeterministicRng {
     fn new(seed: u64) -> Self {
         Self {
-            state: if seed == 0 { 0xbb67_ae85_84ca_a73b } else { seed },
+            state: if seed == 0 {
+                0xbb67_ae85_84ca_a73b
+            } else {
+                seed
+            },
         }
     }
 

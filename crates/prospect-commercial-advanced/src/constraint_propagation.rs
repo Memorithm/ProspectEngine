@@ -15,9 +15,15 @@ pub enum PropagationError {
 impl fmt::Display for PropagationError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidProblem => formatter.write_str("constraint propagation problem is invalid"),
-            Self::Infeasible => formatter.write_str("constraint propagation proved the problem infeasible"),
-            Self::InvalidNodeBudget => formatter.write_str("propagated CP node budget must be non-zero"),
+            Self::InvalidProblem => {
+                formatter.write_str("constraint propagation problem is invalid")
+            }
+            Self::Infeasible => {
+                formatter.write_str("constraint propagation proved the problem infeasible")
+            }
+            Self::InvalidNodeBudget => {
+                formatter.write_str("propagated CP node budget must be non-zero")
+            }
             Self::NodeBudgetExceeded { explored_nodes } => write!(
                 formatter,
                 "propagated CP node budget exceeded after {explored_nodes} nodes"
@@ -46,7 +52,9 @@ pub struct PropagatedSolution {
     pub removed_values: u64,
 }
 
-pub fn propagate_domains(problem: &FiniteDomainProblem) -> Result<PropagationReport, PropagationError> {
+pub fn propagate_domains(
+    problem: &FiniteDomainProblem,
+) -> Result<PropagationReport, PropagationError> {
     validate(problem)?;
     let mut domains = normalize_domains(&problem.domains)?;
     let initial_values: usize = domains.iter().map(Vec::len).sum();
@@ -127,7 +135,9 @@ fn search(
     *removed_values = removed_values.saturating_add(report.removed_values);
 
     if report.domains.iter().all(|domain| domain.len() == 1) {
-        return Ok(Some(report.domains.iter().map(|domain| domain[0]).collect()));
+        return Ok(Some(
+            report.domains.iter().map(|domain| domain[0]).collect(),
+        ));
     }
 
     let variable = report
@@ -216,10 +226,13 @@ fn propagate_all_different(
     domains: &mut [Vec<i64>],
     constraints: &[FiniteDomainConstraint],
 ) -> Result<(), PropagationError> {
-    for variables in constraints.iter().filter_map(|constraint| match constraint {
-        FiniteDomainConstraint::AllDifferent(variables) => Some(variables.as_slice()),
-        _ => None,
-    }) {
+    for variables in constraints
+        .iter()
+        .filter_map(|constraint| match constraint {
+            FiniteDomainConstraint::AllDifferent(variables) => Some(variables.as_slice()),
+            _ => None,
+        })
+    {
         let singleton_values: Vec<i64> = variables
             .iter()
             .filter_map(|index| (domains[*index].len() == 1).then_some(domains[*index][0]))
@@ -310,10 +323,14 @@ fn linear_candidate_supported(
         };
         minimum = minimum
             .checked_add(term_minimum)
-            .ok_or(PropagationError::ArithmeticOverflow("linear propagation minimum"))?;
+            .ok_or(PropagationError::ArithmeticOverflow(
+                "linear propagation minimum",
+            ))?;
         maximum = maximum
             .checked_add(term_maximum)
-            .ok_or(PropagationError::ArithmeticOverflow("linear propagation maximum"))?;
+            .ok_or(PropagationError::ArithmeticOverflow(
+                "linear propagation maximum",
+            ))?;
     }
     let rhs = i128::from(rhs);
     Ok(match relation {
@@ -413,6 +430,9 @@ mod tests {
             constraints: vec![FiniteDomainConstraint::AllDifferent(vec![0, 1])],
             maximum_nodes: 10,
         };
-        assert_eq!(propagate_domains(&problem), Err(PropagationError::Infeasible));
+        assert_eq!(
+            propagate_domains(&problem),
+            Err(PropagationError::Infeasible)
+        );
     }
 }

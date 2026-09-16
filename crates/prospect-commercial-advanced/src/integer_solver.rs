@@ -51,12 +51,16 @@ impl fmt::Display for IntegerSolverError {
             Self::ConstraintWidthMismatch => {
                 formatter.write_str("integer constraint width must match variable width")
             }
-            Self::InvalidNodeBudget => formatter.write_str("integer solver node budget must be non-zero"),
+            Self::InvalidNodeBudget => {
+                formatter.write_str("integer solver node budget must be non-zero")
+            }
             Self::NodeBudgetExceeded { explored_nodes } => write!(
                 formatter,
                 "integer solver node budget exceeded after {explored_nodes} nodes"
             ),
-            Self::NoFeasibleSolution => formatter.write_str("bounded integer problem has no feasible solution"),
+            Self::NoFeasibleSolution => {
+                formatter.write_str("bounded integer problem has no feasible solution")
+            }
             Self::ArithmeticOverflow(operation) => {
                 write!(formatter, "arithmetic overflow while computing {operation}")
             }
@@ -193,7 +197,9 @@ fn search(
         state.assignment[variable_index] = Some(value);
         let contribution = i128::from(variable.objective_coefficient)
             .checked_mul(i128::from(value))
-            .ok_or(IntegerSolverError::ArithmeticOverflow("integer objective term"))?;
+            .ok_or(IntegerSolverError::ArithmeticOverflow(
+                "integer objective term",
+            ))?;
         let next_objective = current_objective
             .checked_add(contribution)
             .ok_or(IntegerSolverError::ArithmeticOverflow("integer objective"))?;
@@ -220,10 +226,14 @@ fn objective_upper_bound(
         };
         let term = i128::from(variable.objective_coefficient)
             .checked_mul(i128::from(chosen))
-            .ok_or(IntegerSolverError::ArithmeticOverflow("integer objective bound"))?;
+            .ok_or(IntegerSolverError::ArithmeticOverflow(
+                "integer objective bound",
+            ))?;
         upper = upper
             .checked_add(term)
-            .ok_or(IntegerSolverError::ArithmeticOverflow("integer objective bound"))?;
+            .ok_or(IntegerSolverError::ArithmeticOverflow(
+                "integer objective bound",
+            ))?;
     }
     Ok(upper)
 }
@@ -252,12 +262,18 @@ fn constraints_possible(
             } else {
                 (coefficient * high, coefficient * low)
             };
-            minimum = minimum
-                .checked_add(term_minimum)
-                .ok_or(IntegerSolverError::ArithmeticOverflow("integer constraint minimum"))?;
-            maximum = maximum
-                .checked_add(term_maximum)
-                .ok_or(IntegerSolverError::ArithmeticOverflow("integer constraint maximum"))?;
+            minimum =
+                minimum
+                    .checked_add(term_minimum)
+                    .ok_or(IntegerSolverError::ArithmeticOverflow(
+                        "integer constraint minimum",
+                    ))?;
+            maximum =
+                maximum
+                    .checked_add(term_maximum)
+                    .ok_or(IntegerSolverError::ArithmeticOverflow(
+                        "integer constraint maximum",
+                    ))?;
         }
         let rhs = i128::from(constraint.rhs);
         let possible = match constraint.relation {

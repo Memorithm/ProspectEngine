@@ -19,15 +19,25 @@ impl fmt::Display for AdvancedForecastError {
         match self {
             Self::SeriesTooShort => formatter.write_str("advanced forecast series is too short"),
             Self::NonFiniteInput => formatter.write_str("advanced forecast inputs must be finite"),
-            Self::NonPositiveInput => formatter.write_str("multiplicative forecast inputs must be strictly positive"),
-            Self::InvalidSmoothing => formatter.write_str("forecast smoothing parameters are invalid"),
-            Self::InvalidSeasonLength => formatter.write_str("forecast season length must be at least two"),
-            Self::InvalidHoldout => formatter.write_str("forecast holdout must leave a non-empty training sample"),
+            Self::NonPositiveInput => {
+                formatter.write_str("multiplicative forecast inputs must be strictly positive")
+            }
+            Self::InvalidSmoothing => {
+                formatter.write_str("forecast smoothing parameters are invalid")
+            }
+            Self::InvalidSeasonLength => {
+                formatter.write_str("forecast season length must be at least two")
+            }
+            Self::InvalidHoldout => {
+                formatter.write_str("forecast holdout must leave a non-empty training sample")
+            }
             Self::InvalidQuantile(value) => write!(
                 formatter,
                 "forecast quantile must be in 0..={PROBABILITY_SCALE_PPM} ppm, got {value}"
             ),
-            Self::NoEligibleModel => formatter.write_str("no forecast model is eligible for the supplied series"),
+            Self::NoEligibleModel => {
+                formatter.write_str("no forecast model is eligible for the supplied series")
+            }
         }
     }
 }
@@ -65,10 +75,10 @@ impl DampedTrendModel {
         let mut trend = series[1] - series[0];
         for observation in &series[1..] {
             let previous_level = level;
-            level = config.alpha * *observation
-                + (1.0 - config.alpha) * (level + config.phi * trend);
-            trend = config.beta * (level - previous_level)
-                + (1.0 - config.beta) * config.phi * trend;
+            level =
+                config.alpha * *observation + (1.0 - config.alpha) * (level + config.phi * trend);
+            trend =
+                config.beta * (level - previous_level) + (1.0 - config.beta) * config.phi * trend;
         }
         if !level.is_finite() || !trend.is_finite() {
             return Err(AdvancedForecastError::NonFiniteInput);
@@ -161,17 +171,19 @@ impl HoltWintersMultiplicativeModel {
             }
             level = config.alpha * (observation / previous_seasonal)
                 + (1.0 - config.alpha) * (level + config.phi * trend);
-            trend = config.beta * (level - previous_level)
-                + (1.0 - config.beta) * config.phi * trend;
+            trend =
+                config.beta * (level - previous_level) + (1.0 - config.beta) * config.phi * trend;
             if level <= 0.0 {
                 return Err(AdvancedForecastError::NonPositiveInput);
             }
-            seasonal[seasonal_index] = config.gamma * (observation / level)
-                + (1.0 - config.gamma) * previous_seasonal;
+            seasonal[seasonal_index] =
+                config.gamma * (observation / level) + (1.0 - config.gamma) * previous_seasonal;
         }
         if !level.is_finite()
             || !trend.is_finite()
-            || seasonal.iter().any(|value| !value.is_finite() || *value <= 0.0)
+            || seasonal
+                .iter()
+                .any(|value| !value.is_finite() || *value <= 0.0)
         {
             return Err(AdvancedForecastError::NonFiniteInput);
         }
@@ -190,8 +202,8 @@ impl HoltWintersMultiplicativeModel {
         let mut output = Vec::with_capacity(horizon);
         for offset in 0..horizon {
             damping_sum += power;
-            let seasonal = self.seasonal
-                [(self.next_season_index + offset) % self.config.season_length];
+            let seasonal =
+                self.seasonal[(self.next_season_index + offset) % self.config.season_length];
             let value = (self.level + damping_sum * self.trend) * seasonal;
             if !value.is_finite() || value <= 0.0 {
                 return Err(AdvancedForecastError::NonFiniteInput);
@@ -243,10 +255,7 @@ pub fn select_forecast_family(
             phi: 0.9,
         },
     )?;
-    candidates.push((
-        ForecastFamily::DampedTrend,
-        damped.forecast(holdout_len)?,
-    ));
+    candidates.push((ForecastFamily::DampedTrend, damped.forecast(holdout_len)?));
 
     if season_length >= 2 && train.len() >= season_length * 2 {
         if let Ok(additive) = HoltWintersAdditiveModel::fit(
@@ -318,7 +327,11 @@ pub fn empirical_residual_interval(
     lower_quantile_ppm: u32,
     upper_quantile_ppm: u32,
 ) -> Result<Vec<ForecastIntervalPoint>, AdvancedForecastError> {
-    if point_forecast.iter().chain(residuals).any(|value| !value.is_finite()) {
+    if point_forecast
+        .iter()
+        .chain(residuals)
+        .any(|value| !value.is_finite())
+    {
         return Err(AdvancedForecastError::NonFiniteInput);
     }
     if residuals.is_empty() {
@@ -356,8 +369,8 @@ fn quantile(sorted: &[f64], quantile_ppm: u32) -> f64 {
     if sorted.len() == 1 {
         return sorted[0];
     }
-    let numerator = u128::from(quantile_ppm)
-        * u128::try_from(sorted.len() - 1).expect("usize fits u128");
+    let numerator =
+        u128::from(quantile_ppm) * u128::try_from(sorted.len() - 1).expect("usize fits u128");
     let index = numerator / u128::from(PROBABILITY_SCALE_PPM);
     sorted[usize::try_from(index).expect("quantile index fits usize")]
 }

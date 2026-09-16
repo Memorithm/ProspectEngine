@@ -14,10 +14,17 @@ impl fmt::Display for AdvancedCausalError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Base(error) => write!(formatter, "{error}"),
-            Self::SameVariable => formatter.write_str("causal front-door/IV variables must be distinct"),
-            Self::UnknownVariable(index) => write!(formatter, "unknown causal variable index {index}"),
+            Self::SameVariable => {
+                formatter.write_str("causal front-door/IV variables must be distinct")
+            }
+            Self::UnknownVariable(index) => {
+                write!(formatter, "unknown causal variable index {index}")
+            }
             Self::AdjustmentContainsEndpoint(index) => {
-                write!(formatter, "instrument adjustment contains an endpoint {index}")
+                write!(
+                    formatter,
+                    "instrument adjustment contains an endpoint {index}"
+                )
             }
         }
     }
@@ -68,19 +75,14 @@ pub fn identify_front_door(
     } else if !has_directed_path(dag, mediator, outcome, None) {
         FrontDoorVerdict::Violated(FrontDoorViolation::OutcomeNotDownstreamOfMediator)
     } else if has_directed_path(dag, treatment, outcome, Some(mediator)) {
-        FrontDoorVerdict::Violated(
-            FrontDoorViolation::DirectedTreatmentOutcomePathBypassesMediator,
-        )
-    } else if check_backdoor_criterion(dag, treatment, mediator, &[])?
-        != BackdoorVerdict::Satisfied
+        FrontDoorVerdict::Violated(FrontDoorViolation::DirectedTreatmentOutcomePathBypassesMediator)
+    } else if check_backdoor_criterion(dag, treatment, mediator, &[])? != BackdoorVerdict::Satisfied
     {
         FrontDoorVerdict::Violated(FrontDoorViolation::TreatmentMediatorBackdoorOpen)
     } else if check_backdoor_criterion(dag, mediator, outcome, &[treatment])?
         != BackdoorVerdict::Satisfied
     {
-        FrontDoorVerdict::Violated(
-            FrontDoorViolation::MediatorOutcomeBackdoorNotBlockedByTreatment,
-        )
+        FrontDoorVerdict::Violated(FrontDoorViolation::MediatorOutcomeBackdoorNotBlockedByTreatment)
     } else {
         FrontDoorVerdict::Satisfied
     };
@@ -237,16 +239,15 @@ mod tests {
     #[test]
     fn front_door_certificate_accepts_canonical_structure_with_xy_confounding() {
         // U=0, X=1, M=2, Y=3. U confounds X/Y, while M mediates X -> Y.
-        let dag = CausalDag::new(4, &[(0, 1), (0, 3), (1, 2), (2, 3)])
-            .expect("valid front-door DAG");
+        let dag =
+            CausalDag::new(4, &[(0, 1), (0, 3), (1, 2), (2, 3)]).expect("valid front-door DAG");
         let certificate = identify_front_door(&dag, 1, 2, 3).expect("front-door certificate");
         assert_eq!(certificate.verdict, FrontDoorVerdict::Satisfied);
     }
 
     #[test]
     fn front_door_rejects_direct_path_bypassing_mediator() {
-        let dag = CausalDag::new(4, &[(0, 1), (0, 3), (1, 2), (2, 3), (1, 3)])
-            .expect("valid DAG");
+        let dag = CausalDag::new(4, &[(0, 1), (0, 3), (1, 2), (2, 3), (1, 3)]).expect("valid DAG");
         let certificate = identify_front_door(&dag, 1, 2, 3).expect("front-door query");
         assert_eq!(
             certificate.verdict,
@@ -259,19 +260,16 @@ mod tests {
     #[test]
     fn iv_certificate_accepts_relevant_exogenous_excluded_instrument() {
         // U=0 confounds X=2 and Y=3; Z=1 affects X but has no other route to Y.
-        let dag = CausalDag::new(4, &[(0, 2), (0, 3), (1, 2), (2, 3)])
-            .expect("valid IV DAG");
-        let certificate = identify_instrumental_variable(&dag, 1, 2, 3, &[])
-            .expect("IV certificate");
+        let dag = CausalDag::new(4, &[(0, 2), (0, 3), (1, 2), (2, 3)]).expect("valid IV DAG");
+        let certificate =
+            identify_instrumental_variable(&dag, 1, 2, 3, &[]).expect("IV certificate");
         assert_eq!(certificate.verdict, InstrumentVerdict::Satisfied);
     }
 
     #[test]
     fn iv_certificate_rejects_direct_effect_on_outcome() {
-        let dag = CausalDag::new(4, &[(0, 2), (0, 3), (1, 2), (2, 3), (1, 3)])
-            .expect("valid DAG");
-        let certificate = identify_instrumental_variable(&dag, 1, 2, 3, &[])
-            .expect("IV query");
+        let dag = CausalDag::new(4, &[(0, 2), (0, 3), (1, 2), (2, 3), (1, 3)]).expect("valid DAG");
+        let certificate = identify_instrumental_variable(&dag, 1, 2, 3, &[]).expect("IV query");
         assert_eq!(
             certificate.verdict,
             InstrumentVerdict::Violated(InstrumentViolation::ExclusionRestrictionViolated)
@@ -281,13 +279,9 @@ mod tests {
     #[test]
     fn iv_certificate_rejects_instrument_outcome_confounding() {
         // W=0 confounds Z=1 and Y=4; U=2 confounds X=3/Y=4.
-        let dag = CausalDag::new(
-            5,
-            &[(0, 1), (0, 4), (2, 3), (2, 4), (1, 3), (3, 4)],
-        )
-        .expect("valid DAG");
-        let certificate = identify_instrumental_variable(&dag, 1, 3, 4, &[])
-            .expect("IV query");
+        let dag = CausalDag::new(5, &[(0, 1), (0, 4), (2, 3), (2, 4), (1, 3), (3, 4)])
+            .expect("valid DAG");
+        let certificate = identify_instrumental_variable(&dag, 1, 3, 4, &[]).expect("IV query");
         assert_eq!(
             certificate.verdict,
             InstrumentVerdict::Violated(InstrumentViolation::InstrumentOutcomeBackdoorOpen)
