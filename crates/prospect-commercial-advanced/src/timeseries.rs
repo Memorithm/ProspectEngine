@@ -262,7 +262,7 @@ fn fit_arma_hannan_rissanen(
         return Err(TimeSeriesError::EmptySeries);
     }
     let max_requested_lag = ar_lags.iter().chain(&ma_lags).copied().max().unwrap_or(0);
-    if ar_lags.iter().any(|lag| *lag == 0) || ma_lags.iter().any(|lag| *lag == 0) {
+    if ar_lags.contains(&0) || ma_lags.contains(&0) {
         return Err(TimeSeriesError::InvalidOrder);
     }
 
@@ -436,8 +436,8 @@ fn solve_linear_system(mut matrix: Vec<Vec<f64>>, mut rhs: Vec<f64>) -> Option<V
     for column in 0..width {
         let mut pivot_row = column;
         let mut pivot_value = matrix[column][column].abs();
-        for row in (column + 1)..width {
-            let candidate = matrix[row][column].abs();
+        for (row, values) in matrix.iter().enumerate().skip(column + 1) {
+            let candidate = values[column].abs();
             if candidate > pivot_value {
                 pivot_value = candidate;
                 pivot_row = row;
@@ -463,8 +463,8 @@ fn solve_linear_system(mut matrix: Vec<Vec<f64>>, mut rhs: Vec<f64>) -> Option<V
     let mut solution = vec![0.0; width];
     for row in (0..width).rev() {
         let mut value = rhs[row];
-        for column in (row + 1)..width {
-            value -= matrix[row][column] * solution[column];
+        for (coefficient, solved) in matrix[row][row + 1..].iter().zip(&solution[row + 1..]) {
+            value -= coefficient * solved;
         }
         solution[row] = value / matrix[row][row];
         if !solution[row].is_finite() {
