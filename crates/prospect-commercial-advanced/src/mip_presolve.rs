@@ -3,6 +3,8 @@ use crate::mixed_integer::{MixedIntegerProblem, MixedVariable, MixedVariableKind
 use crate::optimization::ConstraintRelation;
 use core::fmt;
 
+const MAX_EXACT_F64_INTEGER: f64 = 9_007_199_254_740_992.0;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MixedIntegerPresolveConfig {
     pub maximum_passes: u64,
@@ -63,7 +65,8 @@ impl std::error::Error for MixedIntegerPresolveError {}
 /// current variable box, proves row infeasibility when the whole attainable
 /// interval lies on the wrong side of the relation, and tightens one variable
 /// at a time from the most favorable attainable contribution of all others.
-/// Integer bounds are rounded inward after a safe linear bound is derived.
+/// Integer bounds are rounded inward after a safe linear bound is derived and
+/// remain restricted to the exact-`f64` integer range.
 ///
 /// The routine deliberately keeps the original dimensionality and every row in
 /// the returned problem. `redundant_constraints` is evidence only; rows are not
@@ -90,8 +93,13 @@ pub fn presolve_mixed_integer_bounds(
 
         for constraint in &reduced.constraints {
             let (minimum, maximum) = row_interval(constraint, &reduced.variables)?;
-            if row_infeasible(constraint.relation, minimum, maximum, constraint.rhs, config.tolerance)
-            {
+            if row_infeasible(
+                constraint.relation,
+                minimum,
+                maximum,
+                constraint.rhs,
+                config.tolerance,
+            ) {
                 return Err(MixedIntegerPresolveError::Infeasible);
             }
             tighten_from_constraint(
@@ -111,7 +119,9 @@ pub fn presolve_mixed_integer_bounds(
             }
             if variable.kind == MixedVariableKind::Integer
                 && (variable.lower != variable.lower.round()
-                    || variable.upper != variable.upper.round())
+                    || variable.upper != variable.upper.round()
+                    || variable.lower.abs() > MAX_EXACT_F64_INTEGER
+                    || variable.upper.abs() > MAX_EXACT_F64_INTEGER)
             {
                 return Err(MixedIntegerPresolveError::InvalidBounds { variable: index });
             }
@@ -131,10 +141,22 @@ pub fn presolve_mixed_integer_bounds(
     let mut redundant_constraints = Vec::new();
     for (index, constraint) in reduced.constraints.iter().enumerate() {
         let (minimum, maximum) = row_interval(constraint, &reduced.variables)?;
-        if row_infeasible(constraint.relation, minimum, maximum, constraint.rhs, config.tolerance) {
+        if row_infeasible(
+            constraint.relation,
+            minimum,
+            maximum,
+            constraint.rhs,
+            config.tolerance,
+        ) {
             return Err(MixedIntegerPresolveError::Infeasible);
         }
-        if row_redundant(constraint.relation, minimum, maximum, constraint.rhs, config.tolerance) {
+        if row_redundant(
+            constraint.relation,
+            minimum,
+            maximum,
+            constraint.rhs,
+            config.tolerance,
+        ) {
             redundant_constraints.push(index);
         }
     }
@@ -143,7 +165,13 @@ pub fn presolve_mixed_integer_bounds(
         .iter()
         .enumerate()
         .filter_map(|(index, variable)| {
-            ((variable.upper - variable.lower).abs() <= config.tolerance).then_some(index)
+            let fixed = match variable.kind {
+                MixedVariableKind::Integer => variable.lower == variable.upper,
+                MixedVariableKind::Continuous => {
+                    (variable.upper - variable.lower).abs() <= config.tolerance
+                }
+            };
+            fixed.then_some(index)
         })
         .collect();
 
@@ -333,7 +361,9 @@ fn validate(
         }
         if variable.kind == MixedVariableKind::Integer
             && (variable.lower != variable.lower.round()
-                || variable.upper != variable.upper.round())
+                || variable.upper != variable.upper.round()
+                || variable.lower.abs() > MAX_EXACT_F64_INTEGER
+                || variable.upper.abs() > MAX_EXACT_F64_INTEGER)
         {
             return Err(MixedIntegerPresolveError::InvalidBounds { variable: index });
         }
@@ -343,7 +373,10 @@ fn validate(
             return Err(MixedIntegerPresolveError::ConstraintWidthMismatch);
         }
         if !constraint.rhs.is_finite()
-            || constraint.coefficients.iter().any(|value| !value.is_finite())
+            || constraint
+                .coefficients
+                .iter()
+                .any(|value| !value.is_finite())
         {
             return Err(MixedIntegerPresolveError::NonFiniteInput);
         }
@@ -455,5 +488,32 @@ mod tests {
         .expect("presolve");
         assert_eq!(report.redundant_constraints, vec![0]);
         assert_eq!(report.problem.constraints.len(), 1);
+    }
+
+    #[test]
+    fn integer_bounds_outside_exact_f64_range_fail_closed() {
+        let problem = MixedIntegerProblem {
+            variables: vec![MixedVariable {
+                lower: 0.0,
+                upper: MAX_EXACT_F64_INTEGER + 2.0,
+                objective_coefficient: 0.0,
+                kind: MixedVariableKind::Integer,
+            }],
+            constraints: Vec::new(),
+            lp_tolerance: 1e-9,
+            integrality_tolerance: 1e-8,
+            maximum_nodes: 10,
+            maximum_lp_iterations_per_node: 10,
+        };
+        assert_eq!(
+            presolve_mixed_integer_bounds(
+                &problem,
+                MixedIntegerPresolveConfig {
+                    maximum_passes: 2,
+                    tolerance: 1e-9,
+                }
+            ),
+            Err(MixedIntegerPresolveError::InvalidBounds { variable: 0 })
+        );
     }
 }
