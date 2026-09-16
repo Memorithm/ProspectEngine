@@ -14,6 +14,7 @@ members = [
     "crates/prospect-kv-position",
     "crates/prospect-kv-position-observed",
     "crates/prospect-kv-position-campaign",
+    "crates/prospect-commercial",
     "crates/prospect-cli",
     "crates/prospect-adapter",
     "crates/prospect-registry",
