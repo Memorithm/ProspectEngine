@@ -24,8 +24,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: r2-interop-${{ github.ref }}
-  cancel-in-progress: true
+  group: r2-interop-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   contract:
