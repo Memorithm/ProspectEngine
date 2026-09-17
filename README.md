@@ -137,4 +137,8 @@ Research implementation. No production, safety, regulatory, financial-performanc
 
 Copyright 2026 Tarek Zekriti.
 
-PolyForm Noncommercial License 1.0.0. See `LICENSE` and `LICENSE.md`.
+ProspectEngine-owned source code is available under PolyForm Noncommercial
+License 1.0.0. See `LICENSE`, `LICENSE.md`, and `LICENSING.md`. Commercial use
+is not granted by the noncommercial license; a separate written commercial
+agreement may be obtained from the copyright holder. Third-party material
+remains under its own applicable terms.
