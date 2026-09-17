@@ -34,8 +34,12 @@ pub enum GlobalDisjunctiveError {
 impl fmt::Display for GlobalDisjunctiveError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyTasks => formatter.write_str("global disjunctive propagation requires tasks"),
-            Self::EmptyDomain { task } => write!(formatter, "task {task} has an empty start domain"),
+            Self::EmptyTasks => {
+                formatter.write_str("global disjunctive propagation requires tasks")
+            }
+            Self::EmptyDomain { task } => {
+                write!(formatter, "task {task} has an empty start domain")
+            }
             Self::InvalidDuration { task } => write!(formatter, "task {task} has invalid duration"),
             Self::InvalidSearchBudget => {
                 formatter.write_str("global disjunctive search budget must be non-zero")

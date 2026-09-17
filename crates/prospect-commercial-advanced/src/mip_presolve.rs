@@ -41,7 +41,10 @@ impl fmt::Display for MixedIntegerPresolveError {
             }
             Self::NonFiniteInput => formatter.write_str("MIP presolve inputs must be finite"),
             Self::InvalidBounds { variable } => {
-                write!(formatter, "MIP presolve variable {variable} has invalid bounds")
+                write!(
+                    formatter,
+                    "MIP presolve variable {variable} has invalid bounds"
+                )
             }
             Self::InvalidTolerance => {
                 formatter.write_str("MIP presolve tolerance must be finite and positive")
@@ -199,7 +202,11 @@ fn tighten_from_constraint(
         ConstraintRelation::GreaterOrEqual => {
             // a.x >= b  <=>  (-a).x <= -b
             let negated = GeneralLinearConstraint {
-                coefficients: constraint.coefficients.iter().map(|value| -*value).collect(),
+                coefficients: constraint
+                    .coefficients
+                    .iter()
+                    .map(|value| -*value)
+                    .collect(),
                 relation: ConstraintRelation::LessOrEqual,
                 rhs: -constraint.rhs,
             };
@@ -208,7 +215,11 @@ fn tighten_from_constraint(
         ConstraintRelation::Equal => {
             tighten_less_or_equal(constraint, variables, tolerance, tightened_bounds)?;
             let negated = GeneralLinearConstraint {
-                coefficients: constraint.coefficients.iter().map(|value| -*value).collect(),
+                coefficients: constraint
+                    .coefficients
+                    .iter()
+                    .map(|value| -*value)
+                    .collect(),
                 relation: ConstraintRelation::LessOrEqual,
                 rhs: -constraint.rhs,
             };
@@ -292,15 +303,9 @@ fn row_interval(
     let mut maximum = 0.0_f64;
     for (coefficient, variable) in constraint.coefficients.iter().zip(variables) {
         let (low, high) = if *coefficient >= 0.0 {
-            (
-                *coefficient * variable.lower,
-                *coefficient * variable.upper,
-            )
+            (*coefficient * variable.lower, *coefficient * variable.upper)
         } else {
-            (
-                *coefficient * variable.upper,
-                *coefficient * variable.lower,
-            )
+            (*coefficient * variable.upper, *coefficient * variable.lower)
         };
         minimum += low;
         maximum += high;

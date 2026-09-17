@@ -223,10 +223,7 @@ fn validate_design(
     Ok((control_width, instrument_width))
 }
 
-fn design_matrix(
-    controls: &[Vec<f64>],
-    instruments: Option<&[Vec<f64>]>,
-) -> Vec<Vec<f64>> {
+fn design_matrix(controls: &[Vec<f64>], instruments: Option<&[Vec<f64>]>) -> Vec<Vec<f64>> {
     controls
         .iter()
         .enumerate()
@@ -392,7 +389,12 @@ fn invert_matrix(mut matrix: Vec<Vec<f64>>) -> Result<Vec<Vec<f64>>, MultiInstru
 fn matrix_vector_product(matrix: &[Vec<f64>], vector: &[f64]) -> Vec<f64> {
     matrix
         .iter()
-        .map(|row| row.iter().zip(vector).map(|(left, right)| left * right).sum())
+        .map(|row| {
+            row.iter()
+                .zip(vector)
+                .map(|(left, right)| left * right)
+                .sum()
+        })
         .collect()
 }
 
@@ -432,12 +434,7 @@ mod tests {
 
     fn fixture() -> (Vec<Vec<f64>>, Vec<f64>, Vec<Vec<f64>>) {
         let instruments: Vec<Vec<f64>> = (0..16)
-            .map(|index| {
-                vec![
-                    (index % 2) as f64,
-                    ((index / 2) % 2) as f64,
-                ]
-            })
+            .map(|index| vec![(index % 2) as f64, ((index / 2) % 2) as f64])
             .collect();
         let controls: Vec<Vec<f64>> = (0..16).map(|index| vec![index as f64]).collect();
         let treatment = (0..16)
@@ -462,21 +459,22 @@ mod tests {
             .expect("multi-instrument first stage");
         assert_eq!(diagnostic.instruments, 2);
         assert!(diagnostic.partial_r_squared > 0.95);
-        assert!(diagnostic
-            .homoskedastic_f_statistic
-            .is_some_and(|statistic| statistic > 1.0));
-        assert!(diagnostic
-            .robust_wald_chi_square
-            .is_some_and(|statistic| statistic > 1.0));
+        assert!(
+            diagnostic
+                .homoskedastic_f_statistic
+                .is_some_and(|statistic| statistic > 1.0)
+        );
+        assert!(
+            diagnostic
+                .robust_wald_chi_square
+                .is_some_and(|statistic| statistic > 1.0)
+        );
     }
 
     #[test]
     fn zero_incremental_instrument_block_has_zero_ordinary_f() {
         let (instruments, _, controls) = fixture();
-        let treatment: Vec<f64> = controls
-            .iter()
-            .map(|row| 2.0 + 0.5 * row[0])
-            .collect();
+        let treatment: Vec<f64> = controls.iter().map(|row| 2.0 + 0.5 * row[0]).collect();
         let diagnostic = multi_instrument_first_stage(&instruments, &treatment, &controls)
             .expect("zero incremental relevance");
         assert!(diagnostic.partial_r_squared <= 1e-12);
@@ -501,22 +499,12 @@ mod tests {
                 4.0 + 0.2 * index as f64 + 3.0 * treatment + noise
             })
             .collect();
-        let true_null = multi_instrument_anderson_rubin(
-            &instruments,
-            &treatment,
-            &outcome,
-            &controls,
-            3.0,
-        )
-        .expect("true-null diagnostic");
-        let wrong_null = multi_instrument_anderson_rubin(
-            &instruments,
-            &treatment,
-            &outcome,
-            &controls,
-            0.0,
-        )
-        .expect("wrong-null diagnostic");
+        let true_null =
+            multi_instrument_anderson_rubin(&instruments, &treatment, &outcome, &controls, 3.0)
+                .expect("true-null diagnostic");
+        let wrong_null =
+            multi_instrument_anderson_rubin(&instruments, &treatment, &outcome, &controls, 0.0)
+                .expect("wrong-null diagnostic");
         assert!(true_null.block.partial_r_squared < wrong_null.block.partial_r_squared);
     }
 
@@ -529,7 +517,9 @@ mod tests {
             })
             .collect();
         let controls: Vec<Vec<f64>> = (0..8).map(|index| vec![index as f64]).collect();
-        let treatment: Vec<f64> = (0..8).map(|index| index as f64 + instruments[index][0]).collect();
+        let treatment: Vec<f64> = (0..8)
+            .map(|index| index as f64 + instruments[index][0])
+            .collect();
         assert_eq!(
             multi_instrument_first_stage(&instruments, &treatment, &controls),
             Err(MultiInstrumentIvError::SingularDesign)

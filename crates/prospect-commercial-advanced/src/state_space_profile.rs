@@ -1,7 +1,7 @@
 use crate::state_space::LocalLinearTrendConfig;
 use crate::state_space_optimization::{
-    optimize_local_linear_trend_likelihood, StateSpaceOptimizationConfig,
-    StateSpaceOptimizationError, VarianceBounds,
+    StateSpaceOptimizationConfig, StateSpaceOptimizationError, VarianceBounds,
+    optimize_local_linear_trend_likelihood,
 };
 use core::fmt;
 
@@ -61,9 +61,8 @@ impl fmt::Display for StateSpaceProfileError {
             Self::DuplicateGridPoint => {
                 formatter.write_str("state-space profile grid values must be unique")
             }
-            Self::GridPointOutsideBounds => formatter.write_str(
-                "state-space profile grid value lies outside the optimization bounds",
-            ),
+            Self::GridPointOutsideBounds => formatter
+                .write_str("state-space profile grid value lies outside the optimization bounds"),
             Self::InvalidTotalBudget => {
                 formatter.write_str("state-space profile total evaluation budget must be non-zero")
             }
@@ -77,7 +76,10 @@ impl fmt::Display for StateSpaceProfileError {
                 formatter.write_str("state-space profile contains no usable likelihood point")
             }
             Self::Optimization(error) => {
-                write!(formatter, "state-space profile optimization failed: {error}")
+                write!(
+                    formatter,
+                    "state-space profile optimization failed: {error}"
+                )
             }
         }
     }
@@ -173,16 +175,18 @@ pub fn profile_local_linear_trend_variance(
 
     let points = raw
         .into_iter()
-        .map(|(variance, log_likelihood, nuisance_optimum, evaluations)| {
-            let deviance = 2.0 * (maximum_log_likelihood - log_likelihood);
-            ProfileLikelihoodPoint {
-                variance,
-                log_likelihood,
-                deviance_from_profile_maximum: deviance.max(0.0),
-                nuisance_optimum,
-                evaluations,
-            }
-        })
+        .map(
+            |(variance, log_likelihood, nuisance_optimum, evaluations)| {
+                let deviance = 2.0 * (maximum_log_likelihood - log_likelihood);
+                ProfileLikelihoodPoint {
+                    variance,
+                    log_likelihood,
+                    deviance_from_profile_maximum: deviance.max(0.0),
+                    nuisance_optimum,
+                    evaluations,
+                }
+            },
+        )
         .collect();
 
     Ok(ProfileLikelihoodReport {
@@ -303,10 +307,12 @@ mod tests {
         .expect("profile");
         assert_eq!(first, second);
         assert_eq!(first.points.len(), grid.len());
-        assert!(first
-            .points
-            .iter()
-            .any(|point| point.deviance_from_profile_maximum == 0.0));
+        assert!(
+            first
+                .points
+                .iter()
+                .any(|point| point.deviance_from_profile_maximum == 0.0)
+        );
         assert!(first.total_evaluations <= 400);
     }
 

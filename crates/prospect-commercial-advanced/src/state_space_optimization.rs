@@ -78,14 +78,19 @@ pub fn optimize_local_linear_trend_likelihood(
         midpoint(config.trend_process),
         midpoint(config.measurement),
     ];
-    let bounds = [config.level_process, config.trend_process, config.measurement];
+    let bounds = [
+        config.level_process,
+        config.trend_process,
+        config.measurement,
+    ];
     let mut evaluations = 0_u64;
     let mut accepted_moves = 0_u64;
     let mut step_fraction = 0.5_f64;
     let mut best = evaluate(series, point, config.initial_variance)?;
     evaluations = evaluations.saturating_add(1);
 
-    while evaluations < config.maximum_evaluations && step_fraction >= config.minimum_step_fraction {
+    while evaluations < config.maximum_evaluations && step_fraction >= config.minimum_step_fraction
+    {
         let mut improved = false;
         for dimension in 0..3 {
             if evaluations >= config.maximum_evaluations {
@@ -161,9 +166,13 @@ fn evaluate(
 }
 
 fn validate(config: StateSpaceOptimizationConfig) -> Result<(), StateSpaceOptimizationError> {
-    for (index, bounds) in [config.level_process, config.trend_process, config.measurement]
-        .into_iter()
-        .enumerate()
+    for (index, bounds) in [
+        config.level_process,
+        config.trend_process,
+        config.measurement,
+    ]
+    .into_iter()
+    .enumerate()
     {
         if !bounds.minimum.is_finite()
             || !bounds.maximum.is_finite()

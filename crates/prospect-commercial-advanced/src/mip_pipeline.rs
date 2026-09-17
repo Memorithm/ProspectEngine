@@ -1,9 +1,10 @@
 use crate::mip_presolve::{
-    presolve_mixed_integer_bounds, MixedIntegerPresolveConfig, MixedIntegerPresolveError,
-    MixedIntegerPresolveReport,
+    MixedIntegerPresolveConfig, MixedIntegerPresolveError, MixedIntegerPresolveReport,
+    presolve_mixed_integer_bounds,
 };
 use crate::mixed_integer::{
-    solve_mixed_integer_branch_and_bound, MixedIntegerError, MixedIntegerProblem, MixedIntegerSolution,
+    MixedIntegerError, MixedIntegerProblem, MixedIntegerSolution,
+    solve_mixed_integer_branch_and_bound,
 };
 use core::fmt;
 
@@ -23,7 +24,9 @@ impl fmt::Display for PresolvedMixedIntegerError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Presolve(error) => write!(formatter, "mixed-integer presolve failed: {error}"),
-            Self::Solve(error) => write!(formatter, "presolved mixed-integer search failed: {error}"),
+            Self::Solve(error) => {
+                write!(formatter, "presolved mixed-integer search failed: {error}")
+            }
         }
     }
 }

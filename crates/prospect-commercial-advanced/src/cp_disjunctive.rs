@@ -35,8 +35,12 @@ impl fmt::Display for DisjunctivePropagationError {
             Self::EmptyTasks => formatter.write_str("disjunctive propagation requires tasks"),
             Self::EmptyDomain { task } => write!(formatter, "task {task} has an empty domain"),
             Self::InvalidDuration { task } => write!(formatter, "task {task} has invalid duration"),
-            Self::ArithmeticOverflow => formatter.write_str("disjunctive timing arithmetic overflow"),
-            Self::Infeasible => formatter.write_str("pairwise disjunctive propagation proved infeasibility"),
+            Self::ArithmeticOverflow => {
+                formatter.write_str("disjunctive timing arithmetic overflow")
+            }
+            Self::Infeasible => {
+                formatter.write_str("pairwise disjunctive propagation proved infeasibility")
+            }
         }
     }
 }
@@ -78,19 +82,15 @@ pub fn propagate_pairwise_disjunctive(
                     if left == right {
                         continue;
                     }
-                    let has_support = current[right]
-                        .start_domain
-                        .iter()
-                        .copied()
-                        .any(|other| {
-                            non_overlapping(
-                                candidate,
-                                current[left].duration,
-                                other,
-                                current[right].duration,
-                            )
-                            .unwrap_or(false)
-                        });
+                    let has_support = current[right].start_domain.iter().copied().any(|other| {
+                        non_overlapping(
+                            candidate,
+                            current[left].duration,
+                            other,
+                            current[right].duration,
+                        )
+                        .unwrap_or(false)
+                    });
                     if !has_support {
                         continue 'candidate;
                     }
@@ -186,12 +186,7 @@ fn all_pairs_force_before(
             .checked_add(before.duration)
             .ok_or(DisjunctivePropagationError::ArithmeticOverflow)?;
         for after_start in &after.start_domain {
-            if non_overlapping(
-                *before_start,
-                before.duration,
-                *after_start,
-                after.duration,
-            )? {
+            if non_overlapping(*before_start, before.duration, *after_start, after.duration)? {
                 saw_supported_pair = true;
                 if before_end > *after_start {
                     return Ok(false);
@@ -223,7 +218,10 @@ mod tests {
         assert_eq!(report.removed_starts, 2);
         assert_eq!(
             report.forced_precedences,
-            vec![ForcedPrecedence { before: 0, after: 1 }]
+            vec![ForcedPrecedence {
+                before: 0,
+                after: 1
+            }]
         );
     }
 
