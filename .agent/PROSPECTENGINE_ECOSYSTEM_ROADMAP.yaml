@@ -1,0 +1,22 @@
+schema_version: 1
+kind: prospectengine_ecosystem_roadmap
+status: active
+last_updated: "2026-09-27"
+repository: Memorithm/ProspectEngine
+merge_policy: never_merge_this_file_to_default_branch_unless_user_explicitly_requests
+mission:
+  role: prospective_scenario_and_intervention_task_consumer
+  boundary: ProspectEngine_owns_scenario_and_evidence_semantics_not_task_lifecycle
+ax_task_program:
+  external_reference: google_ax_architecture_only
+  objective: >-
+    Bind scenario evaluation and admissible-intervention analysis to exact task
+    inputs, explicit resource envelopes and immutable evidence outputs.
+  phases:
+    - AXPE1_pin_adapter_scenario_catalog_and_upstream_contract_identity
+    - AXPE2_attach_resource_and_time_envelopes_to_scenario_evaluation
+    - AXPE3_isolate_parallel_intervention_comparisons
+    - AXPE4_bind_task_attempt_to_existing_evidence_bundle_provenance
+  invariants:
+    - capability_declaration_does_not_establish_model_quality_or_physical_effect
+    - task_success_does_not_select_an_intervention_by_itself
